@@ -1,12 +1,15 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { DragEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import {
+  ClipboardCheck,
   Database,
   FileArchive,
   FilePlus2,
+  FileUp,
   FolderPlus,
   Layers3,
+  Loader2,
   RefreshCcw,
   SquarePen,
   Upload
@@ -21,7 +24,8 @@ import {
   listProjects,
   listRevisionDocuments,
   ProjectDetail,
-  ProjectSummary
+  ProjectSummary,
+  runSheetAudit
 } from "@/lib/projects-api";
 import { MemoryPanel } from "@/components/memory-panel";
 import { SheetViewer } from "@/components/sheet-viewer";
@@ -59,6 +63,15 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function titleFromFileName(fileName: string) {
+  return fileName
+    .replace(/\.[^.]+$/, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(null);
@@ -72,6 +85,10 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isQuickImporting, setIsQuickImporting] = useState(false);
+  const [isDraggingPdf, setIsDraggingPdf] = useState(false);
+  const [quickStatus, setQuickStatus] = useState("");
+  const [importedAuditVersion, setImportedAuditVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const selectedSummary = useMemo(
@@ -245,6 +262,54 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
     }
   }
 
+  async function importPdfIntoWorkspace(file: File, options?: { createNewRevision?: boolean }) {
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      throw new Error("Selecione um arquivo PDF.");
+    }
+
+    setError(null);
+    setQuickStatus("Preparando projeto e revisao...");
+
+    let targetProject = selectedProject;
+    if (!targetProject) {
+      const projectName = titleFromFileName(file.name) || "Projeto importado";
+      targetProject = await createProject(apiBaseUrl, {
+        name: projectName,
+        description: `Criado automaticamente a partir de ${file.name}.`
+      });
+      setProjectForm(initialProjectForm);
+    }
+
+    let targetRevision =
+      !options?.createNewRevision && targetProject.id === selectedProject?.id ? selectedRevision : null;
+
+    if (!targetRevision) {
+      targetRevision = await createRevision(apiBaseUrl, targetProject.id, {
+        notes: `Revisao criada automaticamente na importacao de ${file.name}.`,
+        source_type: "pdf_placeholder",
+        original_filename: file.name
+      });
+      setRevisionForm(initialRevisionForm);
+    }
+
+    setQuickStatus("Importando PDF e extraindo folhas...");
+    const imported = await importRevisionDocument(apiBaseUrl, targetProject.id, targetRevision.id, file);
+
+    setSelectedProject(await getProject(apiBaseUrl, targetProject.id));
+    setSelectedRevisionId(targetRevision.id);
+    setDocumentsByRevision((current) => ({
+      ...current,
+      [targetRevision.id]: [imported, ...(current[targetRevision.id] ?? [])]
+    }));
+
+    setQuickStatus(`Rodando verificacoes iniciais em ${imported.sheets.length} folha(s)...`);
+    await Promise.all(imported.sheets.map((sheet) => runSheetAudit(apiBaseUrl, sheet.id)));
+
+    setImportedAuditVersion((current) => current + 1);
+    setQuickStatus("PDF importado, folhas separadas e verificacoes concluidas.");
+    await refreshProjects(targetProject.id);
+  }
+
   async function handleImportDocument(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -256,18 +321,8 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
     setError(null);
 
     try {
-      const imported = await importRevisionDocument(
-        apiBaseUrl,
-        selectedProject.id,
-        selectedRevision.id,
-        uploadFile
-      );
+      await importPdfIntoWorkspace(uploadFile);
       setUploadFile(null);
-      setDocumentsByRevision((current) => ({
-        ...current,
-        [selectedRevision.id]: [imported, ...(current[selectedRevision.id] ?? [])]
-      }));
-      await refreshProjects(selectedProject.id);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Falha ao importar PDF.");
     } finally {
@@ -275,14 +330,38 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
     }
   }
 
+  async function handleQuickFile(file: File | null) {
+    if (!file) {
+      return;
+    }
+
+    setIsQuickImporting(true);
+    setQuickStatus("");
+
+    try {
+      await importPdfIntoWorkspace(file, { createNewRevision: true });
+    } catch (quickError) {
+      setQuickStatus("");
+      setError(quickError instanceof Error ? quickError.message : "Falha ao importar e auditar PDF.");
+    } finally {
+      setIsQuickImporting(false);
+      setIsDraggingPdf(false);
+    }
+  }
+
+  function handleDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setIsDraggingPdf(false);
+    const file = event.dataTransfer.files[0] ?? null;
+    void handleQuickFile(file);
+  }
+
   return (
     <div className="grid flex-1 grid-cols-1 bg-truss-base lg:grid-cols-[360px_minmax(0,1fr)]">
       <aside className="border-b border-truss-line bg-truss-raised lg:border-b-0 lg:border-r">
         <div className="border-b border-truss-line p-5">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-sm font-semibold text-truss-text">
-              Projetos
-            </h2>
+            <h2 className="text-sm font-semibold text-truss-text">Biblioteca</h2>
             <button
               className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-panel text-truss-muted transition-colors hover:border-truss-accent hover:bg-truss-accentSoft hover:text-truss-accent"
               onClick={() => void refreshProjects()}
@@ -295,6 +374,9 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
           </div>
 
           <form className="mt-5 space-y-3" onSubmit={(event) => void handleCreateProject(event)}>
+            <p className="text-xs leading-5 text-truss-muted">
+              Opcional. Se preferir, jogue um PDF na area principal e o projeto sera criado sozinho.
+            </p>
             <label className="block">
               <span className="text-xs font-medium text-truss-muted">
                 Nome
@@ -347,7 +429,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
             </div>
           ) : projects.length === 0 ? (
             <p className="rounded-lg border border-dashed border-truss-line bg-truss-panel p-4 text-sm leading-6 text-truss-muted">
-              Nenhum projeto local ainda. Crie o primeiro registro para iniciar o historico.
+              Nenhum projeto local ainda. Arraste um PDF na area principal para comecar.
             </p>
           ) : (
             <ul className="space-y-2">
@@ -380,6 +462,55 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
             {error}
           </div>
         ) : null}
+
+        <label
+          className="mb-5 block cursor-pointer rounded-lg border border-dashed border-truss-line bg-truss-panel p-5 shadow-[0_1px_2px_rgba(32,43,61,0.04)] transition-colors hover:border-truss-accent hover:bg-truss-accentSoft data-[dragging=true]:border-truss-accent data-[dragging=true]:bg-truss-accentSoft data-[busy=true]:cursor-wait data-[busy=true]:opacity-80"
+          data-busy={isQuickImporting}
+          data-dragging={isDraggingPdf}
+          onDragLeave={() => setIsDraggingPdf(false)}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDraggingPdf(true);
+          }}
+          onDrop={handleDrop}
+        >
+          <input
+            accept="application/pdf"
+            className="sr-only"
+            disabled={isQuickImporting}
+            onChange={(event) => void handleQuickFile(event.target.files?.[0] ?? null)}
+            type="file"
+          />
+          <span className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <span className="flex items-start gap-4">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-truss-accent text-white">
+                {isQuickImporting ? (
+                  <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" />
+                ) : (
+                  <FileUp aria-hidden="true" className="h-5 w-5" />
+                )}
+              </span>
+              <span>
+                <span className="block text-base font-semibold text-truss-text">
+                  Arraste um PDF aqui para revisar
+                </span>
+                <span className="mt-1 block max-w-2xl text-sm leading-6 text-truss-muted">
+                  O Truss cria projeto e revisão quando necessário, separa as folhas e roda as
+                  verificações iniciais automaticamente.
+                </span>
+                {quickStatus ? (
+                  <span className="mt-3 inline-flex items-center gap-2 rounded-md bg-truss-raised px-3 py-2 text-xs font-medium text-truss-muted">
+                    <ClipboardCheck aria-hidden="true" className="h-4 w-4 text-truss-accent" />
+                    {quickStatus}
+                  </span>
+                ) : null}
+              </span>
+            </span>
+            <span className="inline-flex min-h-11 items-center justify-center rounded-lg border border-truss-line bg-truss-raised px-4 text-sm font-semibold text-truss-text">
+              Escolher PDF
+            </span>
+          </span>
+        </label>
 
         {selectedProject ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -464,7 +595,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                   </p>
                 ) : selectedDocuments.length === 0 ? (
                   <p className="p-5 text-sm leading-6 text-truss-muted">
-                    Nenhum PDF importado nesta revisao.
+                    Nenhum PDF importado nesta revisao. Use a area de importacao rapida acima.
                   </p>
                 ) : (
                   <div className="divide-y divide-truss-line">
@@ -504,7 +635,11 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
               </div>
 
               <div className="mt-5">
-                <SheetViewer apiBaseUrl={apiBaseUrl} documents={selectedDocuments} />
+                <SheetViewer
+                  apiBaseUrl={apiBaseUrl}
+                  documents={selectedDocuments}
+                  key={importedAuditVersion}
+                />
               </div>
             </div>
 
@@ -516,7 +651,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                 <div className="flex items-center gap-3">
                   <FilePlus2 aria-hidden="true" className="h-4 w-4 text-truss-accent" />
                   <h3 className="text-sm font-semibold text-truss-text">
-                    Nova revisao
+                    Nova revisao manual
                   </h3>
                 </div>
                 <label className="mt-5 block">
@@ -587,7 +722,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                 <div className="flex items-center gap-3">
                   <FileArchive aria-hidden="true" className="h-4 w-4 text-truss-accent" />
                   <h3 className="text-sm font-semibold text-truss-text">
-                    Importar PDF
+                    Importar PDF em revisao existente
                   </h3>
                 </div>
                 <label className="mt-5 block">
@@ -624,7 +759,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                   type="submit"
                 >
                   <Upload aria-hidden="true" className="h-4 w-4" />
-                  {isUploading ? "Importando..." : "Importar prancha"}
+                  {isUploading ? "Importando e verificando..." : "Importar e verificar"}
                 </button>
               </form>
 
@@ -635,10 +770,11 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
           <div className="flex min-h-[520px] items-center justify-center rounded-lg border border-dashed border-truss-line bg-truss-panel p-6 text-center">
             <div>
               <p className="text-sm font-semibold text-truss-text">
-                Sem projeto ativo
+                Comece pelo PDF
               </p>
               <p className="mt-3 max-w-md text-sm leading-6 text-truss-muted">
-                Crie um projeto na lateral para liberar o registro manual de revisoes.
+                Arraste uma prancha estrutural na area acima. O Truss cria o projeto, registra a
+                revisao e executa as verificacoes iniciais.
               </p>
             </div>
           </div>

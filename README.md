@@ -178,6 +178,10 @@ Servicos padrao:
 - API: `http://localhost:8000`
 - Health check: `http://localhost:8000/health`
 
+## Uso rapido
+
+Abra a web e arraste um PDF estrutural para a area principal. O Truss cria projeto e revisao automaticamente quando necessario, importa o PDF, separa as folhas e executa as verificacoes deterministicas iniciais. Os formularios manuais continuam disponiveis para quando voce quiser controlar nomes, revisoes e contexto.
+
 ## Validacao
 
 ```bash

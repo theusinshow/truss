@@ -47,6 +47,10 @@ Memória + dataset
 
 É possível criar um projeto, importar um PDF estrutural real com uma ou várias pranchas, separar e interpretar as folhas, abrir uma prancha no viewer, executar auditoria gráfica agressiva, visualizar achados diretamente sobre a região correspondente, navegar entre eles, confirmar/rejeitar cada apontamento, adicionar achado manual, responder perguntas do Truss e manter todo o estado salvo localmente.
 
+## Uso rápido
+
+Abra a web e arraste um PDF estrutural para a área principal. O Truss cria projeto e revisão automaticamente quando necessário, importa o PDF, separa as folhas e executa as verificações determinísticas iniciais. Os formulários manuais continuam disponíveis para quando você quiser controlar nomes, revisões e contexto.
+
 ## M1 - Projects + SQLite
 
 M1 adiciona a primeira persistência local:
