@@ -12,3 +12,14 @@ Rationale:
 - this keeps the app local-first and avoids adding a heavier migration/runtime layer before it is needed.
 
 This does not change the architectural decisions in `AGENTS.md`: the backend remains FastAPI, SQLite remains the initial database, and PDFs/renders stay on disk.
+
+## 2026-07-27 - Canonical PDF coordinates
+
+Sheet dimensions and future regions/findings use PDF page points (`pt`) as the canonical coordinate system.
+
+Rationale:
+
+- PDF points are independent from render DPI and browser zoom;
+- rendered PNG pixels can be derived from points through a known scale;
+- findings must remain stable if the page is re-rendered at another resolution;
+- this follows the repository rule that coordinates are first-class data.

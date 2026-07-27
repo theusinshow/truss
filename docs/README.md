@@ -58,3 +58,17 @@ M1 adiciona a primeira persistência local:
 - tela inicial conectada ao backend para gerenciar projetos e revisões.
 
 As rotas FastAPI recebem `Settings` por dependência para permitir testes com banco temporário sem tocar no estado local real.
+
+## M2/M3 - PDF import + viewer inicial
+
+O fluxo visual inicial permite:
+
+- importar PDF real para uma revisão imutável;
+- calcular hash SHA-256 do conteúdo;
+- copiar o arquivo para `data/originals/{project}/{revision}/`;
+- registrar `documents` e `sheets` no SQLite;
+- extrair quantidade de páginas, dimensões em pontos PDF e rotação;
+- renderizar folha sob demanda para PNG em `data/renders/`;
+- visualizar folhas no frontend com navegação, zoom, fit e pan por arrasto.
+
+O contrato de coordenadas inicial usa pontos PDF (`pt`) como sistema canônico. Pixels de render são derivados e não substituem as coordenadas da página.

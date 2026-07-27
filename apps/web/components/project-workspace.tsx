@@ -1,15 +1,29 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Database, FilePlus2, FolderPlus, RefreshCcw, SquarePen } from "lucide-react";
+import {
+  Database,
+  FileArchive,
+  FilePlus2,
+  FolderPlus,
+  Layers3,
+  RefreshCcw,
+  SquarePen,
+  Upload
+} from "lucide-react";
 import {
   createProject,
   createRevision,
+  DocumentDetail,
+  getDocument,
   getProject,
+  importRevisionDocument,
   listProjects,
+  listRevisionDocuments,
   ProjectDetail,
   ProjectSummary
 } from "@/lib/projects-api";
+import { SheetViewer } from "@/components/sheet-viewer";
 
 type ProjectWorkspaceProps = {
   apiBaseUrl: string;
@@ -47,16 +61,36 @@ function formatDate(value: string) {
 export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(null);
+  const [selectedRevisionId, setSelectedRevisionId] = useState("");
+  const [documentsByRevision, setDocumentsByRevision] = useState<Record<string, DocumentDetail[]>>(
+    {}
+  );
   const [projectForm, setProjectForm] = useState<FormState>(initialProjectForm);
   const [revisionForm, setRevisionForm] = useState<RevisionState>(initialRevisionForm);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selectedSummary = useMemo(
     () => projects.find((project) => project.id === selectedProject?.id),
     [projects, selectedProject]
   );
+
+  const selectedRevision = useMemo(() => {
+    if (!selectedProject) {
+      return null;
+    }
+
+    return (
+      selectedProject.revisions.find((revision) => revision.id === selectedRevisionId) ??
+      selectedProject.revisions.at(-1) ??
+      null
+    );
+  }, [selectedProject, selectedRevisionId]);
+
+  const selectedDocuments = selectedRevision ? documentsByRevision[selectedRevision.id] ?? [] : [];
 
   async function refreshProjects(projectIdToSelect?: string) {
     setError(null);
@@ -67,10 +101,28 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
 
     if (nextSelectionId) {
       const detail = await getProject(apiBaseUrl, nextSelectionId);
+      const nextRevisionId = detail.revisions.at(-1)?.id ?? "";
       setSelectedProject(detail);
+      setSelectedRevisionId(nextRevisionId);
+
+      if (nextRevisionId) {
+        await refreshDocuments(detail.id, nextRevisionId);
+      }
     } else {
       setSelectedProject(null);
+      setSelectedRevisionId("");
     }
+  }
+
+  async function refreshDocuments(projectId: string, revisionId: string) {
+    const documents = await listRevisionDocuments(apiBaseUrl, projectId, revisionId);
+    const documentDetails = await Promise.all(
+      documents.map((document) => getDocument(apiBaseUrl, document.id))
+    );
+    setDocumentsByRevision((current) => ({
+      ...current,
+      [revisionId]: documentDetails
+    }));
   }
 
   useEffect(() => {
@@ -87,8 +139,23 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
 
         if (nextProjects[0]) {
           const detail = await getProject(apiBaseUrl, nextProjects[0].id);
+          const nextRevisionId = detail.revisions.at(-1)?.id ?? "";
+          const documents = nextRevisionId
+            ? await listRevisionDocuments(apiBaseUrl, detail.id, nextRevisionId)
+            : [];
+          const documentDetails = await Promise.all(
+            documents.map((document) => getDocument(apiBaseUrl, document.id))
+          );
+
           if (isMounted) {
             setSelectedProject(detail);
+            setSelectedRevisionId(nextRevisionId);
+            if (nextRevisionId) {
+              setDocumentsByRevision((current) => ({
+                ...current,
+                [nextRevisionId]: documentDetails
+              }));
+            }
           }
         }
       } catch (loadError) {
@@ -154,7 +221,57 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
   async function handleSelectProject(projectId: string) {
     setError(null);
     const detail = await getProject(apiBaseUrl, projectId);
+    const nextRevisionId = detail.revisions.at(-1)?.id ?? "";
     setSelectedProject(detail);
+    setSelectedRevisionId(nextRevisionId);
+
+    if (nextRevisionId) {
+      await refreshDocuments(detail.id, nextRevisionId);
+    }
+  }
+
+  async function handleSelectRevision(revisionId: string) {
+    setSelectedRevisionId(revisionId);
+
+    if (!selectedProject || !revisionId || documentsByRevision[revisionId]) {
+      return;
+    }
+
+    try {
+      await refreshDocuments(selectedProject.id, revisionId);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Falha ao carregar documentos.");
+    }
+  }
+
+  async function handleImportDocument(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedProject || !selectedRevision || !uploadFile) {
+      return;
+    }
+
+    setIsUploading(true);
+    setError(null);
+
+    try {
+      const imported = await importRevisionDocument(
+        apiBaseUrl,
+        selectedProject.id,
+        selectedRevision.id,
+        uploadFile
+      );
+      setUploadFile(null);
+      setDocumentsByRevision((current) => ({
+        ...current,
+        [selectedRevision.id]: [imported, ...(current[selectedRevision.id] ?? [])]
+      }));
+      await refreshProjects(selectedProject.id);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Falha ao importar PDF.");
+    } finally {
+      setIsUploading(false);
+    }
   }
 
   return (
@@ -300,8 +417,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
 
                 {selectedProject.revisions.length === 0 ? (
                   <p className="p-5 text-sm leading-6 text-truss-muted">
-                    Nenhuma revisao registrada. M1 permite cadastrar apenas metadados manuais,
-                    sem importar PDF.
+                    Nenhuma revisao registrada. Crie uma revisao para importar PDFs estruturais.
                   </p>
                 ) : (
                   <ol className="divide-y divide-truss-line">
@@ -328,78 +444,185 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                   </ol>
                 )}
               </div>
+
+              <div className="mt-5 border border-truss-line">
+                <div className="flex items-center gap-3 border-b border-truss-line px-5 py-4">
+                  <Layers3 aria-hidden="true" className="h-4 w-4 text-truss-accent" />
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-truss-muted">
+                    PDFs importados
+                  </h3>
+                </div>
+
+                {!selectedRevision ? (
+                  <p className="p-5 text-sm leading-6 text-truss-muted">
+                    Selecione ou crie uma revisao para ver os documentos.
+                  </p>
+                ) : selectedDocuments.length === 0 ? (
+                  <p className="p-5 text-sm leading-6 text-truss-muted">
+                    Nenhum PDF importado nesta revisao.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-truss-line">
+                    {selectedDocuments.map((document) => (
+                      <article className="p-5" key={document.id}>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-truss-text">
+                              {document.original_filename}
+                            </p>
+                            <p className="mt-2 font-mono text-xs text-truss-muted">
+                              {document.page_count} folhas | {(document.file_size_bytes / 1024).toFixed(1)} KB
+                            </p>
+                          </div>
+                          <p className="font-mono text-xs text-truss-muted">
+                            {document.content_hash.slice(0, 12)}
+                          </p>
+                        </div>
+                        {"sheets" in document && document.sheets.length > 0 ? (
+                          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                            {document.sheets.map((sheet) => (
+                              <div className="border border-truss-line px-3 py-2" key={sheet.id}>
+                                <p className="font-mono text-xs font-semibold text-truss-text">
+                                  {sheet.label}
+                                </p>
+                                <p className="mt-1 font-mono text-xs text-truss-muted">
+                                  {Math.round(sheet.width_pt)} x {Math.round(sheet.height_pt)} pt
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5">
+                <SheetViewer apiBaseUrl={apiBaseUrl} documents={selectedDocuments} />
+              </div>
             </div>
 
-            <form
-              className="h-fit border border-truss-line bg-truss-panel p-5"
-              onSubmit={(event) => void handleCreateRevision(event)}
-            >
-              <div className="flex items-center gap-3">
-                <FilePlus2 aria-hidden="true" className="h-4 w-4 text-truss-accent" />
-                <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-truss-muted">
-                  Nova revisao
-                </h3>
-              </div>
-              <label className="mt-5 block">
-                <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
-                  Codigo
-                </span>
-                <input
-                  className="mt-2 w-full border border-truss-line bg-truss-base px-3 py-2 font-mono text-sm text-truss-text outline-none transition-colors placeholder:text-truss-muted/60 focus:border-truss-accent"
-                  maxLength={40}
-                  onChange={(event) =>
-                    setRevisionForm((current) => ({
-                      ...current,
-                      revisionCode: event.target.value
-                    }))
-                  }
-                  placeholder="Automatico: REV-001"
-                  value={revisionForm.revisionCode}
-                />
-              </label>
-              <label className="mt-4 block">
-                <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
-                  Arquivo
-                </span>
-                <input
-                  className="mt-2 w-full border border-truss-line bg-truss-base px-3 py-2 text-sm text-truss-text outline-none transition-colors placeholder:text-truss-muted/60 focus:border-truss-accent"
-                  maxLength={255}
-                  onChange={(event) =>
-                    setRevisionForm((current) => ({
-                      ...current,
-                      originalFilename: event.target.value
-                    }))
-                  }
-                  placeholder="Opcional, ex.: forma-pav01.pdf"
-                  value={revisionForm.originalFilename}
-                />
-              </label>
-              <label className="mt-4 block">
-                <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
-                  Notas
-                </span>
-                <textarea
-                  className="mt-2 min-h-24 w-full resize-none border border-truss-line bg-truss-base px-3 py-2 text-sm text-truss-text outline-none transition-colors placeholder:text-truss-muted/60 focus:border-truss-accent"
-                  maxLength={1000}
-                  onChange={(event) =>
-                    setRevisionForm((current) => ({
-                      ...current,
-                      notes: event.target.value
-                    }))
-                  }
-                  placeholder="Contexto manual da revisao."
-                  value={revisionForm.notes}
-                />
-              </label>
-              <button
-                className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-truss-accent px-3 py-2 text-sm font-semibold text-truss-text transition-colors hover:bg-truss-accent hover:text-truss-base disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={isSubmitting}
-                type="submit"
+            <div className="space-y-5">
+              <form
+                className="h-fit border border-truss-line bg-truss-panel p-5"
+                onSubmit={(event) => void handleCreateRevision(event)}
               >
-                <SquarePen aria-hidden="true" className="h-4 w-4" />
-                Registrar revisao
-              </button>
-            </form>
+                <div className="flex items-center gap-3">
+                  <FilePlus2 aria-hidden="true" className="h-4 w-4 text-truss-accent" />
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-truss-muted">
+                    Nova revisao
+                  </h3>
+                </div>
+                <label className="mt-5 block">
+                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+                    Codigo
+                  </span>
+                  <input
+                    className="mt-2 w-full border border-truss-line bg-truss-base px-3 py-2 font-mono text-sm text-truss-text outline-none transition-colors placeholder:text-truss-muted/60 focus:border-truss-accent"
+                    maxLength={40}
+                    onChange={(event) =>
+                      setRevisionForm((current) => ({
+                        ...current,
+                        revisionCode: event.target.value
+                      }))
+                    }
+                    placeholder="Automatico: REV-001"
+                    value={revisionForm.revisionCode}
+                  />
+                </label>
+                <label className="mt-4 block">
+                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+                    Arquivo
+                  </span>
+                  <input
+                    className="mt-2 w-full border border-truss-line bg-truss-base px-3 py-2 text-sm text-truss-text outline-none transition-colors placeholder:text-truss-muted/60 focus:border-truss-accent"
+                    maxLength={255}
+                    onChange={(event) =>
+                      setRevisionForm((current) => ({
+                        ...current,
+                        originalFilename: event.target.value
+                      }))
+                    }
+                    placeholder="Opcional, ex.: forma-pav01.pdf"
+                    value={revisionForm.originalFilename}
+                  />
+                </label>
+                <label className="mt-4 block">
+                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+                    Notas
+                  </span>
+                  <textarea
+                    className="mt-2 min-h-24 w-full resize-none border border-truss-line bg-truss-base px-3 py-2 text-sm text-truss-text outline-none transition-colors placeholder:text-truss-muted/60 focus:border-truss-accent"
+                    maxLength={1000}
+                    onChange={(event) =>
+                      setRevisionForm((current) => ({
+                        ...current,
+                        notes: event.target.value
+                      }))
+                    }
+                    placeholder="Contexto manual da revisao."
+                    value={revisionForm.notes}
+                  />
+                </label>
+                <button
+                  className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-truss-accent px-3 py-2 text-sm font-semibold text-truss-text transition-colors hover:bg-truss-accent hover:text-truss-base disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isSubmitting}
+                  type="submit"
+                >
+                  <SquarePen aria-hidden="true" className="h-4 w-4" />
+                  Registrar revisao
+                </button>
+              </form>
+
+              <form
+                className="h-fit border border-truss-line bg-truss-panel p-5"
+                onSubmit={(event) => void handleImportDocument(event)}
+              >
+                <div className="flex items-center gap-3">
+                  <FileArchive aria-hidden="true" className="h-4 w-4 text-truss-accent" />
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-truss-muted">
+                    Importar PDF
+                  </h3>
+                </div>
+                <label className="mt-5 block">
+                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+                    Revisao
+                  </span>
+                  <select
+                    className="mt-2 w-full border border-truss-line bg-truss-base px-3 py-2 font-mono text-sm text-truss-text outline-none transition-colors focus:border-truss-accent"
+                    disabled={selectedProject.revisions.length === 0}
+                    onChange={(event) => void handleSelectRevision(event.target.value)}
+                    value={selectedRevision?.id ?? ""}
+                  >
+                    {selectedProject.revisions.map((revision) => (
+                      <option key={revision.id} value={revision.id}>
+                        {revision.revision_code}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="mt-4 block">
+                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+                    PDF
+                  </span>
+                  <input
+                    accept="application/pdf"
+                    className="mt-2 w-full border border-truss-line bg-truss-base px-3 py-2 text-sm text-truss-text file:mr-3 file:border-0 file:bg-truss-accent file:px-3 file:py-1 file:text-sm file:font-semibold file:text-truss-base"
+                    onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+                    type="file"
+                  />
+                </label>
+                <button
+                  className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-truss-accent px-3 py-2 text-sm font-semibold text-truss-text transition-colors hover:bg-truss-accent hover:text-truss-base disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!selectedRevision || !uploadFile || isUploading}
+                  type="submit"
+                >
+                  <Upload aria-hidden="true" className="h-4 w-4" />
+                  {isUploading ? "Importando..." : "Importar prancha"}
+                </button>
+              </form>
+            </div>
           </div>
         ) : (
           <div className="flex min-h-[520px] items-center justify-center border border-truss-line p-6 text-center">

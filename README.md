@@ -72,6 +72,20 @@ M1 adiciona a primeira persistencia local:
 
 As rotas FastAPI recebem `Settings` por dependencia para permitir testes com banco temporario sem tocar no estado local real.
 
+## M2/M3 - PDF import + viewer inicial
+
+O fluxo visual inicial permite:
+
+- importar PDF real para uma revisao imutavel;
+- calcular hash SHA-256 do conteudo;
+- copiar o arquivo para `data/originals/{project}/{revision}/`;
+- registrar `documents` e `sheets` no SQLite;
+- extrair quantidade de paginas, dimensoes em pontos PDF e rotacao;
+- renderizar folha sob demanda para PNG em `data/renders/`;
+- visualizar folhas no frontend com navegacao, zoom, fit e pan por arrasto.
+
+O contrato de coordenadas inicial usa pontos PDF (`pt`) como sistema canonico. Pixels de render sao derivados e nao substituem as coordenadas da pagina.
+
 ## Requisitos locais
 
 - Node.js 20 ou superior

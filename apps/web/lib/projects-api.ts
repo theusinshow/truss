@@ -26,6 +26,39 @@ export type ProjectDetail = Omit<ProjectSummary, "revisions_count" | "latest_rev
   revisions: Revision[];
 };
 
+export type Sheet = {
+  id: string;
+  document_id: string;
+  project_id: string;
+  revision_id: string;
+  page_index: number;
+  sheet_number: number;
+  width_pt: number;
+  height_pt: number;
+  rotation: number;
+  label: string;
+  render_path: string | null;
+  thumbnail_path: string | null;
+  created_at: string;
+};
+
+export type ImportedDocument = {
+  id: string;
+  project_id: string;
+  revision_id: string;
+  original_filename: string;
+  stored_file_path: string;
+  content_hash: string;
+  mime_type: string;
+  file_size_bytes: number;
+  page_count: number;
+  created_at: string;
+};
+
+export type DocumentDetail = ImportedDocument & {
+  sheets: Sheet[];
+};
+
 export type CreateProjectInput = {
   name: string;
   description: string;
@@ -82,4 +115,44 @@ export function createRevision(
     method: "POST",
     body: JSON.stringify(input)
   });
+}
+
+export function listRevisionDocuments(
+  apiBaseUrl: string,
+  projectId: string,
+  revisionId: string
+): Promise<ImportedDocument[]> {
+  return request<ImportedDocument[]>(
+    apiBaseUrl,
+    `/projects/${projectId}/revisions/${revisionId}/documents`
+  );
+}
+
+export function getDocument(apiBaseUrl: string, documentId: string): Promise<DocumentDetail> {
+  return request<DocumentDetail>(apiBaseUrl, `/documents/${documentId}`);
+}
+
+export async function importRevisionDocument(
+  apiBaseUrl: string,
+  projectId: string,
+  revisionId: string,
+  file: File
+): Promise<DocumentDetail> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(
+    `${apiBaseUrl}/projects/${projectId}/revisions/${revisionId}/documents`,
+    {
+      method: "POST",
+      body: formData
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(body || `Request failed with status ${response.status}`);
+  }
+
+  return response.json() as Promise<DocumentDetail>;
 }
