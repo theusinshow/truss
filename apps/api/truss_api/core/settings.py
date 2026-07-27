@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     app_name: str = "Truss Agent"
     environment: str = "local"
     data_dir: Path = REPO_ROOT / "data"
-    ai_provider: Literal["auto", "local", "openai"] = "auto"
+    ai_provider: Literal["auto", "local", "openai"] = "local"
     openai_api_key: SecretStr | None = Field(
         default=None,
         validation_alias=AliasChoices("TRUSS_OPENAI_API_KEY", "OPENAI_API_KEY"),

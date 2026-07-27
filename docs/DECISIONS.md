@@ -48,11 +48,12 @@ Rationale:
 
 ## 2026-07-27 - OpenAI provider uses environment-only secrets
 
-The OpenAI provider is optional and is selected only when the backend receives an API key through `OPENAI_API_KEY` or `TRUSS_OPENAI_API_KEY`, or when `TRUSS_AI_PROVIDER=openai` is explicitly configured.
+The OpenAI provider is optional and is selected only when `TRUSS_AI_PROVIDER=openai` is explicitly configured, or when `TRUSS_AI_PROVIDER=auto` is configured and the backend receives an API key through `OPENAI_API_KEY` or `TRUSS_OPENAI_API_KEY`.
 
 Rationale:
 
 - API keys must not be persisted in SQLite, JSON, browser storage, repository files, or logs;
+- `TRUSS_AI_PROVIDER=local` is the default so an ambient or compromised API key is not used accidentally;
 - `TRUSS_AI_PROVIDER=auto` keeps the app functional without a key by falling back to the local provider;
 - explicit `TRUSS_AI_PROVIDER=openai` fails fast when the key is missing instead of silently pretending to use AI;
 - usage events record provider, model, token counts, and estimated cost when the OpenAI response exposes usage data.

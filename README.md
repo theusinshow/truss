@@ -113,7 +113,7 @@ A aplicacao possui uma primeira abstracao de AI Provider:
 - eventos de uso em `ai_usage_events`;
 - cache de auditoria em `cache_entries`.
 
-Por padrao, `TRUSS_AI_PROVIDER=auto` usa OpenAI quando existe chave no ambiente e cai para o provider local quando nao existe. O provider local registra custo estimado zero. Segredos nunca devem ser salvos em SQLite, JSON, localStorage ou logs.
+Por padrao, `TRUSS_AI_PROVIDER=local` evita qualquer chamada externa. Para usar OpenAI, configure explicitamente `TRUSS_AI_PROVIDER=openai` depois de criar uma chave nova. Tambem existe `TRUSS_AI_PROVIDER=auto`, que usa OpenAI quando existe chave no ambiente e cai para o provider local quando nao existe. O provider local registra custo estimado zero. Segredos nunca devem ser salvos em SQLite, JSON, localStorage ou logs.
 
 ### Configuracao de IA
 
@@ -138,7 +138,7 @@ setx TRUSS_OPENAI_REASONING_EFFORT "low"
 setx TRUSS_OPENAI_MAX_OUTPUT_TOKENS "900"
 ```
 
-Depois de usar `setx`, feche e reabra o terminal antes de iniciar a API. Para forcar execucao sem chamadas externas, use `TRUSS_AI_PROVIDER=local`.
+Depois de usar `setx`, feche e reabra o terminal antes de iniciar a API. Para habilitar OpenAI diretamente, use `TRUSS_AI_PROVIDER=openai`. Para forcar execucao sem chamadas externas, use `TRUSS_AI_PROVIDER=local`.
 
 ## Requisitos locais
 
