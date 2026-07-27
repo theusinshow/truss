@@ -106,6 +106,20 @@ export type AuditRun = {
   findings: Finding[];
 };
 
+export type ChatResponse = {
+  answer: string;
+  provider: string;
+  model: string;
+};
+
+export type Memory = {
+  id: string;
+  scope: string;
+  key: string;
+  text: string;
+  created_at: string;
+};
+
 export type CreateProjectInput = {
   name: string;
   description: string;
@@ -246,4 +260,40 @@ export function createManualFinding(
     method: "POST",
     body: JSON.stringify(input)
   });
+}
+
+export function chatWithSheet(
+  apiBaseUrl: string,
+  sheetId: string,
+  message: string
+): Promise<ChatResponse> {
+  return request<ChatResponse>(apiBaseUrl, `/sheets/${sheetId}/chat`, {
+    method: "POST",
+    body: JSON.stringify({ message })
+  });
+}
+
+export function listMemories(apiBaseUrl: string): Promise<Memory[]> {
+  return request<Memory[]>(apiBaseUrl, "/memories");
+}
+
+export function createMemory(
+  apiBaseUrl: string,
+  input: { scope: string; key: string; text: string }
+): Promise<Memory> {
+  return request<Memory>(apiBaseUrl, "/memories", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export async function deleteMemory(apiBaseUrl: string, memoryId: string): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/memories/${memoryId}`, {
+    method: "DELETE"
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(body || `Request failed with status ${response.status}`);
+  }
 }

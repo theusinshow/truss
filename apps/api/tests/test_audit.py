@@ -74,6 +74,20 @@ def test_deterministic_audit_creates_structured_findings(
     assert finding["origin"] == "ai"
 
 
+def test_deterministic_audit_uses_cache_for_same_sheet(
+    client: TestClient,
+    settings: Settings,
+) -> None:
+    sheet_id = create_imported_sheet(client, settings)
+
+    first_response = client.post(f"/sheets/{sheet_id}/audit-runs")
+    second_response = client.post(f"/sheets/{sheet_id}/audit-runs")
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 201
+    assert second_response.json()["id"] == first_response.json()["id"]
+
+
 def test_finding_feedback_is_persisted(client: TestClient, settings: Settings) -> None:
     sheet_id = create_imported_sheet(client, settings)
     audit_run = client.post(f"/sheets/{sheet_id}/audit-runs").json()

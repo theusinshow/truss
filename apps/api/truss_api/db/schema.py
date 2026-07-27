@@ -145,6 +145,62 @@ CREATE TABLE IF NOT EXISTS findings (
 
 CREATE INDEX IF NOT EXISTS idx_findings_sheet_status
 ON findings(sheet_id, status, severity);
+
+CREATE TABLE IF NOT EXISTS memories (
+    id TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    key TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (scope, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memories_scope
+ON memories(scope, created_at);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id TEXT PRIMARY KEY,
+    sheet_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    revision_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (sheet_id) REFERENCES sheets(id) ON DELETE RESTRICT,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT,
+    FOREIGN KEY (revision_id) REFERENCES revisions(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_sheet
+ON chat_messages(sheet_id, created_at);
+
+CREATE TABLE IF NOT EXISTS ai_usage_events (
+    id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    project_id TEXT,
+    revision_id TEXT,
+    sheet_id TEXT,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    estimated_cost_usd REAL NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_usage_project
+ON ai_usage_events(project_id, created_at);
+
+CREATE TABLE IF NOT EXISTS cache_entries (
+    id TEXT PRIMARY KEY,
+    cache_key TEXT NOT NULL UNIQUE,
+    namespace TEXT NOT NULL,
+    value TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_cache_entries_namespace
+ON cache_entries(namespace, created_at);
 """
 
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronLeft,
@@ -10,14 +10,17 @@ import {
   EyeOff,
   LocateFixed,
   Maximize2,
+  MessageSquare,
   Minus,
   Plus,
   ScanSearch,
+  Send,
   SquareMousePointer,
   X
 } from "lucide-react";
 
 import {
+  chatWithSheet,
   createManualFinding,
   DocumentDetail,
   Finding,
@@ -64,6 +67,9 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   const [showFindings, setShowFindings] = useState(true);
   const [isAuditing, setIsAuditing] = useState(false);
   const [manualMode, setManualMode] = useState(false);
+  const [chatMessage, setChatMessage] = useState("");
+  const [chatAnswer, setChatAnswer] = useState("");
+  const [isChatting, setIsChatting] = useState(false);
   const [manualStart, setManualStart] = useState<PanState | null>(null);
   const [manualDraft, setManualDraft] = useState<PanState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -234,6 +240,27 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
       );
     } catch (feedbackError) {
       setError(feedbackError instanceof Error ? feedbackError.message : "Falha ao salvar feedback.");
+    }
+  }
+
+  async function handleChatSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!activeSheet || !chatMessage.trim()) {
+      return;
+    }
+
+    setIsChatting(true);
+    setError(null);
+
+    try {
+      const response = await chatWithSheet(apiBaseUrl, activeSheet.id, chatMessage.trim());
+      setChatAnswer(response.answer);
+      setChatMessage("");
+    } catch (chatError) {
+      setError(chatError instanceof Error ? chatError.message : "Falha ao conversar com o Truss.");
+    } finally {
+      setIsChatting(false);
     }
   }
 
@@ -437,6 +464,36 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
           </div>
         </div>
       ) : null}
+
+      <div className="grid gap-3 border-b border-truss-line bg-truss-panel px-4 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)]">
+        <div className="flex items-start gap-3">
+          <MessageSquare aria-hidden="true" className="mt-0.5 h-4 w-4 text-truss-accent" />
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+              Truss contextual
+            </p>
+            <p className="mt-1 text-sm text-truss-muted">
+              {chatAnswer || "Pergunte sobre a folha ativa, achados pendentes ou regras aplicadas."}
+            </p>
+          </div>
+        </div>
+        <form className="flex gap-2" onSubmit={(event) => void handleChatSubmit(event)}>
+          <input
+            className="min-w-0 flex-1 border border-truss-line bg-truss-base px-3 py-2 text-sm text-truss-text outline-none placeholder:text-truss-muted/60 focus:border-truss-accent"
+            onChange={(event) => setChatMessage(event.target.value)}
+            placeholder="Pergunte sobre a prancha atual"
+            value={chatMessage}
+          />
+          <button
+            className="inline-flex h-10 w-10 items-center justify-center border border-truss-accent text-truss-text hover:bg-truss-accent hover:text-truss-base disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isChatting || !chatMessage.trim()}
+            title="Enviar"
+            type="submit"
+          >
+            <Send aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </form>
+      </div>
 
       <div className="grid min-h-[620px] grid-cols-[150px_minmax(0,1fr)]">
         <aside className="border-r border-truss-line bg-truss-panel">

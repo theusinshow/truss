@@ -24,6 +24,11 @@ def _top_band_bbox(sheet_context: dict[str, object]) -> dict[str, float]:
 
 def run_deterministic_audit(sheet_id: str, settings: Settings) -> dict[str, object]:
     sheet_context = repository.get_sheet_context(sheet_id, settings)
+    cache_key = f"audit:deterministic-v0.1:{sheet_id}"
+    cached = repository.get_cached_audit_run(cache_key, settings)
+    if cached is not None:
+        return cached
+
     text_blocks = repository.list_text_blocks(sheet_id, settings)
     all_text = "\n".join(str(block["text"]).upper() for block in text_blocks)
     findings: list[dict[str, object]] = []
@@ -85,4 +90,5 @@ def run_deterministic_audit(sheet_id: str, settings: Settings) -> dict[str, obje
         sheet_context=sheet_context,
         findings=findings,
         settings=settings,
+        cache_key=cache_key,
     )

@@ -23,6 +23,7 @@ import {
   ProjectDetail,
   ProjectSummary
 } from "@/lib/projects-api";
+import { MemoryPanel } from "@/components/memory-panel";
 import { SheetViewer } from "@/components/sheet-viewer";
 
 type ProjectWorkspaceProps = {
@@ -622,6 +623,8 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                   {isUploading ? "Importando..." : "Importar prancha"}
                 </button>
               </form>
+
+              <MemoryPanel apiBaseUrl={apiBaseUrl} />
             </div>
           </div>
         ) : (

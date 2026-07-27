@@ -86,3 +86,17 @@ O pipeline agora persiste:
 - achados manuais com origem `human`.
 
 A auditoria V0.1 inicial é determinística e agressiva, usando regras simples sobre texto nativo: ausência de texto, escala não encontrada e título técnico não reconhecido. A arquitetura preserva a fronteira para regras mais fortes e análise multimodal/IA sem transformar o produto em um prompt monolítico.
+
+## M10/M6 - Provider local, chat, memória e custo
+
+A aplicação possui uma primeira abstração de AI Provider:
+
+- interface `AIProvider`;
+- provider local determinístico `local/deterministic-context-v0.1`;
+- chat contextual por folha sem chamada externa;
+- persistência de mensagens em `chat_messages`;
+- memórias explícitas em `memories`, com criação, listagem e exclusão;
+- eventos de uso em `ai_usage_events`;
+- cache de auditoria em `cache_entries`.
+
+O provider local registra custo estimado zero. Nenhum segredo ou API key é necessário para o fluxo V0.1 atual.

@@ -34,3 +34,14 @@ Rationale:
 - native text absence, missing scale markers, and missing title terms are cheap and reproducible checks;
 - every deterministic finding already uses the same structured `findings` table that AI findings will use later;
 - tests can validate the full persistence and feedback loop without network calls or secrets.
+
+## 2026-07-27 - Local AI provider as first provider
+
+The first AIProvider implementation is a local deterministic provider.
+
+Rationale:
+
+- V0.1 can validate chat context, usage accounting, memory, and UI flow without secrets;
+- provider boundaries are in place before adding OpenAI or another external model;
+- tests remain deterministic and do not depend on network calls;
+- usage events can record zero-cost local operations now and paid provider operations later.

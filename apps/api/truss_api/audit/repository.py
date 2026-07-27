@@ -73,6 +73,7 @@ def create_audit_run(
     sheet_context: dict[str, object],
     findings: list[dict[str, object]],
     settings: Settings,
+    cache_key: str | None = None,
 ) -> dict[str, object]:
     now = _now()
     audit_run_id = str(uuid4())
@@ -164,7 +165,29 @@ def create_audit_run(
                 ),
             )
 
+        if cache_key:
+            connection.execute(
+                """
+                INSERT OR REPLACE INTO cache_entries (id, cache_key, namespace, value, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (str(uuid4()), cache_key, "audit", audit_run_id, now),
+            )
+
     return get_audit_run(audit_run_id, settings)
+
+
+def get_cached_audit_run(cache_key: str, settings: Settings) -> dict[str, object] | None:
+    with transaction(settings) as connection:
+        row = connection.execute(
+            "SELECT value FROM cache_entries WHERE cache_key = ? AND namespace = 'audit'",
+            (cache_key,),
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    return get_audit_run(str(row["value"]), settings)
 
 
 def get_audit_run(audit_run_id: str, settings: Settings) -> dict[str, object]:
