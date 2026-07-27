@@ -24,6 +24,10 @@ class Settings(BaseSettings):
         return self.data_dir / "db"
 
     @property
+    def database_path(self) -> Path:
+        return self.db_dir / "truss.sqlite"
+
+    @property
     def originals_dir(self) -> Path:
         return self.data_dir / "originals"
 

@@ -46,3 +46,15 @@ Memória + dataset
 ## V0.1 concluída quando
 
 É possível criar um projeto, importar um PDF estrutural real com uma ou várias pranchas, separar e interpretar as folhas, abrir uma prancha no viewer, executar auditoria gráfica agressiva, visualizar achados diretamente sobre a região correspondente, navegar entre eles, confirmar/rejeitar cada apontamento, adicionar achado manual, responder perguntas do Truss e manter todo o estado salvo localmente.
+
+## M1 - Projects + SQLite
+
+M1 adiciona a primeira persistência local:
+
+- banco SQLite em `data/db/truss.sqlite`;
+- tabelas `projects` e `revisions`;
+- revisões imutáveis com código único por projeto;
+- API local para listar/criar projetos, consultar projeto e criar revisões;
+- tela inicial conectada ao backend para gerenciar projetos e revisões.
+
+As rotas FastAPI recebem `Settings` por dependência para permitir testes com banco temporário sem tocar no estado local real.

@@ -60,6 +60,18 @@ O M0 cria apenas a base executavel do produto:
 
 M0 nao implementa importacao de PDF, viewer, auditoria, IA, persistencia completa ou fluxo de projeto.
 
+## M1 - Projects + SQLite
+
+M1 adiciona a primeira persistencia local:
+
+- banco SQLite em `data/db/truss.sqlite`;
+- tabelas `projects` e `revisions`;
+- revisoes imutaveis com codigo unico por projeto;
+- API local para listar/criar projetos, consultar projeto e criar revisoes;
+- tela inicial conectada ao backend para gerenciar projetos e revisoes.
+
+As rotas FastAPI recebem `Settings` por dependencia para permitir testes com banco temporario sem tocar no estado local real.
+
 ## Requisitos locais
 
 - Node.js 20 ou superior
