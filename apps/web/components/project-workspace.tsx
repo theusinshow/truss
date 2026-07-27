@@ -276,15 +276,15 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
   }
 
   return (
-    <div className="grid flex-1 grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)]">
-      <aside className="border-b border-truss-line bg-truss-panel lg:border-b-0 lg:border-r">
+    <div className="grid flex-1 grid-cols-1 bg-truss-base lg:grid-cols-[360px_minmax(0,1fr)]">
+      <aside className="border-b border-truss-line bg-truss-raised lg:border-b-0 lg:border-r">
         <div className="border-b border-truss-line p-5">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-truss-muted">
+            <h2 className="text-sm font-semibold text-truss-text">
               Projetos
             </h2>
             <button
-              className="inline-flex h-9 w-9 items-center justify-center border border-truss-line text-truss-muted transition-colors hover:border-truss-accent hover:text-truss-text"
+              className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-panel text-truss-muted transition-colors hover:border-truss-accent hover:bg-truss-accentSoft hover:text-truss-accent"
               onClick={() => void refreshProjects()}
               title="Atualizar projetos"
               type="button"
@@ -296,11 +296,11 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
 
           <form className="mt-5 space-y-3" onSubmit={(event) => void handleCreateProject(event)}>
             <label className="block">
-              <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+              <span className="text-xs font-medium text-truss-muted">
                 Nome
               </span>
               <input
-                className="mt-2 w-full border border-truss-line bg-truss-base px-3 py-2 text-sm text-truss-text outline-none transition-colors placeholder:text-truss-muted/60 focus:border-truss-accent"
+                className="mt-2 w-full border border-truss-line bg-truss-panel px-3 text-sm text-truss-text outline-none transition-colors placeholder:text-truss-subtle focus:border-truss-accent"
                 maxLength={160}
                 onChange={(event) =>
                   setProjectForm((current) => ({ ...current, name: event.target.value }))
@@ -311,11 +311,11 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
               />
             </label>
             <label className="block">
-              <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+              <span className="text-xs font-medium text-truss-muted">
                 Descricao
               </span>
               <textarea
-                className="mt-2 min-h-20 w-full resize-none border border-truss-line bg-truss-base px-3 py-2 text-sm text-truss-text outline-none transition-colors placeholder:text-truss-muted/60 focus:border-truss-accent"
+                className="mt-2 w-full resize-none border border-truss-line bg-truss-panel px-3 py-2 text-sm text-truss-text outline-none transition-colors placeholder:text-truss-subtle focus:border-truss-accent"
                 maxLength={1000}
                 onChange={(event) =>
                   setProjectForm((current) => ({
@@ -328,7 +328,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
               />
             </label>
             <button
-              className="inline-flex w-full items-center justify-center gap-2 border border-truss-accent bg-truss-accent px-3 py-2 text-sm font-semibold text-truss-base transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 border border-truss-accent bg-truss-accent px-4 text-sm font-semibold text-white transition-colors hover:bg-truss-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={isSubmitting}
               type="submit"
             >
@@ -338,19 +338,23 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
           </form>
         </div>
 
-        <div className="max-h-[520px] overflow-y-auto">
+        <div className="max-h-[520px] overflow-y-auto p-2">
           {isLoading ? (
-            <p className="p-5 font-mono text-sm text-truss-muted">Carregando projetos...</p>
+            <div className="space-y-2 p-3" aria-label="Carregando projetos">
+              <div className="h-14 animate-pulse rounded-lg bg-truss-panel" />
+              <div className="h-14 animate-pulse rounded-lg bg-truss-panel" />
+              <div className="h-14 animate-pulse rounded-lg bg-truss-panel" />
+            </div>
           ) : projects.length === 0 ? (
-            <p className="p-5 text-sm leading-6 text-truss-muted">
+            <p className="rounded-lg border border-dashed border-truss-line bg-truss-panel p-4 text-sm leading-6 text-truss-muted">
               Nenhum projeto local ainda. Crie o primeiro registro para iniciar o historico.
             </p>
           ) : (
-            <ul className="divide-y divide-truss-line">
+            <ul className="space-y-2">
               {projects.map((project) => (
                 <li key={project.id}>
                   <button
-                    className="w-full px-5 py-4 text-left transition-colors hover:bg-truss-base/60 data-[selected=true]:bg-truss-base"
+                    className="w-full rounded-lg border border-transparent px-4 py-3 text-left transition-colors hover:border-truss-line hover:bg-truss-panel data-[selected=true]:border-truss-accent data-[selected=true]:bg-truss-accentSoft"
                     data-selected={project.id === selectedProject?.id}
                     onClick={() => void handleSelectProject(project.id)}
                     type="button"
@@ -370,9 +374,9 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
         </div>
       </aside>
 
-      <section className="min-h-[620px] p-5">
+      <section className="min-h-[620px] p-4 sm:p-5">
         {error ? (
-          <div className="mb-5 border border-truss-accent bg-truss-accent/10 px-4 py-3 text-sm text-truss-text">
+          <div className="mb-5 rounded-lg border border-truss-danger/30 bg-truss-danger/10 px-4 py-3 text-sm text-truss-text" role="alert">
             {error}
           </div>
         ) : null}
@@ -380,38 +384,38 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
         {selectedProject ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
             <div>
-              <div className="border border-truss-line p-5">
-                <p className="font-mono text-xs uppercase tracking-[0.16em] text-truss-muted">
+              <div className="rounded-lg border border-truss-line bg-truss-panel p-5 shadow-[0_1px_2px_rgba(32,43,61,0.04)]">
+                <p className="text-xs font-medium text-truss-muted">
                   Projeto ativo
                 </p>
-                <h2 className="mt-3 text-2xl font-semibold text-truss-text">
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-truss-text">
                   {selectedProject.name}
                 </h2>
                 <p className="mt-4 max-w-3xl text-sm leading-6 text-truss-muted">
                   {selectedProject.description || "Sem descricao registrada."}
                 </p>
-                <dl className="mt-6 grid grid-cols-1 gap-4 border-t border-truss-line pt-5 font-mono text-xs text-truss-muted sm:grid-cols-3">
+                <dl className="mt-6 grid grid-cols-1 gap-3 border-t border-truss-line pt-5 text-xs text-truss-muted sm:grid-cols-3">
                   <div>
-                    <dt>Criado</dt>
-                    <dd className="mt-1 text-truss-text">{formatDate(selectedProject.created_at)}</dd>
+                    <dt className="font-medium">Criado</dt>
+                    <dd className="mt-1 font-mono text-truss-text">{formatDate(selectedProject.created_at)}</dd>
                   </div>
                   <div>
-                    <dt>Atualizado</dt>
-                    <dd className="mt-1 text-truss-text">{formatDate(selectedProject.updated_at)}</dd>
+                    <dt className="font-medium">Atualizado</dt>
+                    <dd className="mt-1 font-mono text-truss-text">{formatDate(selectedProject.updated_at)}</dd>
                   </div>
                   <div>
-                    <dt>Ultima revisao</dt>
-                    <dd className="mt-1 text-truss-text">
+                    <dt className="font-medium">Ultima revisao</dt>
+                    <dd className="mt-1 font-mono text-truss-text">
                       {selectedSummary?.latest_revision_code ?? "Sem revisao"}
                     </dd>
                   </div>
                 </dl>
               </div>
 
-              <div className="mt-5 border border-truss-line">
-                <div className="flex items-center gap-3 border-b border-truss-line px-5 py-4">
+              <div className="mt-5 overflow-hidden rounded-lg border border-truss-line bg-truss-panel shadow-[0_1px_2px_rgba(32,43,61,0.04)]">
+                <div className="flex items-center gap-3 border-b border-truss-line bg-truss-raised px-5 py-4">
                   <Database aria-hidden="true" className="h-4 w-4 text-truss-accent" />
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-truss-muted">
+                  <h3 className="text-sm font-semibold text-truss-text">
                     Revisoes imutaveis
                   </h3>
                 </div>
@@ -446,10 +450,10 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                 )}
               </div>
 
-              <div className="mt-5 border border-truss-line">
-                <div className="flex items-center gap-3 border-b border-truss-line px-5 py-4">
+              <div className="mt-5 overflow-hidden rounded-lg border border-truss-line bg-truss-panel shadow-[0_1px_2px_rgba(32,43,61,0.04)]">
+                <div className="flex items-center gap-3 border-b border-truss-line bg-truss-raised px-5 py-4">
                   <Layers3 aria-hidden="true" className="h-4 w-4 text-truss-accent" />
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-truss-muted">
+                  <h3 className="text-sm font-semibold text-truss-text">
                     PDFs importados
                   </h3>
                 </div>
@@ -482,7 +486,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                         {"sheets" in document && document.sheets.length > 0 ? (
                           <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                             {document.sheets.map((sheet) => (
-                              <div className="border border-truss-line px-3 py-2" key={sheet.id}>
+                              <div className="rounded-md border border-truss-line bg-truss-raised px-3 py-2" key={sheet.id}>
                                 <p className="font-mono text-xs font-semibold text-truss-text">
                                   {sheet.label}
                                 </p>
@@ -506,21 +510,21 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
 
             <div className="space-y-5">
               <form
-                className="h-fit border border-truss-line bg-truss-panel p-5"
+                className="h-fit rounded-lg border border-truss-line bg-truss-panel p-5 shadow-[0_1px_2px_rgba(32,43,61,0.04)]"
                 onSubmit={(event) => void handleCreateRevision(event)}
               >
                 <div className="flex items-center gap-3">
                   <FilePlus2 aria-hidden="true" className="h-4 w-4 text-truss-accent" />
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-truss-muted">
+                  <h3 className="text-sm font-semibold text-truss-text">
                     Nova revisao
                   </h3>
                 </div>
                 <label className="mt-5 block">
-                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+                  <span className="text-xs font-medium text-truss-muted">
                     Codigo
                   </span>
                   <input
-                    className="mt-2 w-full border border-truss-line bg-truss-base px-3 py-2 font-mono text-sm text-truss-text outline-none transition-colors placeholder:text-truss-muted/60 focus:border-truss-accent"
+                    className="mt-2 w-full border border-truss-line bg-truss-raised px-3 font-mono text-sm text-truss-text outline-none transition-colors placeholder:text-truss-subtle focus:border-truss-accent"
                     maxLength={40}
                     onChange={(event) =>
                       setRevisionForm((current) => ({
@@ -533,11 +537,11 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                   />
                 </label>
                 <label className="mt-4 block">
-                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+                  <span className="text-xs font-medium text-truss-muted">
                     Arquivo
                   </span>
                   <input
-                    className="mt-2 w-full border border-truss-line bg-truss-base px-3 py-2 text-sm text-truss-text outline-none transition-colors placeholder:text-truss-muted/60 focus:border-truss-accent"
+                    className="mt-2 w-full border border-truss-line bg-truss-raised px-3 text-sm text-truss-text outline-none transition-colors placeholder:text-truss-subtle focus:border-truss-accent"
                     maxLength={255}
                     onChange={(event) =>
                       setRevisionForm((current) => ({
@@ -550,11 +554,11 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                   />
                 </label>
                 <label className="mt-4 block">
-                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+                  <span className="text-xs font-medium text-truss-muted">
                     Notas
                   </span>
                   <textarea
-                    className="mt-2 min-h-24 w-full resize-none border border-truss-line bg-truss-base px-3 py-2 text-sm text-truss-text outline-none transition-colors placeholder:text-truss-muted/60 focus:border-truss-accent"
+                    className="mt-2 w-full resize-none border border-truss-line bg-truss-raised px-3 py-2 text-sm text-truss-text outline-none transition-colors placeholder:text-truss-subtle focus:border-truss-accent"
                     maxLength={1000}
                     onChange={(event) =>
                       setRevisionForm((current) => ({
@@ -567,7 +571,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                   />
                 </label>
                 <button
-                  className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-truss-accent px-3 py-2 text-sm font-semibold text-truss-text transition-colors hover:bg-truss-accent hover:text-truss-base disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-truss-line bg-truss-raised px-4 text-sm font-semibold text-truss-text transition-colors hover:border-truss-accent hover:bg-truss-accentSoft disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={isSubmitting}
                   type="submit"
                 >
@@ -577,21 +581,21 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
               </form>
 
               <form
-                className="h-fit border border-truss-line bg-truss-panel p-5"
+                className="h-fit rounded-lg border border-truss-line bg-truss-panel p-5 shadow-[0_1px_2px_rgba(32,43,61,0.04)]"
                 onSubmit={(event) => void handleImportDocument(event)}
               >
                 <div className="flex items-center gap-3">
                   <FileArchive aria-hidden="true" className="h-4 w-4 text-truss-accent" />
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-truss-muted">
+                  <h3 className="text-sm font-semibold text-truss-text">
                     Importar PDF
                   </h3>
                 </div>
                 <label className="mt-5 block">
-                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+                  <span className="text-xs font-medium text-truss-muted">
                     Revisao
                   </span>
                   <select
-                    className="mt-2 w-full border border-truss-line bg-truss-base px-3 py-2 font-mono text-sm text-truss-text outline-none transition-colors focus:border-truss-accent"
+                    className="mt-2 w-full border border-truss-line bg-truss-raised px-3 font-mono text-sm text-truss-text outline-none transition-colors focus:border-truss-accent"
                     disabled={selectedProject.revisions.length === 0}
                     onChange={(event) => void handleSelectRevision(event.target.value)}
                     value={selectedRevision?.id ?? ""}
@@ -604,18 +608,18 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                   </select>
                 </label>
                 <label className="mt-4 block">
-                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+                  <span className="text-xs font-medium text-truss-muted">
                     PDF
                   </span>
                   <input
                     accept="application/pdf"
-                    className="mt-2 w-full border border-truss-line bg-truss-base px-3 py-2 text-sm text-truss-text file:mr-3 file:border-0 file:bg-truss-accent file:px-3 file:py-1 file:text-sm file:font-semibold file:text-truss-base"
+                    className="mt-2 w-full border border-truss-line bg-truss-raised px-3 py-2 text-sm text-truss-text file:mr-3 file:rounded-md file:border-0 file:bg-truss-accentSoft file:px-3 file:py-1 file:text-sm file:font-semibold file:text-truss-accent"
                     onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
                     type="file"
                   />
                 </label>
                 <button
-                  className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-truss-accent px-3 py-2 text-sm font-semibold text-truss-text transition-colors hover:bg-truss-accent hover:text-truss-base disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-truss-accent bg-truss-accent px-4 text-sm font-semibold text-white transition-colors hover:bg-truss-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={!selectedRevision || !uploadFile || isUploading}
                   type="submit"
                 >
@@ -628,9 +632,9 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
             </div>
           </div>
         ) : (
-          <div className="flex min-h-[520px] items-center justify-center border border-truss-line p-6 text-center">
+          <div className="flex min-h-[520px] items-center justify-center rounded-lg border border-dashed border-truss-line bg-truss-panel p-6 text-center">
             <div>
-              <p className="font-mono text-xs uppercase tracking-[0.16em] text-truss-muted">
+              <p className="text-sm font-semibold text-truss-text">
                 Sem projeto ativo
               </p>
               <p className="mt-3 max-w-md text-sm leading-6 text-truss-muted">

@@ -308,10 +308,10 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
 
   if (!activeSheet) {
     return (
-      <div className="flex min-h-[520px] items-center justify-center border border-truss-line bg-truss-base p-6 text-center">
+      <div className="flex min-h-[520px] items-center justify-center rounded-lg border border-dashed border-truss-line bg-truss-panel p-6 text-center">
         <div>
           <Eye aria-hidden="true" className="mx-auto h-5 w-5 text-truss-accent" />
-          <p className="mt-4 font-mono text-xs uppercase tracking-[0.16em] text-truss-muted">
+          <p className="mt-4 text-sm font-semibold text-truss-text">
             Viewer sem prancha
           </p>
           <p className="mt-3 max-w-md text-sm leading-6 text-truss-muted">
@@ -323,10 +323,10 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   }
 
   return (
-    <div className="border border-truss-line bg-truss-base">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-truss-line px-4 py-3">
+    <div className="overflow-hidden rounded-lg border border-truss-line bg-truss-panel shadow-[0_1px_2px_rgba(32,43,61,0.04)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-truss-line bg-truss-panel px-4 py-3">
         <div>
-          <p className="font-mono text-xs uppercase tracking-[0.16em] text-truss-muted">
+          <p className="text-xs font-medium text-truss-muted">
             Prancha ativa
           </p>
           <p className="mt-1 text-sm font-semibold text-truss-text">
@@ -335,9 +335,9 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            className="inline-flex items-center gap-2 border border-truss-accent px-3 py-2 text-sm font-semibold text-truss-text hover:bg-truss-accent hover:text-truss-base disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 border border-truss-accent bg-truss-accent px-4 text-sm font-semibold text-white transition-colors hover:bg-truss-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isAuditing}
             onClick={() => void handleRunAudit()}
             type="button"
@@ -346,7 +346,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             {isAuditing ? "Auditando" : "Auditar"}
           </button>
           <button
-            className="inline-flex h-9 w-9 items-center justify-center border border-truss-line text-truss-muted hover:border-truss-accent hover:text-truss-text data-[active=true]:border-truss-accent data-[active=true]:text-truss-text"
+            className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-raised text-truss-muted transition-colors hover:border-truss-accent hover:bg-truss-accentSoft hover:text-truss-accent data-[active=true]:border-truss-accent data-[active=true]:bg-truss-accentSoft data-[active=true]:text-truss-accent"
             data-active={showFindings}
             onClick={() => setShowFindings((current) => !current)}
             title="Mostrar ou ocultar achados"
@@ -359,7 +359,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             )}
           </button>
           <button
-            className="inline-flex h-9 w-9 items-center justify-center border border-truss-line text-truss-muted hover:border-truss-accent hover:text-truss-text data-[active=true]:border-truss-accent data-[active=true]:text-truss-text"
+            className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-raised text-truss-muted transition-colors hover:border-truss-accent hover:bg-truss-accentSoft hover:text-truss-accent data-[active=true]:border-truss-accent data-[active=true]:bg-truss-accentSoft data-[active=true]:text-truss-accent"
             data-active={manualMode}
             onClick={() => setManualMode((current) => !current)}
             title="Adicionar achado manual"
@@ -368,7 +368,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             <SquareMousePointer aria-hidden="true" className="h-4 w-4" />
           </button>
           <button
-            className="inline-flex h-9 w-9 items-center justify-center border border-truss-line text-truss-muted hover:border-truss-accent hover:text-truss-text"
+            className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-raised text-truss-muted transition-colors hover:border-truss-accent hover:bg-truss-accentSoft hover:text-truss-accent"
             onClick={() => moveSheet(-1)}
             title="Folha anterior"
             type="button"
@@ -376,7 +376,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             <ChevronLeft aria-hidden="true" className="h-4 w-4" />
           </button>
           <button
-            className="inline-flex h-9 w-9 items-center justify-center border border-truss-line text-truss-muted hover:border-truss-accent hover:text-truss-text"
+            className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-raised text-truss-muted transition-colors hover:border-truss-accent hover:bg-truss-accentSoft hover:text-truss-accent"
             onClick={() => moveSheet(1)}
             title="Proxima folha"
             type="button"
@@ -384,7 +384,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             <ChevronRight aria-hidden="true" className="h-4 w-4" />
           </button>
           <button
-            className="inline-flex h-9 w-9 items-center justify-center border border-truss-line text-truss-muted hover:border-truss-accent hover:text-truss-text"
+            className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-raised text-truss-muted transition-colors hover:border-truss-accent hover:bg-truss-accentSoft hover:text-truss-accent"
             onClick={() => resetView()}
             title="Fit"
             type="button"
@@ -392,7 +392,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             <Maximize2 aria-hidden="true" className="h-4 w-4" />
           </button>
           <button
-            className="inline-flex h-9 w-9 items-center justify-center border border-truss-line text-truss-muted hover:border-truss-accent hover:text-truss-text"
+            className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-raised text-truss-muted transition-colors hover:border-truss-accent hover:bg-truss-accentSoft hover:text-truss-accent"
             onClick={() => setZoom((current) => clampZoom(current - 0.15))}
             title="Reduzir zoom"
             type="button"
@@ -403,7 +403,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             {Math.round(zoom * 100)}%
           </span>
           <button
-            className="inline-flex h-9 w-9 items-center justify-center border border-truss-line text-truss-muted hover:border-truss-accent hover:text-truss-text"
+            className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-raised text-truss-muted transition-colors hover:border-truss-accent hover:bg-truss-accentSoft hover:text-truss-accent"
             onClick={() => setZoom((current) => clampZoom(current + 0.15))}
             title="Ampliar zoom"
             type="button"
@@ -414,15 +414,15 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
       </div>
 
       {error ? (
-        <div className="border-b border-truss-accent bg-truss-accent/10 px-4 py-2 text-sm text-truss-text">
+        <div className="border-b border-truss-danger/20 bg-truss-danger/10 px-4 py-2 text-sm text-truss-text" role="alert">
           {error}
         </div>
       ) : null}
 
       {activeFinding ? (
-        <div className="grid gap-3 border-b border-truss-line bg-truss-panel px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid gap-3 border-b border-truss-line bg-truss-raised px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+            <p className="font-mono text-xs text-truss-muted">
               Achado {activeFindingIndex + 1} de {findings.length} | {activeFinding.severity} |{" "}
               {activeFinding.status}
             </p>
@@ -430,7 +430,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
           </div>
           <div className="flex items-center gap-2">
             <button
-              className="inline-flex h-9 w-9 items-center justify-center border border-truss-line text-truss-muted hover:border-truss-accent hover:text-truss-text"
+              className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-panel text-truss-muted transition-colors hover:border-truss-accent hover:bg-truss-accentSoft hover:text-truss-accent"
               onClick={() => moveFinding(-1)}
               title="Achado anterior"
               type="button"
@@ -438,7 +438,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
               <ChevronLeft aria-hidden="true" className="h-4 w-4" />
             </button>
             <button
-              className="inline-flex h-9 w-9 items-center justify-center border border-truss-line text-truss-muted hover:border-truss-accent hover:text-truss-text"
+              className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-panel text-truss-muted transition-colors hover:border-truss-accent hover:bg-truss-accentSoft hover:text-truss-accent"
               onClick={() => moveFinding(1)}
               title="Proximo achado"
               type="button"
@@ -446,7 +446,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
               <ChevronRight aria-hidden="true" className="h-4 w-4" />
             </button>
             <button
-              className="inline-flex h-9 w-9 items-center justify-center border border-truss-line text-truss-muted hover:border-emerald-400 hover:text-emerald-300"
+              className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-panel text-truss-muted transition-colors hover:border-truss-success/50 hover:bg-truss-success/10 hover:text-truss-success"
               onClick={() => void setFindingStatus("confirmed")}
               title="Confirmar achado"
               type="button"
@@ -454,7 +454,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
               <Check aria-hidden="true" className="h-4 w-4" />
             </button>
             <button
-              className="inline-flex h-9 w-9 items-center justify-center border border-truss-line text-truss-muted hover:border-truss-accent hover:text-truss-accent"
+              className="inline-flex h-11 w-11 items-center justify-center border border-truss-line bg-truss-panel text-truss-muted transition-colors hover:border-truss-danger/50 hover:bg-truss-danger/10 hover:text-truss-danger"
               onClick={() => void setFindingStatus("rejected")}
               title="Rejeitar achado"
               type="button"
@@ -465,11 +465,13 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
         </div>
       ) : null}
 
-      <div className="grid gap-3 border-b border-truss-line bg-truss-panel px-4 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)]">
+      <div className="grid gap-3 border-b border-truss-line bg-truss-panel px-4 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,440px)]">
         <div className="flex items-start gap-3">
-          <MessageSquare aria-hidden="true" className="mt-0.5 h-4 w-4 text-truss-accent" />
+          <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-truss-accentSoft text-truss-accent">
+            <MessageSquare aria-hidden="true" className="h-4 w-4" />
+          </span>
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+            <p className="text-xs font-medium text-truss-muted">
               Truss contextual
             </p>
             <p className="mt-1 text-sm text-truss-muted">
@@ -479,13 +481,13 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
         </div>
         <form className="flex gap-2" onSubmit={(event) => void handleChatSubmit(event)}>
           <input
-            className="min-w-0 flex-1 border border-truss-line bg-truss-base px-3 py-2 text-sm text-truss-text outline-none placeholder:text-truss-muted/60 focus:border-truss-accent"
+            className="min-w-0 flex-1 border border-truss-line bg-truss-raised px-3 text-sm text-truss-text outline-none placeholder:text-truss-subtle focus:border-truss-accent"
             onChange={(event) => setChatMessage(event.target.value)}
             placeholder="Pergunte sobre a prancha atual"
             value={chatMessage}
           />
           <button
-            className="inline-flex h-10 w-10 items-center justify-center border border-truss-accent text-truss-text hover:bg-truss-accent hover:text-truss-base disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 w-11 items-center justify-center border border-truss-accent bg-truss-accent text-white transition-colors hover:bg-truss-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isChatting || !chatMessage.trim()}
             title="Enviar"
             type="submit"
@@ -496,14 +498,14 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
       </div>
 
       <div className="grid min-h-[620px] grid-cols-[150px_minmax(0,1fr)]">
-        <aside className="border-r border-truss-line bg-truss-panel">
-          <div className="border-b border-truss-line px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-truss-muted">
+        <aside className="border-r border-truss-line bg-truss-raised">
+          <div className="border-b border-truss-line px-3 py-3 text-xs font-medium text-truss-muted">
             Folhas
           </div>
           <div className="max-h-[620px] overflow-y-auto">
             {sheets.map((sheet, index) => (
               <button
-                className="block w-full border-b border-truss-line px-3 py-3 text-left hover:bg-truss-base data-[active=true]:bg-truss-base"
+                className="block w-full border-b border-truss-line px-3 py-3 text-left transition-colors hover:bg-truss-panel data-[active=true]:bg-truss-accentSoft"
                 data-active={sheet.id === activeSheet.id}
                 key={sheet.id}
                 onClick={() => setActiveSheet(sheet)}
@@ -524,14 +526,14 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
         </aside>
 
         <div
-          className="relative overflow-hidden bg-[linear-gradient(to_right,rgba(154,163,177,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(154,163,177,0.08)_1px,transparent_1px)] bg-[size:28px_28px]"
+          className="relative overflow-hidden bg-[linear-gradient(to_right,rgba(92,105,128,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(92,105,128,0.10)_1px,transparent_1px)] bg-[size:28px_28px]"
           onPointerDown={handlePointerDown}
           onPointerLeave={() => setDragStart(null)}
           onPointerMove={handlePointerMove}
           onPointerUp={() => void handlePointerUp()}
           role="presentation"
         >
-          <div className="absolute left-3 top-3 z-10 flex items-center gap-2 border border-truss-line bg-truss-panel/95 px-3 py-2 font-mono text-xs text-truss-muted">
+          <div className="absolute left-3 top-3 z-10 flex min-h-11 items-center gap-2 rounded-lg border border-truss-line bg-truss-panel/95 px-3 font-mono text-xs text-truss-muted shadow-[0_8px_24px_rgba(32,43,61,0.08)]">
             <Crosshair aria-hidden="true" className="h-3.5 w-3.5 text-truss-accent" />
             {manualMode ? "Selecione uma regiao para achado manual" : "Pan por arrasto | Coordenadas PDF em pt"}
           </div>
@@ -545,14 +547,14 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
               {/* eslint-disable-next-line @next/next/no-img-element -- Local rendered PDF sheets need direct transform control. */}
               <img
                 alt={`Render da ${activeSheet.label}`}
-                className="max-h-none max-w-none select-none border border-truss-line bg-zinc-100 shadow-[0_18px_60px_rgba(0,0,0,0.38)]"
+                className="max-h-none max-w-none select-none border border-truss-line bg-white shadow-[0_18px_55px_rgba(32,43,61,0.18)]"
                 draggable={false}
                 src={`${apiBaseUrl}/sheets/${activeSheet.id}/image`}
               />
               {showFindings
                 ? findings.map((finding) => (
                     <button
-                      className="absolute border-2 border-truss-accent bg-truss-accent/10 text-left shadow-[0_0_0_1px_rgba(0,0,0,0.75)] data-[active=true]:border-emerald-300 data-[status=confirmed]:border-emerald-400 data-[status=rejected]:border-zinc-500"
+                      className="absolute border-2 border-truss-accent bg-truss-accent/10 text-left shadow-[0_0_0_1px_rgba(255,255,255,0.9)] data-[active=true]:border-truss-success data-[status=confirmed]:border-truss-success data-[status=rejected]:border-truss-subtle"
                       data-active={finding.id === activeFinding?.id}
                       data-status={finding.status}
                       key={finding.id}
@@ -577,7 +579,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                 : null}
               {manualStart && manualDraft ? (
                 <div
-                  className="pointer-events-none absolute border-2 border-emerald-300 bg-emerald-300/10"
+                  className="pointer-events-none absolute border-2 border-truss-success bg-truss-success/10"
                   style={{
                     left: Math.min(manualStart.x, manualDraft.x) * renderScale,
                     top: Math.min(manualStart.y, manualDraft.y) * renderScale,

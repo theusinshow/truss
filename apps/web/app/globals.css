@@ -3,13 +3,14 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
-  --background: oklch(0.135 0.006 25);
-  --foreground: oklch(0.9 0.008 40);
-  --muted: oklch(0.67 0.009 40);
-  --line: oklch(0.31 0.011 25);
-  --panel: oklch(0.18 0.008 25);
-  --accent: oklch(0.62 0.22 29);
+  color-scheme: light;
+  --background: oklch(0.973 0.006 260);
+  --foreground: oklch(0.205 0.015 260);
+  --muted: oklch(0.49 0.018 260);
+  --line: oklch(0.875 0.009 260);
+  --panel: oklch(0.997 0.003 260);
+  --accent: oklch(0.58 0.17 255);
+  --focus-ring: oklch(0.78 0.09 255);
 }
 
 * {
@@ -19,23 +20,60 @@
 html {
   min-height: 100%;
   background: var(--background);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
-  background:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px),
-    var(--background);
-  background-size: 48px 48px;
+  background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
 
 button,
 a {
   color: inherit;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+button:not([class*="absolute"]),
+input,
+textarea,
+select {
+  border-radius: 0.625rem;
+}
+
+button:not([class*="absolute"]) {
+  min-height: 44px;
+  cursor: pointer;
+}
+
+input,
+select {
+  min-height: 44px;
+}
+
+textarea {
+  min-height: 88px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: oklch(0.9 0.05 255);
+  color: var(--foreground);
 }
 
 @media (prefers-reduced-motion: reduce) {
