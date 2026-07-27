@@ -21,6 +21,23 @@ class Sheet(BaseModel):
     created_at: datetime
 
 
+class TextBlock(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    sheet_id: str
+    document_id: str
+    project_id: str
+    revision_id: str
+    block_index: int
+    text: str
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    created_at: datetime
+
+
 class Document(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

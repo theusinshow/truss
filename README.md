@@ -86,6 +86,20 @@ O fluxo visual inicial permite:
 
 O contrato de coordenadas inicial usa pontos PDF (`pt`) como sistema canonico. Pixels de render sao derivados e nao substituem as coordenadas da pagina.
 
+## M4/M9 - Parsing, auditoria inicial e feedback
+
+O pipeline agora persiste:
+
+- blocos de texto nativo por folha em `text_blocks`;
+- bounding boxes textuais em coordenadas PDF;
+- execucoes de auditoria em `audit_runs`;
+- achados estruturados em `findings`;
+- status `pending`, `confirmed` e `rejected`;
+- motivo de rejeicao;
+- achados manuais com origem `human`.
+
+A auditoria V0.1 inicial e deterministica e agressiva, usando regras simples sobre texto nativo: ausencia de texto, escala nao encontrada e titulo tecnico nao reconhecido. A arquitetura preserva a fronteira para regras mais fortes e analise multimodal/IA sem transformar o produto em um prompt monolitico.
+
 ## Requisitos locais
 
 - Node.js 20 ou superior

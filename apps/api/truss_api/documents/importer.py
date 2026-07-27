@@ -13,6 +13,16 @@ class InvalidPdfError(Exception):
 
 
 @dataclass(frozen=True)
+class PdfTextBlockInfo:
+    block_index: int
+    text: str
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+
+@dataclass(frozen=True)
 class PdfPageInfo:
     page_index: int
     sheet_number: int
@@ -20,6 +30,7 @@ class PdfPageInfo:
     height_pt: float
     rotation: int
     label: str
+    text_blocks: list[PdfTextBlockInfo]
 
 
 @dataclass(frozen=True)
@@ -56,6 +67,25 @@ def inspect_pdf(content: bytes) -> list[PdfPageInfo]:
         for page_index in range(document.page_count):
             page = document.load_page(page_index)
             rect = page.rect
+            text_blocks: list[PdfTextBlockInfo] = []
+
+            for block_index, block in enumerate(page.get_text("blocks")):
+                x0, y0, x1, y1, text, *_ = block
+                normalized_text = str(text).strip()
+                if not normalized_text:
+                    continue
+
+                text_blocks.append(
+                    PdfTextBlockInfo(
+                        block_index=block_index,
+                        text=normalized_text,
+                        x0=float(x0),
+                        y0=float(y0),
+                        x1=float(x1),
+                        y1=float(y1),
+                    )
+                )
+
             pages.append(
                 PdfPageInfo(
                     page_index=page_index,
@@ -64,6 +94,7 @@ def inspect_pdf(content: bytes) -> list[PdfPageInfo]:
                     height_pt=float(rect.height),
                     rotation=int(page.rotation),
                     label=f"Folha {page_index + 1:02d}",
+                    text_blocks=text_blocks,
                 )
             )
 

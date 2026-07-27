@@ -106,6 +106,29 @@ def test_sheet_image_endpoint_renders_png(
     assert (settings.data_dir / render_path).exists()
 
 
+def test_import_pdf_extracts_text_blocks_with_pdf_coordinates(
+    client: TestClient,
+    revision: tuple[str, str],
+) -> None:
+    project_id, revision_id = revision
+    pdf_bytes = make_pdf_bytes(page_count=1)
+
+    import_response = client.post(
+        f"/projects/{project_id}/revisions/{revision_id}/documents",
+        files={"file": ("forma.pdf", pdf_bytes, "application/pdf")},
+    )
+    sheet_id = import_response.json()["sheets"][0]["id"]
+
+    response = client.get(f"/sheets/{sheet_id}/text-blocks")
+
+    assert response.status_code == 200
+    blocks = response.json()
+    assert len(blocks) >= 1
+    assert "FORMA PAVIMENTO 1" in blocks[0]["text"]
+    assert blocks[0]["x0"] < blocks[0]["x1"]
+    assert blocks[0]["y0"] < blocks[0]["y1"]
+
+
 def test_import_pdf_rejects_duplicate_content(
     client: TestClient,
     revision: tuple[str, str],

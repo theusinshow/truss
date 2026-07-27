@@ -101,6 +101,7 @@ def create_document_from_prepared_pdf(
             raise
 
         for page in prepared_pdf.pages:
+            sheet_id = str(uuid4())
             connection.execute(
                 """
                 INSERT INTO sheets (
@@ -121,7 +122,7 @@ def create_document_from_prepared_pdf(
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    str(uuid4()),
+                    sheet_id,
                     document_id,
                     project_id,
                     revision_id,
@@ -136,6 +137,41 @@ def create_document_from_prepared_pdf(
                     created_at,
                 ),
             )
+
+            for text_block in page.text_blocks:
+                connection.execute(
+                    """
+                    INSERT INTO text_blocks (
+                        id,
+                        sheet_id,
+                        document_id,
+                        project_id,
+                        revision_id,
+                        block_index,
+                        text,
+                        x0,
+                        y0,
+                        x1,
+                        y1,
+                        created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        str(uuid4()),
+                        sheet_id,
+                        document_id,
+                        project_id,
+                        revision_id,
+                        text_block.block_index,
+                        text_block.text,
+                        text_block.x0,
+                        text_block.y0,
+                        text_block.x1,
+                        text_block.y1,
+                        created_at,
+                    ),
+                )
 
         connection.execute(
             "UPDATE projects SET updated_at = ? WHERE id = ?",
@@ -257,3 +293,38 @@ def update_sheet_render_path(sheet_id: str, render_path: str, settings: Settings
             "UPDATE sheets SET render_path = ? WHERE id = ?",
             (render_path, sheet_id),
         )
+
+
+def list_text_blocks_for_sheet(sheet_id: str, settings: Settings) -> list[dict[str, object]]:
+    with transaction(settings) as connection:
+        sheet = connection.execute(
+            "SELECT id FROM sheets WHERE id = ?",
+            (sheet_id,),
+        ).fetchone()
+
+        if sheet is None:
+            raise SheetNotFoundError(sheet_id)
+
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                sheet_id,
+                document_id,
+                project_id,
+                revision_id,
+                block_index,
+                text,
+                x0,
+                y0,
+                x1,
+                y1,
+                created_at
+            FROM text_blocks
+            WHERE sheet_id = ?
+            ORDER BY block_index ASC
+            """,
+            (sheet_id,),
+        ).fetchall()
+
+    return [_row_to_dict(row) for row in rows]

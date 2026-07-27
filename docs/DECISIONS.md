@@ -23,3 +23,14 @@ Rationale:
 - rendered PNG pixels can be derived from points through a known scale;
 - findings must remain stable if the page is re-rendered at another resolution;
 - this follows the repository rule that coordinates are first-class data.
+
+## 2026-07-27 - Deterministic audit before multimodal AI
+
+The first audit orchestrator uses deterministic rules over native PDF text before any model call.
+
+Rationale:
+
+- the product should not become a monolithic prompt;
+- native text absence, missing scale markers, and missing title terms are cheap and reproducible checks;
+- every deterministic finding already uses the same structured `findings` table that AI findings will use later;
+- tests can validate the full persistence and feedback loop without network calls or secrets.

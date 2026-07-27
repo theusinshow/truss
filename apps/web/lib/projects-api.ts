@@ -59,6 +59,53 @@ export type DocumentDetail = ImportedDocument & {
   sheets: Sheet[];
 };
 
+export type FindingStatus = "pending" | "confirmed" | "rejected";
+export type FindingSeverity = "low" | "medium" | "high" | "critical";
+export type FindingType = "inconsistency" | "attention" | "missing_information" | "unverifiable";
+
+export type BoundingBox = {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+};
+
+export type Finding = {
+  id: string;
+  audit_run_id: string | null;
+  sheet_id: string;
+  document_id: string;
+  project_id: string;
+  revision_id: string;
+  category: string;
+  type: FindingType;
+  description: string;
+  severity: FindingSeverity;
+  confidence: number;
+  bbox: BoundingBox;
+  evidence: string[];
+  origin: "ai" | "human";
+  status: FindingStatus;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AuditRun = {
+  id: string;
+  sheet_id: string;
+  document_id: string;
+  project_id: string;
+  revision_id: string;
+  mode: string;
+  pipeline_version: string;
+  status: string;
+  summary: string;
+  started_at: string;
+  completed_at: string;
+  findings: Finding[];
+};
+
 export type CreateProjectInput = {
   name: string;
   description: string;
@@ -155,4 +202,48 @@ export async function importRevisionDocument(
   }
 
   return response.json() as Promise<DocumentDetail>;
+}
+
+export function runSheetAudit(apiBaseUrl: string, sheetId: string): Promise<AuditRun> {
+  return request<AuditRun>(apiBaseUrl, `/sheets/${sheetId}/audit-runs`, {
+    method: "POST"
+  });
+}
+
+export function listSheetFindings(apiBaseUrl: string, sheetId: string): Promise<Finding[]> {
+  return request<Finding[]>(apiBaseUrl, `/sheets/${sheetId}/findings`);
+}
+
+export function updateFindingStatus(
+  apiBaseUrl: string,
+  findingId: string,
+  status: FindingStatus,
+  rejectionReason?: string
+): Promise<Finding> {
+  return request<Finding>(apiBaseUrl, `/findings/${findingId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      status,
+      rejection_reason: rejectionReason
+    })
+  });
+}
+
+export function createManualFinding(
+  apiBaseUrl: string,
+  sheetId: string,
+  input: {
+    category: string;
+    type: FindingType;
+    description: string;
+    severity: FindingSeverity;
+    confidence: number;
+    bbox: BoundingBox;
+    evidence: string[];
+  }
+): Promise<Finding> {
+  return request<Finding>(apiBaseUrl, `/sheets/${sheetId}/findings`, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
 }

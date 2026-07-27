@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse
 from truss_api.core.settings import Settings, get_settings
 from truss_api.documents import repository
 from truss_api.documents.importer import InvalidPdfError, prepare_pdf_storage
-from truss_api.documents.models import Document, DocumentDetail
+from truss_api.documents.models import Document, DocumentDetail, TextBlock
 from truss_api.documents.rendering import RenderError, render_sheet_png
 
 
@@ -96,3 +96,14 @@ def get_sheet_image(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(error)) from error
 
     return FileResponse(image_path, media_type="image/png")
+
+
+@router.get("/sheets/{sheet_id}/text-blocks", response_model=list[TextBlock])
+def list_sheet_text_blocks(
+    sheet_id: str,
+    settings: Settings = Depends(get_settings),
+) -> list[dict[str, object]]:
+    try:
+        return repository.list_text_blocks_for_sheet(sheet_id, settings)
+    except repository.SheetNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sheet not found") from error

@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from truss_api.audit.routes import router as audit_router
 from truss_api.core.storage import ensure_storage_layout
 from truss_api.db.schema import initialize_database
 from truss_api.documents.routes import router as documents_router
@@ -38,3 +39,4 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(projects_router)
 app.include_router(documents_router)
+app.include_router(audit_router)

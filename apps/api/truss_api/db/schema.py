@@ -69,6 +69,82 @@ CREATE TABLE IF NOT EXISTS sheets (
 
 CREATE INDEX IF NOT EXISTS idx_sheets_revision_page
 ON sheets(revision_id, sheet_number);
+
+CREATE TABLE IF NOT EXISTS text_blocks (
+    id TEXT PRIMARY KEY,
+    sheet_id TEXT NOT NULL,
+    document_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    revision_id TEXT NOT NULL,
+    block_index INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    x0 REAL NOT NULL,
+    y0 REAL NOT NULL,
+    x1 REAL NOT NULL,
+    y1 REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (sheet_id) REFERENCES sheets(id) ON DELETE RESTRICT,
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE RESTRICT,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT,
+    FOREIGN KEY (revision_id) REFERENCES revisions(id) ON DELETE RESTRICT,
+    UNIQUE (sheet_id, block_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_text_blocks_sheet
+ON text_blocks(sheet_id, block_index);
+
+CREATE TABLE IF NOT EXISTS audit_runs (
+    id TEXT PRIMARY KEY,
+    sheet_id TEXT NOT NULL,
+    document_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    revision_id TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    pipeline_version TEXT NOT NULL,
+    status TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    completed_at TEXT NOT NULL,
+    FOREIGN KEY (sheet_id) REFERENCES sheets(id) ON DELETE RESTRICT,
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE RESTRICT,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT,
+    FOREIGN KEY (revision_id) REFERENCES revisions(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_runs_sheet_completed
+ON audit_runs(sheet_id, completed_at);
+
+CREATE TABLE IF NOT EXISTS findings (
+    id TEXT PRIMARY KEY,
+    audit_run_id TEXT,
+    sheet_id TEXT NOT NULL,
+    document_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    revision_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    type TEXT NOT NULL,
+    description TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    x0 REAL NOT NULL,
+    y0 REAL NOT NULL,
+    x1 REAL NOT NULL,
+    y1 REAL NOT NULL,
+    evidence_json TEXT NOT NULL,
+    origin TEXT NOT NULL,
+    status TEXT NOT NULL,
+    rejection_reason TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (audit_run_id) REFERENCES audit_runs(id) ON DELETE RESTRICT,
+    FOREIGN KEY (sheet_id) REFERENCES sheets(id) ON DELETE RESTRICT,
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE RESTRICT,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT,
+    FOREIGN KEY (revision_id) REFERENCES revisions(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_findings_sheet_status
+ON findings(sheet_id, status, severity);
 """
 
 
