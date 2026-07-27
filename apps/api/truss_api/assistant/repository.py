@@ -34,6 +34,9 @@ def sheet_context(sheet_id: str, settings: Settings) -> dict[str, object]:
                 s.label,
                 s.project_id,
                 s.revision_id,
+                s.width_pt,
+                s.height_pt,
+                s.rotation,
                 (
                     SELECT COUNT(*)
                     FROM findings f
@@ -54,11 +57,62 @@ def sheet_context(sheet_id: str, settings: Settings) -> dict[str, object]:
             (sheet_id,),
         ).fetchone()
 
+        findings = connection.execute(
+            """
+            SELECT
+                id,
+                category,
+                type,
+                description,
+                severity,
+                confidence,
+                status,
+                evidence_json
+            FROM findings
+            WHERE sheet_id = ?
+            ORDER BY
+                CASE severity
+                    WHEN 'critical' THEN 0
+                    WHEN 'high' THEN 1
+                    WHEN 'medium' THEN 2
+                    WHEN 'low' THEN 3
+                    ELSE 4
+                END,
+                created_at DESC
+            LIMIT 12
+            """,
+            (sheet_id,),
+        ).fetchall()
+
+        text_blocks = connection.execute(
+            """
+            SELECT text
+            FROM text_blocks
+            WHERE sheet_id = ?
+            ORDER BY block_index ASC
+            LIMIT 80
+            """,
+            (sheet_id,),
+        ).fetchall()
+
+        memories = connection.execute(
+            """
+            SELECT scope, key, text
+            FROM memories
+            ORDER BY created_at DESC, key ASC
+            LIMIT 20
+            """
+        ).fetchall()
+
     if sheet is None:
         raise SheetNotFoundError(sheet_id)
 
     data = _row_to_dict(sheet)
     data["sheet_label"] = data.pop("label")
+    native_text = "\n".join(str(row["text"]).strip() for row in text_blocks if str(row["text"]).strip())
+    data["native_text_excerpt"] = native_text[:6000]
+    data["recent_findings"] = [_row_to_dict(row) for row in findings]
+    data["memories"] = [_row_to_dict(row) for row in memories]
     return data
 
 

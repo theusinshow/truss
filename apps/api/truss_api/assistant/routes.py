@@ -1,6 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from truss_api.ai.provider import LocalHeuristicProvider
+from truss_api.ai.provider import (
+    AIProviderConfigError,
+    AIProviderUnavailableError,
+    build_ai_provider,
+)
 from truss_api.assistant import repository
 from truss_api.assistant.models import ChatRequest, ChatResponse, Memory, MemoryCreate, UsageEvent
 from truss_api.core.settings import Settings, get_settings
@@ -16,7 +20,13 @@ def chat_with_sheet(
     payload: ChatRequest,
     settings: Settings = Depends(get_settings),
 ) -> ChatResponse:
-    provider = LocalHeuristicProvider()
+    try:
+        provider = build_ai_provider(settings)
+    except AIProviderConfigError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI provider is not configured",
+        ) from error
 
     try:
         context = repository.sheet_context(sheet_id, settings)
@@ -29,6 +39,11 @@ def chat_with_sheet(
         )
     except SheetNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sheet not found") from error
+    except AIProviderUnavailableError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI provider is unavailable",
+        ) from error
 
     return ChatResponse(
         answer=provider_response.answer,

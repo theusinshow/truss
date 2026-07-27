@@ -1,6 +1,8 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,12 +13,21 @@ class Settings(BaseSettings):
     app_name: str = "Truss Agent"
     environment: str = "local"
     data_dir: Path = REPO_ROOT / "data"
+    ai_provider: Literal["auto", "local", "openai"] = "auto"
+    openai_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TRUSS_OPENAI_API_KEY", "OPENAI_API_KEY"),
+    )
+    openai_model: str = "gpt-5.6-terra"
+    openai_reasoning_effort: Literal["none", "low", "medium", "high", "xhigh", "max"] = "low"
+    openai_max_output_tokens: int = 900
 
     model_config = SettingsConfigDict(
         env_prefix="TRUSS_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        populate_by_name=True,
     )
 
     @property

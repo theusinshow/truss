@@ -1,11 +1,13 @@
 from collections.abc import Iterator
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import fitz
 import pytest
 from fastapi.testclient import TestClient
 
+from truss_api.ai.provider import OpenAIProvider, build_ai_provider
 from truss_api.core.settings import Settings, get_settings
 from truss_api.db.schema import initialize_database
 from truss_api.main import app
@@ -15,7 +17,7 @@ from truss_api.projects.models import ProjectCreate, RevisionCreate
 
 @pytest.fixture()
 def settings(tmp_path: Path) -> Settings:
-    resolved = Settings(data_dir=tmp_path / "data")
+    resolved = Settings(data_dir=tmp_path / "data", ai_provider="local", openai_api_key=None)
     initialize_database(resolved)
     return resolved
 
@@ -71,6 +73,64 @@ def test_sheet_chat_uses_local_provider_and_records_usage(
     usage = client.get("/usage").json()
     assert usage[0]["provider"] == "local"
     assert usage[0]["estimated_cost_usd"] == 0
+
+
+def test_auto_provider_uses_local_when_openai_key_is_missing(tmp_path: Path) -> None:
+    isolated_settings = Settings(
+        data_dir=tmp_path / "data",
+        ai_provider="auto",
+        openai_api_key=None,
+    )
+
+    provider = build_ai_provider(isolated_settings)
+
+    assert provider.provider == "local"
+
+
+def test_openai_provider_uses_responses_api_and_estimates_cost() -> None:
+    class FakeResponses:
+        def __init__(self) -> None:
+            self.request: dict[str, object] | None = None
+
+        def create(self, **kwargs: object) -> SimpleNamespace:
+            self.request = kwargs
+            return SimpleNamespace(
+                output_text="A escala esta indicada como 1:50 no texto nativo.",
+                usage=SimpleNamespace(input_tokens=100, output_tokens=10),
+            )
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.responses = FakeResponses()
+
+    fake_client = FakeClient()
+    provider = OpenAIProvider(
+        api_key="sk-test",
+        model="gpt-5.6-terra",
+        reasoning_effort="low",
+        max_output_tokens=400,
+        client=fake_client,
+    )
+
+    response = provider.respond(
+        user_message="Qual e a escala?",
+        context={
+            "sheet_label": "Folha 1",
+            "native_text_excerpt": "FORMA PAVIMENTO 1\nESCALA 1:50",
+            "recent_findings": [],
+            "memories": [],
+        },
+    )
+
+    assert response.provider == "openai"
+    assert response.model == "gpt-5.6-terra"
+    assert response.input_tokens == 100
+    assert response.output_tokens == 10
+    assert response.estimated_cost_usd == 0.0004
+    assert fake_client.responses.request is not None
+    assert fake_client.responses.request["model"] == "gpt-5.6-terra"
+    assert fake_client.responses.request["reasoning"] == {"effort": "low"}
+    assert fake_client.responses.request["max_output_tokens"] == 400
 
 
 def test_memory_crud(client: TestClient) -> None:

@@ -93,10 +93,36 @@ A aplicação possui uma primeira abstração de AI Provider:
 
 - interface `AIProvider`;
 - provider local determinístico `local/deterministic-context-v0.1`;
+- provider OpenAI opcional via Responses API;
 - chat contextual por folha sem chamada externa;
 - persistência de mensagens em `chat_messages`;
 - memórias explícitas em `memories`, com criação, listagem e exclusão;
 - eventos de uso em `ai_usage_events`;
 - cache de auditoria em `cache_entries`.
 
-O provider local registra custo estimado zero. Nenhum segredo ou API key é necessário para o fluxo V0.1 atual.
+Por padrão, `TRUSS_AI_PROVIDER=auto` usa OpenAI quando existe chave no ambiente e cai para o provider local quando não existe. O provider local registra custo estimado zero. Segredos nunca devem ser salvos em SQLite, JSON, localStorage ou logs.
+
+### Configuração de IA
+
+Use uma destas variáveis no ambiente do backend:
+
+```powershell
+setx OPENAI_API_KEY "sua_chave_nova"
+```
+
+ou:
+
+```powershell
+setx TRUSS_OPENAI_API_KEY "sua_chave_nova"
+```
+
+Configurações opcionais:
+
+```powershell
+setx TRUSS_AI_PROVIDER "auto"
+setx TRUSS_OPENAI_MODEL "gpt-5.6-terra"
+setx TRUSS_OPENAI_REASONING_EFFORT "low"
+setx TRUSS_OPENAI_MAX_OUTPUT_TOKENS "900"
+```
+
+Depois de usar `setx`, feche e reabra o terminal antes de iniciar a API. Para forçar execução sem chamadas externas, use `TRUSS_AI_PROVIDER=local`.

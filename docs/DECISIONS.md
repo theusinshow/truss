@@ -45,3 +45,14 @@ Rationale:
 - provider boundaries are in place before adding OpenAI or another external model;
 - tests remain deterministic and do not depend on network calls;
 - usage events can record zero-cost local operations now and paid provider operations later.
+
+## 2026-07-27 - OpenAI provider uses environment-only secrets
+
+The OpenAI provider is optional and is selected only when the backend receives an API key through `OPENAI_API_KEY` or `TRUSS_OPENAI_API_KEY`, or when `TRUSS_AI_PROVIDER=openai` is explicitly configured.
+
+Rationale:
+
+- API keys must not be persisted in SQLite, JSON, browser storage, repository files, or logs;
+- `TRUSS_AI_PROVIDER=auto` keeps the app functional without a key by falling back to the local provider;
+- explicit `TRUSS_AI_PROVIDER=openai` fails fast when the key is missing instead of silently pretending to use AI;
+- usage events record provider, model, token counts, and estimated cost when the OpenAI response exposes usage data.
