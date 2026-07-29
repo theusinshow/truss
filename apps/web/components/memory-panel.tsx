@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Brain, Trash2 } from "lucide-react";
+import { BookMarked, Trash2 } from "lucide-react";
 
 import { createMemory, deleteMemory, listMemories, Memory } from "@/lib/projects-api";
 
@@ -72,21 +72,21 @@ export function MemoryPanel({ apiBaseUrl }: MemoryPanelProps) {
   }
 
   return (
-    <section className="rounded-lg border border-truss-line bg-truss-panel p-5 shadow-[0_1px_2px_rgba(32,43,61,0.04)]">
-      <div className="flex items-center gap-3">
-        <Brain aria-hidden="true" className="h-4 w-4 text-truss-accent" />
-        <h3 className="text-sm font-semibold text-truss-text">
+    <section className="truss-panel p-4">
+      <div className="flex items-center gap-3 border-b border-truss-line pb-3">
+        <BookMarked aria-hidden="true" className="truss-icon h-4 w-4 text-truss-accent" />
+        <h3 className="truss-mono-label text-truss-muted">
           Memorias
         </h3>
       </div>
 
-      {error ? <p className="mt-3 rounded-md bg-truss-danger/10 px-3 py-2 text-sm text-truss-danger">{error}</p> : null}
+      {error ? <p className="mt-3 border border-truss-danger/30 bg-truss-danger/10 px-3 py-2 text-sm text-truss-danger">{error}</p> : null}
 
       <form className="mt-5 space-y-3" onSubmit={(event) => void handleCreateMemory(event)}>
         <label className="block">
-          <span className="text-xs font-medium text-truss-muted">Chave</span>
+          <span className="truss-mono-label">Chave</span>
         <input
-          className="mt-2 w-full border border-truss-line bg-truss-raised px-3 font-mono text-sm text-truss-text outline-none placeholder:text-truss-subtle focus:border-truss-accent"
+          className="truss-field mt-2 w-full px-3 font-mono text-sm"
           maxLength={120}
           onChange={(event) => setKey(event.target.value)}
           placeholder="chave, ex.: escala"
@@ -95,9 +95,9 @@ export function MemoryPanel({ apiBaseUrl }: MemoryPanelProps) {
         />
         </label>
         <label className="block">
-          <span className="text-xs font-medium text-truss-muted">Regra</span>
+          <span className="truss-mono-label">Regra</span>
         <textarea
-          className="mt-2 w-full resize-none border border-truss-line bg-truss-raised px-3 py-2 text-sm text-truss-text outline-none placeholder:text-truss-subtle focus:border-truss-accent"
+          className="truss-field mt-2 w-full resize-none px-3 py-2 text-sm"
           maxLength={1200}
           onChange={(event) => setText(event.target.value)}
           placeholder="Regra explicita aprendida"
@@ -106,7 +106,7 @@ export function MemoryPanel({ apiBaseUrl }: MemoryPanelProps) {
         />
         </label>
         <button
-          className="w-full border border-truss-line bg-truss-raised px-4 text-sm font-semibold text-truss-text transition-colors hover:border-truss-accent hover:bg-truss-accentSoft disabled:cursor-not-allowed disabled:opacity-50"
+          className="truss-button w-full disabled:cursor-not-allowed disabled:opacity-50"
           disabled={isSubmitting}
           type="submit"
         >
@@ -116,22 +116,22 @@ export function MemoryPanel({ apiBaseUrl }: MemoryPanelProps) {
 
       <div className="mt-5 space-y-2">
         {memories.length === 0 ? (
-          <p className="text-sm leading-6 text-truss-muted">Nenhuma memoria explicita salva.</p>
+          <p className="border border-dashed border-truss-line px-3 py-4 text-sm leading-6 text-truss-muted">Nenhuma memoria explicita salva.</p>
         ) : (
           memories.map((memory) => (
-            <article className="rounded-lg border border-truss-line bg-truss-raised p-3" key={memory.id}>
+            <article className="border border-truss-line bg-truss-raised p-3" key={memory.id}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-mono text-xs font-semibold text-truss-text">{memory.key}</p>
                   <p className="mt-2 text-sm leading-5 text-truss-muted">{memory.text}</p>
                 </div>
                 <button
-                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center border border-truss-line bg-truss-panel text-truss-muted transition-colors hover:border-truss-danger/40 hover:bg-truss-danger/10 hover:text-truss-danger"
+                  className="truss-icon-button shrink-0 hover:border-truss-danger/40 hover:bg-truss-danger/10 hover:text-truss-danger"
                   onClick={() => void handleDeleteMemory(memory.id)}
                   title="Excluir memoria"
                   type="button"
                 >
-                  <Trash2 aria-hidden="true" className="h-4 w-4" />
+                  <Trash2 aria-hidden="true" className="truss-icon h-4 w-4" />
                 </button>
               </div>
             </article>

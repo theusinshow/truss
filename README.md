@@ -133,12 +133,14 @@ Configuracoes opcionais:
 
 ```powershell
 setx TRUSS_AI_PROVIDER "auto"
-setx TRUSS_OPENAI_MODEL "gpt-5.6-terra"
+setx TRUSS_OPENAI_MODEL "gpt-5.6-sol"
+setx TRUSS_OPENAI_ORG_ID "org_..."
+setx TRUSS_OPENAI_PROJECT_ID "proj_..."
 setx TRUSS_OPENAI_REASONING_EFFORT "low"
 setx TRUSS_OPENAI_MAX_OUTPUT_TOKENS "900"
 ```
 
-Depois de usar `setx`, feche e reabra o terminal antes de iniciar a API. Para habilitar OpenAI diretamente, use `TRUSS_AI_PROVIDER=openai`. Para forcar execucao sem chamadas externas, use `TRUSS_AI_PROVIDER=local`.
+Depois de usar `setx`, feche e reabra o terminal antes de iniciar a API. Para habilitar OpenAI diretamente, use `TRUSS_AI_PROVIDER=openai`. Para forcar execucao sem chamadas externas, use `TRUSS_AI_PROVIDER=local`. Quando houver mais de uma organizacao ou projeto na conta, configure tambem `TRUSS_OPENAI_ORG_ID` e `TRUSS_OPENAI_PROJECT_ID` para evitar que o backend use uma chave/projeto sem quota.
 
 ## Requisitos locais
 

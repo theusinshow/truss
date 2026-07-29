@@ -158,14 +158,39 @@ CREATE TABLE IF NOT EXISTS memories (
 CREATE INDEX IF NOT EXISTS idx_memories_scope
 ON memories(scope, created_at);
 
+CREATE TABLE IF NOT EXISTS chat_conversations (
+    id TEXT PRIMARY KEY,
+    sheet_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    revision_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (sheet_id) REFERENCES sheets(id) ON DELETE RESTRICT,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT,
+    FOREIGN KEY (revision_id) REFERENCES revisions(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_conversations_sheet_updated
+ON chat_conversations(sheet_id, updated_at);
+
 CREATE TABLE IF NOT EXISTS chat_messages (
     id TEXT PRIMARY KEY,
+    conversation_id TEXT,
     sheet_id TEXT NOT NULL,
     project_id TEXT NOT NULL,
     revision_id TEXT NOT NULL,
     role TEXT NOT NULL,
     content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'completed',
+    provider TEXT,
+    model TEXT,
+    parent_message_id TEXT,
     created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (conversation_id) REFERENCES chat_conversations(id) ON DELETE RESTRICT,
+    FOREIGN KEY (parent_message_id) REFERENCES chat_messages(id) ON DELETE RESTRICT,
     FOREIGN KEY (sheet_id) REFERENCES sheets(id) ON DELETE RESTRICT,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT,
     FOREIGN KEY (revision_id) REFERENCES revisions(id) ON DELETE RESTRICT
@@ -173,6 +198,34 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_sheet
 ON chat_messages(sheet_id, created_at);
+
+CREATE TABLE IF NOT EXISTS chat_message_context_items (
+    id TEXT PRIMARY KEY,
+    message_id TEXT NOT NULL,
+    item_order INTEGER NOT NULL,
+    source_id TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL,
+    label TEXT NOT NULL,
+    value TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_message_context_message
+ON chat_message_context_items(message_id, item_order);
+
+CREATE TABLE IF NOT EXISTS chat_message_feedback (
+    id TEXT PRIMARY KEY,
+    message_id TEXT NOT NULL,
+    feedback TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_message_feedback_message
+ON chat_message_feedback(message_id, created_at);
 
 CREATE TABLE IF NOT EXISTS ai_usage_events (
     id TEXT PRIMARY KEY,
@@ -204,8 +257,47 @@ ON cache_entries(namespace, created_at);
 """
 
 
+CHAT_MESSAGE_COLUMNS = {
+    "conversation_id": "TEXT",
+    "status": "TEXT NOT NULL DEFAULT 'completed'",
+    "provider": "TEXT",
+    "model": "TEXT",
+    "parent_message_id": "TEXT",
+    "updated_at": "TEXT NOT NULL DEFAULT ''",
+}
+
+CHAT_MESSAGE_CONTEXT_COLUMNS = {
+    "source_id": "TEXT NOT NULL DEFAULT ''",
+}
+
+
+def _ensure_column(connection: object, table: str, column: str, definition: str) -> None:
+    rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
+    columns = {str(row["name"]) for row in rows}
+
+    if column not in columns:
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def initialize_database(settings: Settings | None = None) -> None:
     resolved = settings or get_settings()
 
     with transaction(resolved) as connection:
         connection.executescript(SCHEMA_SQL)
+        for column, definition in CHAT_MESSAGE_COLUMNS.items():
+            _ensure_column(connection, "chat_messages", column, definition)
+        for column, definition in CHAT_MESSAGE_CONTEXT_COLUMNS.items():
+            _ensure_column(connection, "chat_message_context_items", column, definition)
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation
+            ON chat_messages(conversation_id, created_at)
+            """
+        )
+        connection.execute(
+            """
+            UPDATE chat_messages
+            SET updated_at = created_at
+            WHERE updated_at = ''
+            """
+        )

@@ -110,6 +110,73 @@ export type ChatResponse = {
   answer: string;
   provider: string;
   model: string;
+  conversation_id: string;
+  user_message_id: string;
+  assistant_message_id: string;
+};
+
+export type ChatStreamEvent =
+  | { event: "meta"; provider: string; model: string }
+  | { event: "delta"; delta: string }
+  | { event: "done" } & ChatResponse
+  | { event: "error"; detail: string; provider_code?: string | null };
+
+export type ChatContextItem = {
+  id: string;
+  kind: "sheet" | "document" | "selection" | "finding" | "audit" | "page";
+  label: string;
+  value: string;
+  metadata?: Record<string, string | number | boolean | null>;
+};
+
+export type Conversation = {
+  id: string;
+  sheet_id: string;
+  project_id: string;
+  revision_id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PersistedChatMessage = {
+  id: string;
+  conversation_id: string | null;
+  sheet_id: string;
+  project_id: string;
+  revision_id: string;
+  role: "user" | "assistant";
+  content: string;
+  status: string;
+  provider: string | null;
+  model: string | null;
+  parent_message_id: string | null;
+  created_at: string;
+  updated_at: string;
+  context_items: ChatContextItem[];
+};
+
+export type MessageFeedback = {
+  id: string;
+  message_id: string;
+  feedback: "correct" | "incorrect";
+  reason: string;
+  created_at: string;
+};
+
+export type AIStatus = {
+  configured_provider: string;
+  resolved_provider: string;
+  model: string;
+  openai_api_key_configured: boolean;
+  openai_key_source: string | null;
+  openai_key_last4: string | null;
+  openai_key_fingerprint: string | null;
+  openai_org_id_configured: boolean;
+  openai_project_id_configured: boolean;
+  external_calls_enabled: boolean;
+  message: string;
 };
 
 export type Memory = {
@@ -265,12 +332,124 @@ export function createManualFinding(
 export function chatWithSheet(
   apiBaseUrl: string,
   sheetId: string,
-  message: string
+  message: string,
+  options?: { contextItems?: ChatContextItem[]; conversationId?: string; signal?: AbortSignal }
 ): Promise<ChatResponse> {
   return request<ChatResponse>(apiBaseUrl, `/sheets/${sheetId}/chat`, {
     method: "POST",
-    body: JSON.stringify({ message })
+    body: JSON.stringify({
+      message,
+      conversation_id: options?.conversationId,
+      context_items: options?.contextItems ?? []
+    }),
+    signal: options?.signal
   });
+}
+
+export async function streamChatWithSheet(
+  apiBaseUrl: string,
+  sheetId: string,
+  message: string,
+  options?: {
+    contextItems?: ChatContextItem[];
+    conversationId?: string;
+    onEvent?: (event: ChatStreamEvent) => void;
+    signal?: AbortSignal;
+  }
+): Promise<ChatResponse> {
+  const response = await fetch(`${apiBaseUrl}/sheets/${sheetId}/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      conversation_id: options?.conversationId,
+      context_items: options?.contextItems ?? []
+    }),
+    signal: options?.signal
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(body || `Request failed with status ${response.status}`);
+  }
+
+  if (!response.body) {
+    const fallback = await chatWithSheet(apiBaseUrl, sheetId, message, options);
+    options?.onEvent?.({ event: "done", ...fallback });
+    return fallback;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalPayload: ChatResponse | null = null;
+
+  async function consumeLine(line: string) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const event = JSON.parse(trimmed) as ChatStreamEvent;
+    options?.onEvent?.(event);
+
+    if (event.event === "error") {
+      throw new Error(event.detail);
+    }
+
+    if (event.event === "done") {
+      finalPayload = event;
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      await consumeLine(line);
+    }
+
+    if (done) {
+      break;
+    }
+  }
+
+  await consumeLine(buffer);
+
+  if (!finalPayload) {
+    throw new Error("Stream do Truss terminou sem resposta final.");
+  }
+
+  return finalPayload;
+}
+
+export function listSheetConversations(apiBaseUrl: string, sheetId: string): Promise<Conversation[]> {
+  return request<Conversation[]>(apiBaseUrl, `/sheets/${sheetId}/conversations`);
+}
+
+export function listConversationMessages(apiBaseUrl: string, conversationId: string): Promise<PersistedChatMessage[]> {
+  return request<PersistedChatMessage[]>(apiBaseUrl, `/chat/conversations/${conversationId}/messages`);
+}
+
+export function createMessageFeedback(
+  apiBaseUrl: string,
+  messageId: string,
+  input: { feedback: "correct" | "incorrect"; reason?: string }
+): Promise<MessageFeedback> {
+  return request<MessageFeedback>(apiBaseUrl, `/chat/messages/${messageId}/feedback`, {
+    method: "POST",
+    body: JSON.stringify({
+      feedback: input.feedback,
+      reason: input.reason ?? ""
+    })
+  });
+}
+
+export function getAIStatus(apiBaseUrl: string): Promise<AIStatus> {
+  return request<AIStatus>(apiBaseUrl, "/ai/status");
 }
 
 export function listMemories(apiBaseUrl: string): Promise<Memory[]> {

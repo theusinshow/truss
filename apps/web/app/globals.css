@@ -3,14 +3,28 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
-  --background: oklch(0.973 0.006 260);
-  --foreground: oklch(0.205 0.015 260);
-  --muted: oklch(0.49 0.018 260);
-  --line: oklch(0.875 0.009 260);
-  --panel: oklch(0.997 0.003 260);
-  --accent: oklch(0.58 0.17 255);
-  --focus-ring: oklch(0.78 0.09 255);
+  color-scheme: dark;
+  --bg: #0e0f10;
+  --bg-elev: #141618;
+  --panel: #17191b;
+  --panel-2: #1d2022;
+  --border: #2a2e31;
+  --grid: #202426;
+  --fg: #e7eaeb;
+  --fg-2: #98a0a5;
+  --fg-tech: #79838a;
+  --red: #d93b2b;
+  --red-crit: #ff4a37;
+  --red-dim: #3a1512;
+  --amber: #dfa03c;
+  --green: #3fa860;
+  --info: #6f8ea3;
+  --sheet: #f2f0ec;
+  --icon-sw: 1.75;
+  --r: 4px;
+  --font-ui: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --focus-ring: rgba(217, 59, 43, 0.28);
 }
 
 * {
@@ -19,7 +33,7 @@
 
 html {
   min-height: 100%;
-  background: var(--background);
+  background: var(--bg);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
@@ -27,9 +41,22 @@ html {
 body {
   min-height: 100dvh;
   margin: 0;
-  background: var(--background);
-  color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background:
+    radial-gradient(120% 90% at 50% 0%, transparent 38%, var(--bg) 100%),
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+    var(--bg);
+  background-attachment: fixed;
+  background-position:
+    0 0,
+    -1px -1px,
+    -1px -1px;
+  background-size:
+    auto,
+    96px 96px,
+    96px 96px;
+  color: var(--fg);
+  font-family: var(--font-ui);
 }
 
 button,
@@ -45,17 +72,17 @@ button:not([class*="absolute"]),
 input,
 textarea,
 select {
-  border-radius: 0.625rem;
+  border-radius: var(--r);
 }
 
 button:not([class*="absolute"]) {
-  min-height: 44px;
+  min-height: 38px;
   cursor: pointer;
 }
 
 input,
 select {
-  min-height: 44px;
+  min-height: 38px;
 }
 
 textarea {
@@ -67,13 +94,205 @@ button:disabled {
 }
 
 :focus-visible {
-  outline: 3px solid var(--focus-ring);
+  outline: 1px solid var(--red);
   outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 ::selection {
-  background: oklch(0.9 0.05 255);
-  color: var(--foreground);
+  background: rgba(217, 59, 43, 0.28);
+  color: var(--fg);
+}
+
+* {
+  scrollbar-color: rgba(121, 131, 138, 0.42) var(--bg-elev);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  height: 9px;
+  width: 9px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--bg-elev);
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid var(--bg-elev);
+  background: rgba(121, 131, 138, 0.42);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(217, 59, 43, 0.58);
+}
+
+@layer components {
+  .truss-mono-label {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--fg-tech);
+  }
+
+  .truss-panel {
+    border: 1px solid var(--border);
+    background: var(--panel);
+  }
+
+  .truss-panel-elev {
+    border: 1px solid var(--border);
+    background: var(--bg-elev);
+  }
+
+  .truss-icon {
+    stroke-width: var(--icon-sw);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .truss-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--bg-elev);
+    color: var(--fg-2);
+    transition:
+      background-color 120ms ease-out,
+      border-color 120ms ease-out,
+      color 120ms ease-out,
+      box-shadow 120ms ease-out;
+  }
+
+  .truss-icon-button:hover {
+    border-color: rgba(217, 59, 43, 0.55);
+    background: var(--panel-2);
+    color: var(--fg);
+  }
+
+  .truss-icon-button[data-active="true"],
+  .truss-icon-button[aria-pressed="true"] {
+    border-color: rgba(217, 59, 43, 0.55);
+    background: var(--red-dim);
+    color: #ff8a7a;
+    box-shadow: inset 0 0 0 1px rgba(217, 59, 43, 0.32);
+  }
+
+  .truss-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 38px;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--bg-elev);
+    padding: 0 13px;
+    color: var(--fg-2);
+    font-size: 12.5px;
+    font-weight: 600;
+    transition:
+      background-color 120ms ease-out,
+      border-color 120ms ease-out,
+      color 120ms ease-out,
+      box-shadow 120ms ease-out;
+  }
+
+  .truss-button:hover {
+    border-color: rgba(217, 59, 43, 0.55);
+    background: var(--panel-2);
+    color: var(--fg);
+  }
+
+  .truss-button-primary {
+    border-color: #e0442f;
+    background: linear-gradient(180deg, #e0442f, #c02f21);
+    color: var(--fg);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 2px 8px rgba(217, 59, 43, 0.28);
+  }
+
+  .truss-button-primary:hover {
+    background: linear-gradient(180deg, #ea4f39, #cb3524);
+    color: var(--fg);
+  }
+
+  .truss-field {
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--bg-elev);
+    color: var(--fg);
+    transition:
+      border-color 120ms ease-out,
+      box-shadow 120ms ease-out;
+  }
+
+  .truss-field::placeholder {
+    color: var(--fg-tech);
+  }
+
+  .truss-field:focus {
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px rgba(217, 59, 43, 0.16);
+    outline: none;
+  }
+
+  .truss-segment {
+    display: inline-flex;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--bg-elev);
+  }
+
+  .truss-segment > button,
+  .truss-segment > span {
+    border-right: 1px solid var(--border);
+  }
+
+  .truss-segment > :last-child {
+    border-right: 0;
+  }
+
+  .truss-scan-sweep {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(217, 59, 43, 0.06) 40%,
+      rgba(255, 74, 55, 0.22) 50%,
+      rgba(217, 59, 43, 0.06) 60%,
+      transparent 100%
+    );
+    mix-blend-mode: multiply;
+  }
+
+  .truss-region-focus {
+    animation: truss-region-focus 950ms ease-out both;
+  }
+}
+
+@keyframes truss-scan-sweep {
+  0% {
+    transform: translateX(-115%);
+  }
+  100% {
+    transform: translateX(115%);
+  }
+}
+
+@keyframes truss-region-focus {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 74, 55, 0.52);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgba(255, 74, 55, 0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

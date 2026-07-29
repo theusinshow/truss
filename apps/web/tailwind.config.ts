@@ -16,20 +16,31 @@ const config: Config = {
       },
       colors: {
         truss: {
-          base: "oklch(0.973 0.006 260)",
-          panel: "oklch(0.997 0.003 260)",
-          raised: "oklch(0.985 0.004 260)",
-          canvas: "oklch(0.943 0.006 260)",
-          line: "oklch(0.875 0.009 260)",
-          text: "oklch(0.205 0.015 260)",
-          muted: "oklch(0.49 0.018 260)",
-          subtle: "oklch(0.68 0.015 260)",
-          accent: "oklch(0.58 0.17 255)",
-          accentSoft: "oklch(0.94 0.035 255)",
-          success: "oklch(0.58 0.13 155)",
-          danger: "oklch(0.58 0.18 25)",
-          warning: "oklch(0.66 0.13 78)"
+          base: "#0e0f10",
+          panel: "#17191b",
+          panel2: "#1d2022",
+          raised: "#141618",
+          canvas: "#101213",
+          line: "#2a2e31",
+          grid: "#202426",
+          text: "#e7eaeb",
+          muted: "#98a0a5",
+          subtle: "#79838a",
+          accent: "#d93b2b",
+          accentSoft: "#3a1512",
+          danger: "#ff4a37",
+          warning: "#dfa03c",
+          success: "#3fa860",
+          info: "#6f8ea3",
+          sheet: "#f2f0ec"
         }
+      },
+      borderRadius: {
+        truss: "4px"
+      },
+      boxShadow: {
+        "truss-red": "0 0 0 1px rgba(217,59,43,0.5), 0 0 24px rgba(217,59,43,0.18)",
+        "truss-panel": "0 12px 34px rgba(0,0,0,0.45)"
       }
     }
   },
