@@ -5,6 +5,7 @@ from pathlib import Path
 import fitz
 
 from truss_api.core.settings import Settings
+from truss_api.sheetmap.primitives import PageExtraction
 
 
 @dataclass(frozen=True)
@@ -122,4 +123,35 @@ def read_page_geometry(relative_path: str, settings: Settings) -> PageGeometry:
         ],
         line_count=int(payload["line_count"]),
         curve_count=int(payload["curve_count"]),
+    )
+
+
+def geometry_from_extraction(extraction: PageExtraction) -> PageGeometry:
+    """Vista reduzida usada pela deteccao de regioes.
+
+    As primitivas completas seguem disponiveis no artefato em disco; aqui so
+    interessam os bounding boxes grandes o bastante para delimitar estrutura.
+    """
+    page_area = extraction.metadata.width_pt * extraction.metadata.height_pt
+    minimum_area = page_area * 0.0002
+    seen: set[tuple[float, float, float, float]] = set()
+    rects: list[GeometryRect] = []
+
+    for primitive in extraction.primitives:
+        if primitive.rect in seen:
+            continue
+
+        seen.add(primitive.rect)
+        x0, y0, x1, y1 = primitive.rect
+        if (x1 - x0) * (y1 - y0) < minimum_area:
+            continue
+
+        rects.append(GeometryRect(x0=x0, y0=y0, x1=x1, y1=y1))
+
+    return PageGeometry(
+        width_pt=extraction.metadata.width_pt,
+        height_pt=extraction.metadata.height_pt,
+        rects=rects,
+        line_count=sum(1 for p in extraction.primitives if p.kind == "l"),
+        curve_count=sum(1 for p in extraction.primitives if p.kind == "c"),
     )

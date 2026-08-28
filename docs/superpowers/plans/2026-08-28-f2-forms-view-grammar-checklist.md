@@ -3897,3 +3897,41 @@ O ultimo item nao pode ser satisfeito por nenhum agente. Enquanto o gabarito est
 Extracao de pilares, vigas, lajes ou aberturas; visao multimodal; aprendizado com feedback;
 armaduras e resumos de aco; OCR como caminho principal; autenticacao, SaaS ou multiusuario;
 comparacao entre revisoes; grandes refatoracoes de UI. Nenhuma tarefa acima abre essas frentes.
+
+## Estado da implementacao (handoff 2026-08-28)
+
+Material humano incorporado: `calibration/human-review/forms-policy-decisions-v1.md` e o
+questionario original sao a fonte de verdade; o derivado estruturado esta em
+`calibration/juliano-corbellini-r05.yml` (status `human_verified`, 4 open questions resolvidas,
+1 pendente: a ressalva de EST-0260-A).
+
+### Concluido
+
+- Ground truth v3 com texto bruto e valor normalizado separados; niveis normalizados apenas
+  com a tabela confirmada pelo proprietario.
+- Extracao rica (`sheetmap/primitives.py`, `sheetmap/artifacts.py`): primitivas vetoriais,
+  spans com fonte e tamanho, mediabox/cropbox/rotacao, gzip enderecado por hash.
+  **Medido no projeto-base: 29 paginas em 26,7s, 5,7 MB (0,19 MB/folha).**
+- Migration `003`, aplicada e verificada: 85 sheets, 85 sheet_maps e 63 findings preservados,
+  com os 2 findings validados por humano intactos. Tabelas `sheet_views` e `rule_evaluations`.
+- `sheetmap/views/models.py`: `perspective` como view_kind, `MeasuredValue` (raw + normalized),
+  subviews e `grouping_detail`.
+- `sheetmap/views/anchors.py`: ESCALA numerica, INDICADA e REPRESENTATIVA; nivel devolvido
+  como texto bruto, nunca normalizado no detector.
+
+### Proximo passo imediato
+
+`sheetmap/views/detector.py` - segmentacao de views. Depois: gerar bboxes em pt como
+**draft_unverified**, expor no viewer para conferencia visual do proprietario, e so entao os
+bboxes viram ground truth espacial.
+
+### Ainda nao iniciado
+
+Tasks 6 (tabelas e zonas por subtracao), 8 (rule packs **geral** e **pessoal** separados),
+9 (orquestrador sem fallback), 10 (overlays), 11 (calibracao medida).
+
+### Decisao arquitetural derivada do material humano
+
+O nivel e **regra geral leniente** e **preferencia pessoal obrigatoria**. Isso exige dois rule
+packs: `formas_geral.v1.yml` e `formas_pessoal.v1.yml`. A coluna `rule_scope` ja existe em
+`rule_evaluations` e `findings` para separar os dois.
