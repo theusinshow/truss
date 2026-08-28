@@ -40,6 +40,7 @@ import {
   createManualFinding,
   Conversation,
   DocumentDetail,
+  fetchSheetMap,
   Finding,
   FindingSeverity,
   FindingStatus,
@@ -50,6 +51,9 @@ import {
   PersistedChatMessage,
   runSheetAudit,
   Sheet,
+  sheetIdentityLabel,
+  SheetMap,
+  sheetTypeLabel,
   streamChatWithSheet,
   updateFindingStatus
 } from "@/lib/projects-api";
@@ -505,6 +509,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
     zoom: CANVAS_NAVIGATION.defaultZoom
   });
   const [findings, setFindings] = useState<CanvasFinding[]>([]);
+  const [sheetMap, setSheetMap] = useState<SheetMap | null>(null);
   const [selectedIds, setSelectedIdsState] = useState<Set<string>>(new Set());
   const [activeFindingId, setActiveFindingId] = useState("");
   const [showFindings, setShowFindings] = useState(true);
@@ -1497,6 +1502,32 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   }, [activeSheetId]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadSheetMap() {
+      if (!activeSheetId) {
+        return null;
+      }
+
+      try {
+        return await fetchSheetMap(apiBaseUrl, activeSheetId);
+      } catch {
+        return null;
+      }
+    }
+
+    loadSheetMap().then((loaded) => {
+      if (!cancelled) {
+        setSheetMap(loaded);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, activeSheetId]);
+
+  useEffect(() => {
     let isMounted = true;
 
     async function loadFindings() {
@@ -1708,9 +1739,14 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
         <div className="min-w-0">
           <p className="truss-mono-label">Prancha ativa</p>
           <p className="mt-1 truncate text-sm font-semibold text-truss-text">
-            {activeSheet.label}
+            {sheetIdentityLabel(activeSheet, sheetMap)}
             {"documentName" in activeSheet ? ` / ${activeSheet.documentName}` : ""}
           </p>
+          {sheetMap ? (
+            <p className="mt-0.5 truncate font-mono text-[10.5px] uppercase tracking-[0.09em] text-truss-subtle">
+              {sheetTypeLabel(sheetMap.sheet_type)} &middot; {sheetMap.paper_format}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

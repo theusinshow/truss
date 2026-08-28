@@ -476,3 +476,63 @@ export async function deleteMemory(apiBaseUrl: string, memoryId: string): Promis
     throw new Error(body || `Request failed with status ${response.status}`);
   }
 }
+
+export type SheetRegion = {
+  id: string;
+  region_kind: string;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  confidence: number;
+};
+
+export type SheetMap = {
+  id: string;
+  sheet_id: string;
+  project_id: string;
+  revision_id: string;
+  pipeline_version: string;
+  status: string;
+  geometry_path: string;
+  sheet_code: string | null;
+  sheet_type: string;
+  paper_format: string;
+  orientation: string;
+  title_block: Record<string, unknown>;
+  built_at: string;
+  regions: SheetRegion[];
+};
+
+const SHEET_TYPE_LABELS: Record<string, string> = {
+  planta_locacao: "Planta de locação",
+  planta_formas: "Planta de formas",
+  planta_armaduras: "Planta de armaduras",
+  planta_cobertura: "Planta de cobertura",
+  planta_fundacoes: "Planta de fundações",
+};
+
+export function sheetTypeLabel(sheetType: string): string {
+  return SHEET_TYPE_LABELS[sheetType] ?? "—";
+}
+
+export function sheetIdentityLabel(sheet: Sheet, sheetMap: SheetMap | null): string {
+  return sheetMap?.sheet_code ?? sheet.label;
+}
+
+export async function fetchSheetMap(
+  apiBaseUrl: string,
+  sheetId: string,
+): Promise<SheetMap | null> {
+  const response = await fetch(`${apiBaseUrl}/sheets/${sheetId}/sheet-map`);
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Falha ao carregar o sheet map (${response.status})`);
+  }
+
+  return (await response.json()) as SheetMap;
+}
