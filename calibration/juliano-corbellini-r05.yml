@@ -1,0 +1,388 @@
+version: 3
+
+# Derivado de calibration/human-review/forms-ground-truth-questionnaire.md.
+# O formulario humano permanece intocado como registro de origem; este arquivo e a
+# representacao estruturada. Onde o formulario nao respondeu, o campo fica marcado
+# como pendente - nada aqui foi inventado.
+status: partially_verified
+
+source:
+  questionnaire: calibration/human-review/forms-ground-truth-questionnaire.md
+  reviewer: null                      # secao 9 do formulario nao preenchida
+  reviewed_at: null                   # secao 9 do formulario nao preenchida
+  confirmations:
+    reviewed_six_sheets: true
+    titles_scales_levels_are_my_reading: true
+    findings_are_what_i_would_raise: true
+    personal_preferences_separated: true
+    authorizes_structured_ground_truth: true
+
+document:
+  filename: "Projeto Estrutural_Juliano Corbellini_R05.pdf"
+  sha256: 147b730c0189a78e9e83a7301b717612db0550d7fa6a8fbdb7a2924ef77fae4c
+  page_count: 29
+  local_only: true                    # nunca versionado; ver .gitignore
+
+thresholds:
+  content_block_recall: 0.85
+  content_block_iou: 0.50
+  view_attribute_accuracy: 0.90
+  finding_coverage: 0.60
+  finding_precision: 0.70
+
+# Correcao de identidade aplicada pelo arquiteto: o formulario foi preenchido com os
+# codigos do Rancho Queimado nos titulos das secoes, mas o material revisado e este
+# projeto. Apenas a representacao derivada foi corrigida.
+identity_corrections:
+  EST-0050-A: EST-0050-B
+  EST-0060-A: EST-0060-B
+  EST-0070-A: EST-0070-B
+  EST-0080-A: EST-0080-B
+  EST-0090-A: EST-0090-B
+  EST-0260-A: EST-0260-A
+
+sheets:
+  - page_index: 4
+    sheet_code: EST-0050-B
+    sheet_role: detalhamento_fundacoes_pilares_arranque
+    approval: not_marked              # formulario nao marcou Sim/Nao/Com ressalvas
+    needs_human_confirmation:
+      - "aprovacao final da folha nao foi marcada"
+    views:
+      - ordinal: 1
+        view_kind: detail
+        role: grouping_detail
+        title:
+          raw: "DETALHAMENTO FUNDAÇÕES E PILARES DE ARRANQUE (4/4)"
+        scale:
+          raw: "1:25"
+          normalized: "1:25"
+        level:
+          raw: "vários"
+          normalized: null
+          needs_human_confirmation: true
+        position_hint: "folha inteira"
+        human_confirmed: true
+    negative_rules: []
+    expected_findings:
+      status: not_provided            # tabela vazia no formulario
+      note: "vazio nao significa zero findings esperados"
+
+  - page_index: 5
+    sheet_code: EST-0060-B
+    sheet_role: planta_formas
+    approval: approved
+    views:
+      - ordinal: 1
+        view_kind: plan
+        title:
+          raw: "PLANTA DE FORMAS - FUNDAÇÃO INFERIOR"
+        scale:
+          raw: "1:50"
+          normalized: "1:50"
+        level:
+          raw: "-650"
+          normalized: null
+          needs_human_confirmation: true
+        position_hint: "superior esquerda"
+        human_confirmed: true
+      - ordinal: 2
+        view_kind: plan
+        title:
+          raw: "PLANTA DE FORMAS - INTERMEDIÁRIA FUNDO PISCINA"
+        scale:
+          raw: "1:50"
+          normalized: "1:50"
+        level:
+          raw: "-350"
+          normalized: null
+          needs_human_confirmation: true
+        position_hint: "superior/centro"
+        human_confirmed: true
+      - ordinal: 3
+        view_kind: plan
+        title:
+          raw: "PLANTA DE FORMAS - FUNDO PISCINA"
+        scale:
+          raw: "1:50"
+          normalized: "1:50"
+        level:
+          raw: "-167"
+          normalized: null
+          needs_human_confirmation: true
+        position_hint: "direita"
+        human_confirmed: true
+      - ordinal: 4
+        view_kind: perspective
+        title:
+          raw: "PERSPECTIVA"
+        scale:
+          raw: "escala representativa"
+          normalized: null
+        level:
+          raw: "—"
+          normalized: null
+        position_hint: "inferior esquerda/centro"
+        human_confirmed: true
+    negative_rules:
+      - id: perspective_representative_scale_is_valid
+        statement: "ESCALA REPRESENTATIVA na perspectiva nao deve disparar escala ausente ou invalida."
+      - id: perspective_needs_no_level
+        statement: "A perspectiva nao precisa possuir nivel proprio."
+      - id: tables_near_plans_are_not_views
+        statement: "Tabelas de vigas, pilares, lajes e materiais proximas das plantas pertencem ao contexto da view e nao sao views independentes."
+    expected_findings:
+      status: not_provided
+      note: "vazio nao significa zero findings esperados"
+
+  - page_index: 6
+    sheet_code: EST-0070-B
+    sheet_role: planta_formas
+    approval: approved
+    views:
+      - ordinal: 1
+        view_kind: plan
+        title:
+          raw: "PLANTA DE FORMAS - TÉRREO"
+        scale:
+          raw: "1:50"
+          normalized: "1:50"
+        level:
+          raw: "-04"
+          normalized: null
+          needs_human_confirmation: true
+        position_hint: "superior/esquerda e centro"
+        human_confirmed: true
+      - ordinal: 2
+        view_kind: detail
+        role: grouping_detail
+        title:
+          raw: "DETALHE 01/02 LAJE PRÉ-FABRICADA - TRELIÇADA"
+        scale:
+          raw: "1:20"
+          normalized: "1:20"
+        level:
+          raw: "—"
+          normalized: null
+        position_hint: "direita/centro"
+        human_confirmed: true
+      - ordinal: 3
+        view_kind: perspective
+        title:
+          raw: "PERSPECTIVA"
+        scale:
+          raw: "escala representativa"
+          normalized: null
+        level:
+          raw: "—"
+          normalized: null
+        position_hint: "inferior direita"
+        human_confirmed: true
+    negative_rules:
+      - id: local_slab_levels_do_not_contradict_plan_level
+        statement: "Lajes com niveis locais como e=-0.50 ou e=-0.07 nao contradizem automaticamente o nivel geral da planta."
+      - id: morre_nasce_is_intentional_semantics
+        statement: "MORRE, NASCE e alteracao de secao sao semantica estrutural intencional, nao erro."
+      - id: slab_detail_needs_no_level
+        statement: "O detalhe da laje nao precisa possuir nivel."
+    expected_findings:
+      status: not_provided
+      note: "vazio nao significa zero findings esperados"
+
+  - page_index: 7
+    sheet_code: EST-0080-B
+    sheet_role: planta_formas
+    approval: approved
+    views:
+      - ordinal: 1
+        view_kind: plan
+        title:
+          raw: "PLANTA DE FORMAS - 1° PAVIMENTO"
+        scale:
+          raw: "1:50"
+          normalized: "1:50"
+        level:
+          raw: "338"
+          normalized: null
+          needs_human_confirmation: true
+        position_hint: "superior esquerda"
+        human_confirmed: true
+      - ordinal: 2
+        view_kind: plan
+        title:
+          raw: "PLANTA DE FORMAS - COBERTURA"
+        scale:
+          raw: "1:50"
+          normalized: "1:50"
+        level:
+          raw: "680"
+          normalized: null
+          needs_human_confirmation: true
+        position_hint: "inferior esquerda"
+        human_confirmed: true
+      - ordinal: 3
+        view_kind: detail
+        role: grouping_detail
+        title:
+          raw: "DETALHE 01/02/03/04 LAJE PRÉ-FABRICADA - TRELIÇADA"
+        scale:
+          raw: "1:20"
+          normalized: "1:20"
+        level:
+          raw: "—"
+          normalized: null
+        position_hint: "centro"
+        human_confirmed: true
+      - ordinal: 4
+        view_kind: perspective
+        title:
+          raw: "PERSPECTIVA"
+        scale:
+          raw: "escala representativa"
+          normalized: null
+        level:
+          raw: "—"
+          normalized: null
+        position_hint: "direita"
+        human_confirmed: true
+    negative_rules:
+      - id: perspective_needs_no_numeric_scale_or_level
+        statement: "A perspectiva nao precisa ter escala numerica nem nivel."
+      - id: grouping_detail_covers_several_types
+        statement: "Um detalhe pode representar varios tipos (01/02/03/04) numa unica view."
+      - id: tables_near_plans_are_not_views
+        statement: "As tabelas associadas as plantas superior e inferior nao devem ser detectadas como views proprias."
+    expected_findings:
+      status: not_provided
+      note: "vazio nao significa zero findings esperados"
+
+  - page_index: 8
+    sheet_code: EST-0090-B
+    sheet_role: planta_formas
+    approval: approved
+    views:
+      - ordinal: 1
+        view_kind: plan
+        title:
+          raw: "PLANTA DE FORMAS - INTERMEDIÁRIA RESERVATÓRIO"
+        scale:
+          raw: "1:50"
+          normalized: "1:50"
+        level:
+          raw: "780"
+          normalized: null
+          needs_human_confirmation: true
+        position_hint: "superior esquerda"
+        human_confirmed: true
+      - ordinal: 2
+        view_kind: plan
+        title:
+          raw: "PLANTA DE FORMAS - TOPO RESERVATÓRIO"
+        scale:
+          raw: "1:50"
+          normalized: "1:50"
+        level:
+          raw: "940"
+          normalized: null
+          needs_human_confirmation: true
+        position_hint: "superior centro"
+        human_confirmed: true
+      - ordinal: 3
+        view_kind: detail
+        role: grouping_detail
+        title:
+          raw: "DETALHE 01 LAJE PRÉ-FABRICADA - TRELIÇADA"
+        scale:
+          raw: "1:20"
+          normalized: "1:20"
+        level:
+          raw: "—"
+          normalized: null
+        position_hint: "superior direita"
+        human_confirmed: true
+    negative_rules:
+      - id: auxiliary_perspectives_need_no_title_or_scale
+        statement: "As duas grandes perspectivas na metade inferior nao possuem titulo nem escala, e isso nao e erro: sao representacoes auxiliares, nao vistas tecnicas."
+    expected_findings:
+      status: not_provided
+      note: "vazio nao significa zero findings esperados"
+
+  - page_index: 25
+    sheet_code: EST-0260-A
+    sheet_role: detalhamento_pilares_cobertura
+    approval: approved_with_reservations
+    needs_human_confirmation:
+      - "folha marcada com ressalvas, mas as ressalvas nao foram descritas"
+    views:
+      - ordinal: 1
+        view_kind: detail
+        role: grouping_detail
+        title:
+          raw: "DETALHAMENTO PILARES - COBERTURA"
+        scale:
+          raw: "1:25"
+          normalized: "1:25"
+        level:
+          raw: "338 → 680 principalmente"
+          normalized: null
+          needs_human_confirmation: true
+        position_hint: "folha inteira"
+        human_confirmed: true
+    negative_rules:
+      - id: pillar_groupings_are_not_duplicates
+        statement: "P21=P38 e P28=P37 sao agrupamentos intencionais de pilares com detalhamento equivalente, nao duplicidades."
+      - id: pillar_subviews_are_not_top_level_views
+        statement: "VISTA H, VISTA B e SECAO fazem parte do detalhamento de cada pilar; nem todo pilar precisa ser uma view de primeiro nivel."
+    expected_findings:
+      status: not_provided
+      note: "vazio nao significa zero findings esperados"
+
+# Politicas confirmadas nas secoes 1 a 6 do formulario. Sao insumo para propostas de
+# regra, nao regras ativas: nenhuma foi transformada automaticamente em rule pack.
+policies:
+  aggressiveness: balanced                       # 1.2
+  inconclusive_outcome: [NOT_VERIFIABLE, ATTENTION_POINT]   # 1.3
+  title_per_view: required                       # 2.1
+  title_grouping_allowed: true                   # 2.1, observacao do proprietario
+  scale_per_view: required                       # 2.2
+  scale_may_be_shared_by_group: true             # 2.2
+  scale_indicada_accepted: true                  # 2.2
+  view_numbering: required                       # 2.4
+  duplicate_identifier_outcome: ATTENTION_POINT  # 2.4
+  category_mismatch_outcome: INCONSISTENCY       # 4.1
+  category_mismatch_severity: MEDIUM             # 4.1
+  table_vs_drawing_mismatch_outcome: ATTENTION_POINT  # 4.2
+  authoritative_source_on_conflict: none         # 4.2
+
+# Contradicoes internas do formulario. Nao resolver sem decisao humana explicita.
+open_questions:
+  - id: scale_required_vs_optional
+    question: >-
+      A secao 2.2 marca "escala por view: sim, sempre", mas a tabela da secao 3 marca
+      "Escala de cada planta" como N (nao obrigatorio). Qual prevalece?
+    status: needs_human_confirmation
+  - id: level_required_vs_preference
+    question: >-
+      A secao 2.3 marca "nivel no titulo da view", e a tabela da secao 3 marca "Nivel de
+      cada planta" como P (preferencia pessoal). O texto livre diz "acho melhor padronizar
+      para sempre ter". Regra geral ou preferencia do escritorio?
+    status: needs_human_confirmation
+  - id: sheet_category_is_preference
+    question: >-
+      "Categoria/tipo da prancha" foi marcada como P. Isso torna a regra de coerencia
+      carimbo-versus-conteudo (4.1) uma preferencia, apesar de 4.1 pedir INCONSISTENCY?
+    status: needs_human_confirmation
+  - id: level_raw_values_not_normalized
+    question: >-
+      Os niveis foram registrados como -650, -350, -167, -04, 338, 680, 780, 940,
+      "varios" e "338 → 680 principalmente". A unidade e a convencao de sinal nao foram
+      declaradas. Nenhum foi normalizado.
+    status: needs_human_confirmation
+  - id: empty_finding_tables
+    question: >-
+      Todas as tabelas de findings ficaram vazias. Isso significa zero findings esperados
+      nessas folhas, ou apenas que nao foram preenchidas?
+    status: needs_human_confirmation
+  - id: personal_rules_section_empty
+    question: "A secao 8, de regras pessoais do proprietario, ficou vazia."
+    status: needs_human_confirmation
