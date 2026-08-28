@@ -67,7 +67,7 @@ import {
   SheetIcon
 } from "@/components/truss-icons";
 import { FindingsDrawer } from "@/components/findings/findings-drawer";
-import { AgentActivity, ChatMode, ChatTurn, TrussChat } from "@/components/truss-chat";
+import { AgentActivity, ChatMode, ChatRunState, ChatTurn, TrussChat } from "@/components/truss-chat";
 import { ConfidenceBadge, Kbd, SeverityBadge, StatusBadge, TypeBadge } from "@/components/truss-primitives";
 
 type SheetViewerProps = {
@@ -644,6 +644,32 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
     }
   }
   const visibleChatContextItems = chatContextItems.filter((item) => !mutedContextIds.has(item.id));
+  const lastTurn = chatTurns.at(-1) ?? null;
+  const chatRunState: ChatRunState = isChatting
+    ? lastTurn?.streaming
+      ? "gerando"
+      : "enviando"
+    : lastTurn?.tone === "error"
+      ? "erro"
+      : lastTurn?.stopped
+        ? "parado"
+        : "idle";
+  const chatRunDetail =
+    chatRunState === "erro" && lastTurn ? lastTurn.text.split("\n")[0] : undefined;
+
+  function retryLastChatTurn() {
+    const lastUserTurn = [...chatTurns].reverse().find((turn) => turn.role === "user");
+    if (!lastUserTurn) {
+      return;
+    }
+
+    void sendChatMessage(
+      lastUserTurn.text,
+      chatMode,
+      lastUserTurn.contextItems ?? visibleChatContextItems
+    );
+  }
+
   const chatActivity: AgentActivity = isAuditing
     ? {
         state: "using-tool",
@@ -2321,8 +2347,11 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             onRemoveContext={(id) => setMutedContextIds((current) => new Set([...current, id]))}
             onRunSheetAudit={() => void runAuditFromChat()}
             onSelectConversation={(nextConversationId) => void loadConversationHistory(nextConversationId)}
+            onRetry={retryLastChatTurn}
             onStop={stopChat}
             onSubmit={(event) => handleChatSubmit(event)}
+            runDetail={chatRunDetail}
+            runState={chatRunState}
             selectedCount={selectedIds.size}
             sheetLabel={activeSheet.label}
           />

@@ -433,30 +433,121 @@ function MessageList({
   selectedCount: number;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [pinnedToBottom, setPinnedToBottom] = useState(true);
+  const [hasUnread, setHasUnread] = useState(false);
+
+  function isNearBottom(element: HTMLDivElement) {
+    return element.scrollHeight - element.scrollTop - element.clientHeight < 48;
+  }
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth"
-    });
-  }, [messages]);
+    const element = scrollRef.current;
+    if (!element) {
+      return;
+    }
+
+    // Puxar para o fim so quando o usuario ja esta la. Rolar por baixo de quem
+    // subiu para ler e um dos comportamentos mais irritantes de um chat.
+    if (pinnedToBottom) {
+      element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => setHasUnread(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages, pinnedToBottom]);
+
+  const lastTrussIndex = messages.reduce(
+    (last, turn, index) => (turn.role === "truss" ? index : last),
+    -1
+  );
+
+  function scrollToBottom() {
+    const element = scrollRef.current;
+    if (!element) {
+      return;
+    }
+
+    element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
+    setPinnedToBottom(true);
+    setHasUnread(false);
+  }
 
   if (messages.length === 0) {
+    const suggestions: Array<{ label: string; run: () => void }> = [
+      { label: "Auditar esta prancha", run: onRunSheetAudit },
+      ...(activeFinding
+        ? [{ label: "Explicar o achado selecionado", run: () => onExplainFinding(activeFinding) }]
+        : []),
+      ...(selectedCount > 0
+        ? [{ label: `Auditar ${selectedCount} selecionado(s)`, run: onAuditSelection }]
+        : [])
+    ];
+
     return (
-      <div className="flex min-h-[260px] flex-1 items-center justify-center px-4 text-center">
-        <div>
-          <p className="text-lg font-semibold text-truss-text">O que vamos verificar?</p>
-          <p className="mt-2 text-sm leading-6 text-truss-muted">
-            Use a prancha, uma seleção ou um achado como contexto técnico.
-          </p>
+      <div className="flex min-h-0 flex-1 flex-col justify-center px-4 py-6 text-center">
+        <p className="text-lg font-semibold text-truss-text">O que vamos verificar?</p>
+        <p className="mt-2 text-sm leading-6 text-truss-muted">
+          Use a prancha, uma seleção ou um achado como contexto técnico.
+        </p>
+        <div className="mt-5 grid gap-2">
+          {suggestions.map((suggestion) => (
+            <button
+              className="truss-button h-9 justify-start px-3 text-left text-xs"
+              disabled={isRunning}
+              key={suggestion.label}
+              onClick={suggestion.run}
+              type="button"
+            >
+              {suggestion.label}
+            </button>
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[240px] flex-1 space-y-3 overflow-y-auto px-3 py-3" ref={scrollRef}>
-      {messages.map((turn) => (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {hasUnread ? (
+        <button
+          className="absolute inset-x-0 top-2 z-20 mx-auto w-fit border border-truss-accent bg-truss-panel px-3 py-1 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-accent shadow-truss-panel"
+          onClick={scrollToBottom}
+          type="button"
+        >
+          novas mensagens
+        </button>
+      ) : null}
+      <div
+        aria-live="polite"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3"
+        onScroll={(event) => {
+          const nearBottom = isNearBottom(event.currentTarget);
+          setPinnedToBottom(nearBottom);
+          if (nearBottom) {
+            setHasUnread(false);
+          }
+        }}
+        ref={scrollRef}
+      >
+      {messages.map((turn, index) => {
+        // Confirmacoes de operacao no canvas usam tone "success". Sao registro,
+        // nao conversa: viram linha fina em vez de bolha.
+        const isSystemEvent = turn.role === "truss" && turn.tone === "success";
+
+        if (isSystemEvent) {
+          return (
+            <p
+              className="flex items-start gap-2 px-1 font-mono text-[10.5px] leading-5 text-truss-subtle"
+              key={turn.id}
+            >
+              <span aria-hidden="true" className="mt-1.5 h-px w-3 shrink-0 bg-truss-line" />
+              <span className="min-w-0 flex-1">{turn.text}</span>
+            </p>
+          );
+        }
+
+        return (
         <div className={`group ${turn.role === "user" ? "ml-auto max-w-[92%]" : "max-w-[96%]"}`} key={turn.id}>
           <div className="mb-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle">
             <span>{roleLabel(turn)}</span>
@@ -482,7 +573,10 @@ function MessageList({
             {turn.text || (turn.streaming ? "Processando resposta..." : "")}
             {turn.streaming ? <span className="ml-1 animate-pulse text-truss-accent">|</span> : null}
           </div>
-          {turn.role === "truss" && turn.id !== "intro" && !turn.text.startsWith("Feedback registrado:") ? (
+          {turn.role === "truss"
+          && turn.id !== "intro"
+          && index === lastTrussIndex
+          && !turn.text.startsWith("Feedback registrado:") ? (
             <div className="mt-2">
               <ResponseActionPanel
                 disabled={isRunning || Boolean(turn.streaming)}
@@ -505,7 +599,67 @@ function MessageList({
             turn={turn}
           />
         </div>
-      ))}
+        );
+      })}
+      </div>
+    </div>
+  );
+}
+
+export type ChatRunState = "idle" | "enviando" | "gerando" | "parado" | "erro";
+
+const CHAT_STATE_LABEL: Record<Exclude<ChatRunState, "idle">, string> = {
+  enviando: "enviando",
+  gerando: "gerando resposta",
+  parado: "interrompido por voce",
+  erro: "falhou"
+};
+
+function ChatStatusBar({
+  state,
+  detail,
+  onStop,
+  onRetry
+}: {
+  state: ChatRunState;
+  detail?: string;
+  onStop: () => void;
+  onRetry: () => void;
+}) {
+  if (state === "idle") {
+    return null;
+  }
+
+  const isBusy = state === "enviando" || state === "gerando";
+  const tone =
+    state === "erro"
+      ? "border-truss-danger/50 bg-truss-danger/10 text-truss-danger"
+      : state === "parado"
+        ? "border-truss-line bg-truss-panel text-truss-muted"
+        : "border-truss-accent/40 bg-truss-accentSoft text-truss-accent";
+
+  return (
+    <div
+      className={`flex items-center gap-2 border-t px-3 py-2 font-mono text-[10.5px] uppercase tracking-[0.06em] ${tone}`}
+      role="status"
+    >
+      {isBusy ? (
+        <span className="h-1.5 w-1.5 shrink-0 animate-pulse bg-current motion-reduce:animate-none" />
+      ) : null}
+      <span className="min-w-0 flex-1 truncate normal-case tracking-normal">
+        {CHAT_STATE_LABEL[state]}
+        {detail ? `: ${detail}` : ""}
+      </span>
+      {isBusy ? (
+        <button className="truss-button h-6 min-h-6 px-2 text-[10px]" onClick={onStop} type="button">
+          parar
+        </button>
+      ) : null}
+      {state === "erro" || state === "parado" ? (
+        <button className="truss-button h-6 min-h-6 px-2 text-[10px]" onClick={onRetry} type="button">
+          {state === "erro" ? "tentar de novo" : "continuar"}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -603,6 +757,9 @@ export function TrussChat({
   onSelectConversation,
   onStop,
   onSubmit,
+  runState,
+  runDetail,
+  onRetry,
   selectedCount,
   sheetLabel
 }: {
@@ -634,6 +791,9 @@ export function TrussChat({
   onSelectConversation: (conversationId: string) => void;
   onStop: () => void;
   onSubmit: (event?: FormEvent<HTMLFormElement>) => void;
+  runState: ChatRunState;
+  runDetail?: string;
+  onRetry: () => void;
   selectedCount: number;
   sheetLabel: string;
 }) {
@@ -665,8 +825,8 @@ export function TrussChat({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-b border-truss-line px-3 py-2">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 border-b border-truss-line px-3 py-2">
         <div className="flex items-center gap-2">
           <MessageSquare aria-hidden="true" className="truss-icon h-4 w-4 text-truss-info" />
           <div className="min-w-0">
@@ -704,6 +864,8 @@ export function TrussChat({
         onRunSheetAudit={onRunSheetAudit}
         selectedCount={selectedCount}
       />
+
+      <ChatStatusBar detail={runDetail} onRetry={onRetry} onStop={onStop} state={runState} />
 
       <div
         className="relative border-t border-truss-line p-3"
