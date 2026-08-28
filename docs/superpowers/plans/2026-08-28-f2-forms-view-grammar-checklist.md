@@ -8,6 +8,17 @@
 
 **Tech Stack:** Python 3.11, FastAPI, PyMuPDF (`fitz`), SQLite, pytest, PyYAML, Next.js 15, TypeScript, Vitest.
 
+## Decisoes arquiteturais aprovadas
+
+Aprovadas pelo arquiteto principal em 2026-08-28:
+
+- **C1 aprovado.** O `pipeline_version` embute o hash do snapshot
+  (`sheetmap-v0.2+<hash12>`), reaproveitando a restricao `UNIQUE (sheet_id, pipeline_version)`
+  como garantia de imutabilidade. Nenhuma reconstrucao de tabela. Todas as migrations sao aditivas.
+- **Threshold de 90% mantido** para associacao de titulo, escala e nivel, apesar da medicao de 35%
+  com a regra ingenua. O portao de medicao da Task 5 permite ajustar apenas as tolerancias
+  geometricas; **reduzir o threshold e proibido**.
+
 ## Global Constraints
 
 - Coordenadas canonicas em pontos PDF (`pt`). Pixels de render sao derivados, nunca persistidos como fonte.
