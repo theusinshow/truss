@@ -557,6 +557,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   const chatAbortRef = useRef<AbortController | null>(null);
 
   const activeSheet = sheets.find((sheet) => sheet.id === activeSheetId) ?? sheets[0] ?? null;
+  const resolvedSheetId = activeSheet?.id ?? "";
   const activeIndex = activeSheet ? sheets.findIndex((sheet) => sheet.id === activeSheet.id) : -1;
   const sheetBounds = activeSheet
     ? {
@@ -1505,12 +1506,14 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
     let cancelled = false;
 
     async function loadSheetMap() {
-      if (!activeSheetId) {
+      // activeSheetId comeca vazio e a folha exibida cai em sheets[0], entao
+      // a chave aqui tem de ser a folha realmente ativa, nao o id selecionado.
+      if (!resolvedSheetId) {
         return null;
       }
 
       try {
-        return await fetchSheetMap(apiBaseUrl, activeSheetId);
+        return await fetchSheetMap(apiBaseUrl, resolvedSheetId);
       } catch {
         return null;
       }
@@ -1525,7 +1528,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl, activeSheetId]);
+  }, [apiBaseUrl, resolvedSheetId]);
 
   useEffect(() => {
     let isMounted = true;
