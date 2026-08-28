@@ -4,12 +4,13 @@ version: 3
 # O formulario humano permanece intocado como registro de origem; este arquivo e a
 # representacao estruturada. Onde o formulario nao respondeu, o campo fica marcado
 # como pendente - nada aqui foi inventado.
-status: partially_verified
+status: human_verified
 
 source:
   questionnaire: calibration/human-review/forms-ground-truth-questionnaire.md
-  reviewer: null                      # secao 9 do formulario nao preenchida
-  reviewed_at: null                   # secao 9 do formulario nao preenchida
+  policy_decisions: calibration/human-review/forms-policy-decisions-v1.md
+  reviewer: proprietario              # confirmado em forms-policy-decisions-v1.md
+  reviewed_at: 2026-08-28
   confirmations:
     reviewed_six_sheets: true
     titles_scales_levels_are_my_reading: true
@@ -21,7 +22,9 @@ document:
   filename: "Projeto Estrutural_Juliano Corbellini_R05.pdf"
   sha256: 147b730c0189a78e9e83a7301b717612db0550d7fa6a8fbdb7a2924ef77fae4c
   page_count: 29
-  local_only: true                    # nunca versionado; ver .gitignore
+  # forms-policy-decisions-v1.md diz que o PDF nao deve ser versionado; o
+  # proprietario autorizou o contrario depois, e o arquivo esta no repositorio.
+  local_only: false
 
 thresholds:
   content_block_recall: 0.85
@@ -45,9 +48,7 @@ sheets:
   - page_index: 4
     sheet_code: EST-0050-B
     sheet_role: detalhamento_fundacoes_pilares_arranque
-    approval: not_marked              # formulario nao marcou Sim/Nao/Com ressalvas
-    needs_human_confirmation:
-      - "aprovacao final da folha nao foi marcada"
+    approval: approved                # confirmado em forms-policy-decisions-v1.md
     views:
       - ordinal: 1
         view_kind: detail
@@ -65,8 +66,10 @@ sheets:
         human_confirmed: true
     negative_rules: []
     expected_findings:
-      status: not_provided            # tabela vazia no formulario
-      note: "vazio nao significa zero findings esperados"
+      status: confirmed_zero
+      scope: view_calibration
+      note: "zero findings no escopo de views; nao declara a folha perfeita para regras futuras"
+      items: []
 
   - page_index: 5
     sheet_code: EST-0060-B
@@ -82,8 +85,7 @@ sheets:
           normalized: "1:50"
         level:
           raw: "-650"
-          normalized: null
-          needs_human_confirmation: true
+          normalized: "-6.50 m"
         position_hint: "superior esquerda"
         human_confirmed: true
       - ordinal: 2
@@ -95,8 +97,7 @@ sheets:
           normalized: "1:50"
         level:
           raw: "-350"
-          normalized: null
-          needs_human_confirmation: true
+          normalized: "-3.50 m"
         position_hint: "superior/centro"
         human_confirmed: true
       - ordinal: 3
@@ -108,8 +109,7 @@ sheets:
           normalized: "1:50"
         level:
           raw: "-167"
-          normalized: null
-          needs_human_confirmation: true
+          normalized: "-1.67 m"
         position_hint: "direita"
         human_confirmed: true
       - ordinal: 4
@@ -132,8 +132,10 @@ sheets:
       - id: tables_near_plans_are_not_views
         statement: "Tabelas de vigas, pilares, lajes e materiais proximas das plantas pertencem ao contexto da view e nao sao views independentes."
     expected_findings:
-      status: not_provided
-      note: "vazio nao significa zero findings esperados"
+      status: confirmed_zero
+      scope: view_calibration
+      note: "zero findings no escopo de views; nao declara a folha perfeita para regras futuras"
+      items: []
 
   - page_index: 6
     sheet_code: EST-0070-B
@@ -149,8 +151,7 @@ sheets:
           normalized: "1:50"
         level:
           raw: "-04"
-          normalized: null
-          needs_human_confirmation: true
+          normalized: "-0.04 m"
         position_hint: "superior/esquerda e centro"
         human_confirmed: true
       - ordinal: 2
@@ -186,8 +187,10 @@ sheets:
       - id: slab_detail_needs_no_level
         statement: "O detalhe da laje nao precisa possuir nivel."
     expected_findings:
-      status: not_provided
-      note: "vazio nao significa zero findings esperados"
+      status: confirmed_zero
+      scope: view_calibration
+      note: "zero findings no escopo de views; nao declara a folha perfeita para regras futuras"
+      items: []
 
   - page_index: 7
     sheet_code: EST-0080-B
@@ -203,8 +206,7 @@ sheets:
           normalized: "1:50"
         level:
           raw: "338"
-          normalized: null
-          needs_human_confirmation: true
+          normalized: "3.38 m"
         position_hint: "superior esquerda"
         human_confirmed: true
       - ordinal: 2
@@ -216,8 +218,7 @@ sheets:
           normalized: "1:50"
         level:
           raw: "680"
-          normalized: null
-          needs_human_confirmation: true
+          normalized: "6.80 m"
         position_hint: "inferior esquerda"
         human_confirmed: true
       - ordinal: 3
@@ -253,8 +254,10 @@ sheets:
       - id: tables_near_plans_are_not_views
         statement: "As tabelas associadas as plantas superior e inferior nao devem ser detectadas como views proprias."
     expected_findings:
-      status: not_provided
-      note: "vazio nao significa zero findings esperados"
+      status: confirmed_zero
+      scope: view_calibration
+      note: "zero findings no escopo de views; nao declara a folha perfeita para regras futuras"
+      items: []
 
   - page_index: 8
     sheet_code: EST-0090-B
@@ -270,8 +273,7 @@ sheets:
           normalized: "1:50"
         level:
           raw: "780"
-          normalized: null
-          needs_human_confirmation: true
+          normalized: "7.80 m"
         position_hint: "superior esquerda"
         human_confirmed: true
       - ordinal: 2
@@ -283,8 +285,7 @@ sheets:
           normalized: "1:50"
         level:
           raw: "940"
-          normalized: null
-          needs_human_confirmation: true
+          normalized: "9.40 m"
         position_hint: "superior centro"
         human_confirmed: true
       - ordinal: 3
@@ -304,13 +305,16 @@ sheets:
       - id: auxiliary_perspectives_need_no_title_or_scale
         statement: "As duas grandes perspectivas na metade inferior nao possuem titulo nem escala, e isso nao e erro: sao representacoes auxiliares, nao vistas tecnicas."
     expected_findings:
-      status: not_provided
-      note: "vazio nao significa zero findings esperados"
+      status: confirmed_zero
+      scope: view_calibration
+      note: "zero findings no escopo de views; nao declara a folha perfeita para regras futuras"
+      items: []
 
   - page_index: 25
     sheet_code: EST-0260-A
     sheet_role: detalhamento_pilares_cobertura
     approval: approved_with_reservations
+    usable_as_negative_example: false   # ate a ressalva ser descrita
     needs_human_confirmation:
       - "folha marcada com ressalvas, mas as ressalvas nao foram descritas"
     views:
@@ -335,7 +339,7 @@ sheets:
         statement: "VISTA H, VISTA B e SECAO fazem parte do detalhamento de cada pilar; nem todo pilar precisa ser uma view de primeiro nivel."
     expected_findings:
       status: not_provided
-      note: "vazio nao significa zero findings esperados"
+      note: "ressalva tecnica nao descrita; a folha nao vale como exemplo negativo integral"
 
 # Politicas confirmadas nas secoes 1 a 6 do formulario. Sao insumo para propostas de
 # regra, nao regras ativas: nenhuma foi transformada automaticamente em rule pack.
@@ -356,33 +360,45 @@ policies:
 
 # Contradicoes internas do formulario. Nao resolver sem decisao humana explicita.
 open_questions:
+  # Quatro das seis foram respondidas por forms-policy-decisions-v1.md.
   - id: scale_required_vs_optional
-    question: >-
-      A secao 2.2 marca "escala por view: sim, sempre", mas a tabela da secao 3 marca
-      "Escala de cada planta" como N (nao obrigatorio). Qual prevalece?
-    status: needs_human_confirmation
+    status: resolved
+    resolution: >-
+      Toda view tecnica precisa de escala numerica propria, escala compartilhada pelo grupo, ou
+      ESCALA INDICADA valida. Perspectivas e representacoes auxiliares estao isentas.
   - id: level_required_vs_preference
-    question: >-
-      A secao 2.3 marca "nivel no titulo da view", e a tabela da secao 3 marca "Nivel de
-      cada planta" como P (preferencia pessoal). O texto livre diz "acho melhor padronizar
-      para sempre ter". Regra geral ou preferencia do escritorio?
-    status: needs_human_confirmation
+    status: resolved
+    resolution: >-
+      Regra geral e leniente: base/topo podem ser compreensiveis sem nivel. A exigencia de nivel
+      sempre e preferencia do proprietario e vive no rule pack pessoal, nao no geral.
+    consequence: dois rule packs separados - formas_geral e formas_pessoal
   - id: sheet_category_is_preference
-    question: >-
-      "Categoria/tipo da prancha" foi marcada como P. Isso torna a regra de coerencia
-      carimbo-versus-conteudo (4.1) uma preferencia, apesar de 4.1 pedir INCONSISTENCY?
-    status: needs_human_confirmation
+    status: resolved
+    resolution: >-
+      Carimbo de planta de formas com conteudo dominante de outro tipo gera INCONSISTENCY de
+      severidade MEDIUM. E regra geral, nao preferencia.
   - id: level_raw_values_not_normalized
-    question: >-
-      Os niveis foram registrados como -650, -350, -167, -04, 338, 680, 780, 940,
-      "varios" e "338 → 680 principalmente". A unidade e a convencao de sinal nao foram
-      declaradas. Nenhum foi normalizado.
-    status: needs_human_confirmation
+    status: resolved
+    resolution: >-
+      Tabela de normalizacao confirmada pelo proprietario. Texto bruto preservado junto do valor
+      normalizado em todas as views.
   - id: empty_finding_tables
-    question: >-
-      Todas as tabelas de findings ficaram vazias. Isso significa zero findings esperados
-      nessas folhas, ou apenas que nao foram preenchidas?
+    status: partially_resolved
+    resolution: >-
+      Confirmado zero findings no escopo de calibracao de views para EST-0050-B a EST-0090-B.
+      EST-0260-A permanece sem confirmacao ate a ressalva ser descrita.
+  - id: est_0260_a_reservation
     status: needs_human_confirmation
+    question: "A folha foi marcada com ressalvas, mas a ressalva tecnica nao foi descrita."
   - id: personal_rules_section_empty
-    question: "A secao 8, de regras pessoais do proprietario, ficou vazia."
-    status: needs_human_confirmation
+    status: partially_resolved
+    resolution: >-
+      A secao 8 do formulario ficou vazia, mas o documento de politicas registra a exigencia de
+      nivel sempre como preferencia do proprietario.
+
+pending_work:
+  # Registrado em forms-policy-decisions-v1.md, secao "Estado para conversao em ground truth".
+  - "gerar bboxes em pontos PDF para regioes e views"
+  - "conferir os overlays dos bboxes no viewer"
+  - "registrar a ressalva tecnica de EST-0260-A"
+  - "revisar EST-0100-B, EST-0110-B e EST-0120-B para ampliar a diversidade"
