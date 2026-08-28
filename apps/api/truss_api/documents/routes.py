@@ -6,6 +6,7 @@ from truss_api.documents import repository
 from truss_api.documents.importer import InvalidPdfError, prepare_pdf_storage
 from truss_api.documents.models import Document, DocumentDetail, TextBlock
 from truss_api.documents.rendering import RenderError, render_sheet_png
+from truss_api.sheetmap.builder import build_sheet_map_for_document
 
 
 router = APIRouter(tags=["documents"])
@@ -55,12 +56,14 @@ async def import_revision_document(
             settings=settings,
             mime_type=file.content_type or "application/pdf",
         )
-        return repository.create_document_from_prepared_pdf(
+        document = repository.create_document_from_prepared_pdf(
             project_id=project_id,
             revision_id=revision_id,
             prepared_pdf=prepared_pdf,
             settings=settings,
         )
+        build_sheet_map_for_document(str(document["id"]), settings)
+        return document
     except InvalidPdfError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
     except repository.RevisionNotFoundError as error:

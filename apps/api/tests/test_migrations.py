@@ -23,8 +23,8 @@ def test_apply_migrations_creates_schema_and_is_idempotent(tmp_path: Path) -> No
     assert apply_migrations(settings) == []
 
 
-def test_apply_migrations_adopts_legacy_database_without_version_table(tmp_path: Path) -> None:
-    """Um banco criado antes das migrations nao pode ser recriado nem quebrado."""
+def test_apply_migrations_adopts_legacy_database_without_losing_data(tmp_path: Path) -> None:
+    """Um banco criado antes das migrations nao pode ser recriado nem perder dados."""
     settings = Settings(data_dir=tmp_path / "data")
     baseline = (
         Path(__file__).resolve().parents[1]
@@ -35,8 +35,14 @@ def test_apply_migrations_adopts_legacy_database_without_version_table(tmp_path:
     )
     with transaction(settings) as connection:
         connection.executescript(baseline.read_text(encoding="utf-8"))
+        connection.execute(
+            "INSERT INTO projects (id, name, description, created_at, updated_at)"
+            " VALUES ('p1', 'Obra existente', '', '2026-01-01', '2026-01-01')"
+        )
 
     applied = apply_migrations(settings)
 
-    assert applied == ["001"]
-    assert "projects" in _table_names(settings)
+    assert "001" in applied
+    with transaction(settings) as connection:
+        row = connection.execute("SELECT name FROM projects WHERE id = 'p1'").fetchone()
+    assert row is not None and str(row["name"]) == "Obra existente"

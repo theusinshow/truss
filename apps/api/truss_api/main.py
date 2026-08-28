@@ -10,6 +10,7 @@ from truss_api.db.schema import initialize_database
 from truss_api.documents.routes import router as documents_router
 from truss_api.health.routes import router as health_router
 from truss_api.projects.routes import router as projects_router
+from truss_api.sheetmap.routes import router as sheetmap_router
 
 
 @asynccontextmanager
@@ -42,5 +43,6 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(projects_router)
 app.include_router(documents_router)
+app.include_router(sheetmap_router)
 app.include_router(audit_router)
 app.include_router(assistant_router)
