@@ -11,6 +11,7 @@ def storage_directories(settings: Settings | None = None) -> tuple[Path, ...]:
         resolved.originals_dir,
         resolved.renders_dir,
         resolved.cache_dir,
+        resolved.geometry_dir,
     )
 
 

@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     def cache_dir(self) -> Path:
         return self.data_dir / "cache"
 
+    @property
+    def geometry_dir(self) -> Path:
+        return self.data_dir / "geometry"
+
     def model_post_init(self, __context: object) -> None:
         root_env = _read_root_env()
         truss_openai_api_key = os.getenv("TRUSS_OPENAI_API_KEY") or root_env.get("TRUSS_OPENAI_API_KEY")
