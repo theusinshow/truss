@@ -20,4 +20,6 @@ data/db/*.sqlite3
 data/originals/*
 data/renders/*
 data/cache/*
+data/geometry/*
+data/db/*.bak
 !data/**/.gitkeep
