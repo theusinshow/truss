@@ -8,6 +8,18 @@
 
 **Tech Stack:** Python 3.11, FastAPI, PyMuPDF (`fitz`), SQLite, pytest, Next.js 15, TypeScript, Vitest.
 
+> **Status: EXECUTADO em 2026-08-28.** A pedido do proprietario ("sem muitos testes"), a suite foi
+> enxugada de ~46 para 20 testes, mantendo os que cobrem falha silenciosa: as tres armadilhas de
+> extracao, persistencia, o endpoint e a calibracao. Os arquivos de teste foram consolidados -
+> `test_sheetmap_reading.py` cobre as Tasks 4, 5 e 6 juntas, e nao existem
+> `test_sheetmap_regions.py`, `test_sheetmap_title_block.py`, `test_sheetmap_classifier.py` nem
+> `test_sheetmap_repository.py` separados. As contagens "Expected: PASS, N tests" abaixo refletem
+> o plano original, nao o executado.
+>
+> Um defeito encontrado apos a execucao e corrigido: o titulo da prancha era escolhido pelo
+> candidato mais longo do carimbo, o que trazia o nome da obra. Passou a ser escolhido por
+> proximidade a categoria (28/28 corretos).
+
 ## Global Constraints
 
 - Coordenadas canonicas em pontos PDF (`pt`). Pixels de render sao derivados, nunca persistidos como fonte.
