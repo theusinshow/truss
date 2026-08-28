@@ -751,25 +751,34 @@ def delete_memory(memory_id: str, settings: Settings) -> None:
         raise MemoryNotFoundError(memory_id)
 
 
-def list_usage_events(settings: Settings) -> list[dict[str, object]]:
+def list_usage_events(
+    settings: Settings,
+    sheet_id: str | None = None,
+) -> list[dict[str, object]]:
+    query = """
+        SELECT
+            id,
+            provider,
+            model,
+            operation,
+            project_id,
+            revision_id,
+            sheet_id,
+            input_tokens,
+            output_tokens,
+            estimated_cost_usd,
+            created_at
+        FROM ai_usage_events
+    """
+    parameters: tuple[str, ...] = ()
+
+    if sheet_id is not None:
+        query += " WHERE sheet_id = ?"
+        parameters = (sheet_id,)
+
+    query += " ORDER BY created_at DESC"
+
     with transaction(settings) as connection:
-        rows = connection.execute(
-            """
-            SELECT
-                id,
-                provider,
-                model,
-                operation,
-                project_id,
-                revision_id,
-                sheet_id,
-                input_tokens,
-                output_tokens,
-                estimated_cost_usd,
-                created_at
-            FROM ai_usage_events
-            ORDER BY created_at DESC
-            """
-        ).fetchall()
+        rows = connection.execute(query, parameters).fetchall()
 
     return [_row_to_dict(row) for row in rows]

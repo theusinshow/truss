@@ -76,6 +76,7 @@ function renderChat(overrides: Partial<Parameters<typeof TrussChat>[0]> = {}) {
     onRetry: vi.fn(),
     onStop: vi.fn(),
     runState: "idle" as const,
+    usage: null,
     onSubmit: vi.fn(),
     selectedCount: 1,
     sheetLabel: "Folha 01",

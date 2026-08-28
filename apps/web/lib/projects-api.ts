@@ -536,3 +536,42 @@ export async function fetchSheetMap(
 
   return (await response.json()) as SheetMap;
 }
+
+export type UsageEvent = {
+  id: string;
+  provider: string;
+  model: string;
+  operation: string;
+  sheet_id: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  estimated_cost_usd: number;
+  created_at: string;
+};
+
+export async function fetchSheetUsage(
+  apiBaseUrl: string,
+  sheetId: string,
+): Promise<UsageEvent[]> {
+  const response = await fetch(
+    `${apiBaseUrl}/usage?sheet_id=${encodeURIComponent(sheetId)}`,
+  );
+
+  if (!response.ok) {
+    throw new Error(`Falha ao carregar o uso de IA (${response.status})`);
+  }
+
+  return (await response.json()) as UsageEvent[];
+}
+
+export function summarizeUsage(events: UsageEvent[]) {
+  return events.reduce(
+    (total, event) => ({
+      costUsd: total.costUsd + event.estimated_cost_usd,
+      inputTokens: total.inputTokens + (event.input_tokens ?? 0),
+      outputTokens: total.outputTokens + (event.output_tokens ?? 0),
+      calls: total.calls + 1
+    }),
+    { costUsd: 0, inputTokens: 0, outputTokens: 0, calls: 0 }
+  );
+}

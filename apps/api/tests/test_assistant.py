@@ -89,6 +89,10 @@ def test_sheet_chat_uses_local_provider_and_records_usage(
     assert usage[0]["provider"] == "local"
     assert usage[0]["estimated_cost_usd"] == 0
 
+    filtered = client.get("/usage", params={"sheet_id": sheet_id}).json()
+    assert len(filtered) == len(usage)
+    assert client.get("/usage", params={"sheet_id": "outra-folha"}).json() == []
+
 
 def test_sheet_chat_passes_ui_context_items_to_provider(
     client: TestClient,

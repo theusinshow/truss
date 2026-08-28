@@ -43,6 +43,7 @@ import {
   Conversation,
   DocumentDetail,
   fetchSheetMap,
+  fetchSheetUsage,
   Finding,
   FindingSeverity,
   FindingStatus,
@@ -54,6 +55,7 @@ import {
   runSheetAudit,
   Sheet,
   sheetIdentityLabel,
+  summarizeUsage,
   SheetMap,
   sheetTypeLabel,
   streamChatWithSheet,
@@ -67,7 +69,7 @@ import {
   SheetIcon
 } from "@/components/truss-icons";
 import { FindingsDrawer } from "@/components/findings/findings-drawer";
-import { AgentActivity, ChatMode, ChatRunState, ChatTurn, TrussChat } from "@/components/truss-chat";
+import { AgentActivity, ChatMode, ChatRunState, ChatTurn, ChatUsageSummary, TrussChat } from "@/components/truss-chat";
 import { ConfidenceBadge, Kbd, SeverityBadge, StatusBadge, TypeBadge } from "@/components/truss-primitives";
 
 type SheetViewerProps = {
@@ -512,6 +514,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   });
   const [findings, setFindings] = useState<CanvasFinding[]>([]);
   const [sheetMap, setSheetMap] = useState<SheetMap | null>(null);
+  const [chatUsage, setChatUsage] = useState<ChatUsageSummary | null>(null);
   const [selectedIds, setSelectedIdsState] = useState<Set<string>>(new Set());
   const [activeFindingId, setActiveFindingId] = useState("");
   const [showFindings, setShowFindings] = useState(true);
@@ -1581,6 +1584,32 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   }, [apiBaseUrl, resolvedSheetId]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadUsage() {
+      if (!resolvedSheetId) {
+        return null;
+      }
+
+      try {
+        return summarizeUsage(await fetchSheetUsage(apiBaseUrl, resolvedSheetId));
+      } catch {
+        return null;
+      }
+    }
+
+    loadUsage().then((summary) => {
+      if (!cancelled) {
+        setChatUsage(summary);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, resolvedSheetId, chatTurns.length]);
+
+  useEffect(() => {
     let isMounted = true;
 
     async function loadFindings() {
@@ -2352,6 +2381,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             onSubmit={(event) => handleChatSubmit(event)}
             runDetail={chatRunDetail}
             runState={chatRunState}
+            usage={chatUsage}
             selectedCount={selectedIds.size}
             sheetLabel={activeSheet.label}
           />

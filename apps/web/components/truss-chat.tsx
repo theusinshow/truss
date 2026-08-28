@@ -664,6 +664,32 @@ function ChatStatusBar({
   );
 }
 
+export type ChatUsageSummary = {
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  calls: number;
+};
+
+function UsageFooter({ usage }: { usage: ChatUsageSummary | null }) {
+  if (!usage || usage.calls === 0) {
+    return null;
+  }
+
+  const cost = usage.costUsd > 0
+    ? `US$ ${usage.costUsd.toFixed(4).replace(".", ",")}`
+    : "sem custo";
+  const tokens = usage.inputTokens + usage.outputTokens;
+
+  return (
+    <div className="flex shrink-0 items-center gap-3 border-t border-truss-line px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle">
+      <span>{usage.calls} chamada(s)</span>
+      {tokens > 0 ? <span>{tokens.toLocaleString("pt-BR")} tokens</span> : null}
+      <span className="ml-auto text-truss-muted">{cost}</span>
+    </div>
+  );
+}
+
 function AttachmentMenu({ hasSelection }: { hasSelection: boolean }) {
   const [open, setOpen] = useState(false);
 
@@ -760,6 +786,7 @@ export function TrussChat({
   runState,
   runDetail,
   onRetry,
+  usage,
   selectedCount,
   sheetLabel
 }: {
@@ -794,6 +821,7 @@ export function TrussChat({
   runState: ChatRunState;
   runDetail?: string;
   onRetry: () => void;
+  usage: ChatUsageSummary | null;
   selectedCount: number;
   sheetLabel: string;
 }) {
@@ -864,6 +892,8 @@ export function TrussChat({
         onRunSheetAudit={onRunSheetAudit}
         selectedCount={selectedCount}
       />
+
+      <UsageFooter usage={usage} />
 
       <ChatStatusBar detail={runDetail} onRetry={onRetry} onStop={onStop} state={runState} />
 

@@ -234,5 +234,8 @@ def delete_memory(memory_id: str, settings: Settings = Depends(get_settings)) ->
 
 
 @router.get("/usage", response_model=list[UsageEvent])
-def list_usage(settings: Settings = Depends(get_settings)) -> list[dict[str, object]]:
-    return repository.list_usage_events(settings)
+def list_usage(
+    sheet_id: str | None = None,
+    settings: Settings = Depends(get_settings),
+) -> list[dict[str, object]]:
+    return repository.list_usage_events(settings, sheet_id)
