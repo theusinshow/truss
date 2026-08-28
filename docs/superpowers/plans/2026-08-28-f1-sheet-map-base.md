@@ -1929,7 +1929,7 @@ def build_sheet_map_for_document(
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_sheetmap_builder.py -v`
-Expected: PASS, 8 tests.
+Expected: PASS, 7 tests.
 
 - [ ] **Step 5: Hook the builder into the import route**
 
