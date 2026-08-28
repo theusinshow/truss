@@ -138,3 +138,69 @@ export function offsetRect(rect: Rect, offset: Point): Rect {
     y1: rect.y1 + offset.y
   };
 }
+
+export const MIN_VISIBLE_SHEET_PX = 80;
+
+/**
+ * Impede que a prancha seja arrastada inteiramente para fora da tela.
+ * Garante que o retangulo da folha sempre intersecte o viewport em pelo menos
+ * MIN_VISIBLE_SHEET_PX nos dois eixos. Aplicado ao resultado de qualquer
+ * operacao que mova o viewport, nao apenas ao arrasto.
+ */
+export function clampViewportToSheet(
+  viewport: Viewport,
+  sheet: { width: number; height: number },
+  viewportSize: { width: number; height: number },
+  renderScale = CANVAS_NAVIGATION.renderScale
+): Viewport {
+  const sheetWidth = sheet.width * viewport.zoom * renderScale;
+  const sheetHeight = sheet.height * viewport.zoom * renderScale;
+  const marginX = Math.min(MIN_VISIBLE_SHEET_PX, sheetWidth);
+  const marginY = Math.min(MIN_VISIBLE_SHEET_PX, sheetHeight);
+
+  return {
+    zoom: viewport.zoom,
+    x: Math.min(
+      viewportSize.width - marginX,
+      Math.max(marginX - sheetWidth, viewport.x)
+    ),
+    y: Math.min(
+      viewportSize.height - marginY,
+      Math.max(marginY - sheetHeight, viewport.y)
+    )
+  };
+}
+
+export type WheelIntent =
+  | { kind: "zoom"; factor: number }
+  | { kind: "pan"; deltaX: number; deltaY: number };
+
+/**
+ * Decide se um evento de roda veio de roda de mouse ou de trackpad.
+ *
+ * Mapear roda para zoom sem essa distincao quebra o trackpad, que emite dezenas
+ * de eventos por segundo ao rolar com dois dedos.
+ */
+export function wheelIntent(event: {
+  deltaX: number;
+  deltaY: number;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+}): WheelIntent {
+  // O navegador marca o gesto de pinca do trackpad com ctrlKey.
+  if (event.ctrlKey || event.metaKey) {
+    return { kind: "zoom", factor: Math.exp(-event.deltaY * 0.0012) };
+  }
+
+  // Deslocamento horizontal so aparece em rolagem de dois dedos.
+  if (event.deltaX !== 0) {
+    return { kind: "pan", deltaX: -event.deltaX, deltaY: -event.deltaY };
+  }
+
+  if (event.shiftKey) {
+    return { kind: "pan", deltaX: -event.deltaY, deltaY: 0 };
+  }
+
+  return { kind: "zoom", factor: Math.exp(-event.deltaY * 0.0012) };
+}

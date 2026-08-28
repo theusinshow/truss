@@ -21,6 +21,8 @@ import {
 
 import {
   CANVAS_NAVIGATION,
+  clampViewportToSheet,
+  wheelIntent,
   normalizeRect,
   offsetRect,
   Point,
@@ -60,11 +62,11 @@ import {
 import { ChatContextItem } from "@/lib/projects-api";
 import {
   ConfidenceBarsIcon,
-  FindingBboxIcon,
   FocusRegionIcon,
   RegionSelectIcon,
   SheetIcon
 } from "@/components/truss-icons";
+import { FindingsDrawer } from "@/components/findings/findings-drawer";
 import { AgentActivity, ChatMode, ChatTurn, TrussChat } from "@/components/truss-chat";
 import { ConfidenceBadge, Kbd, SeverityBadge, StatusBadge, TypeBadge } from "@/components/truss-primitives";
 
@@ -530,6 +532,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   const [interaction, setInteraction] = useState<Interaction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [isShiftPressed, setIsShiftPressed] = useState(false);
   const [canvasIsActive, setCanvasIsActive] = useState(false);
   const [cursorWorld, setCursorWorld] = useState<Point | null>(null);
   const [manualDraft, setManualDraft] = useState<ManualDraft | null>(null);
@@ -548,6 +551,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   const selectedIdsRef = useRef(selectedIds);
   const findingsRef = useRef(findings);
   const spacePressedRef = useRef(isSpacePressed);
+  const interactionRef = useRef<Interaction | null>(null);
   const chatTurnIdRef = useRef(0);
   const clipboardRef = useRef<CanvasFinding[]>([]);
   const undoStackRef = useRef<HistorySnapshot[]>([]);
@@ -680,8 +684,22 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             steps: []
           };
 
+  function beginInteraction(next: Interaction | null) {
+    // Gestos leem do ref: dentro de um mesmo arrasto o estado do React pode
+    // ainda nao ter re-renderizado quando o primeiro pointermove chega.
+    interactionRef.current = next;
+    setInteraction(next);
+  }
+
   function setViewport(next: Viewport) {
-    viewportRef.current = next;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    viewportRef.current = activeSheet && rect && rect.width > 0
+      ? clampViewportToSheet(
+          next,
+          { width: activeSheet.width_pt, height: activeSheet.height_pt },
+          { width: rect.width, height: rect.height }
+        )
+      : next;
 
     if (rafRef.current !== null) {
       return;
@@ -1020,17 +1038,17 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
     setCanvasIsActive(true);
 
     const anchor = canvasPointFromClient(event.clientX, event.clientY);
-    if (event.ctrlKey || event.metaKey) {
-      zoomByFactor(Math.exp(-event.deltaY * 0.0012), anchor ?? undefined);
+    const intent = wheelIntent(event);
+
+    if (intent.kind === "zoom") {
+      zoomByFactor(intent.factor, anchor ?? undefined);
       return;
     }
 
-    const deltaX = event.shiftKey ? event.deltaY : event.deltaX;
-    const deltaY = event.shiftKey ? 0 : event.deltaY;
     setViewport({
       ...viewportRef.current,
-      x: viewportRef.current.x - deltaX,
-      y: viewportRef.current.y - deltaY
+      x: viewportRef.current.x + intent.deltaX,
+      y: viewportRef.current.y + intent.deltaY
     });
   }
 
@@ -1046,7 +1064,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
     if (event.pointerType === "touch" && pointersRef.current.size >= 2) {
       const points = Array.from(pointersRef.current.values()).slice(0, 2);
       event.currentTarget.setPointerCapture(event.pointerId);
-      setInteraction({
+      beginInteraction({
         type: "pinch",
         startDistance: pointerDistance(points[0], points[1]),
         viewport: viewportRef.current
@@ -1054,10 +1072,16 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
       return;
     }
 
-    if (event.pointerType === "touch" || event.button === 1 || (event.button === 0 && spacePressedRef.current)) {
+    const wantsMarquee = event.button === 0 && (event.shiftKey || manualMode);
+
+    if (
+      event.pointerType === "touch"
+      || event.button === 1
+      || (event.button === 0 && !wantsMarquee)
+    ) {
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
-      setInteraction({
+      beginInteraction({
         type: "pan",
         pointerId: event.pointerId,
         startScreen: canvasPoint,
@@ -1072,7 +1096,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
 
     const world = screenToWorld(canvasPoint, viewportRef.current);
     event.currentTarget.setPointerCapture(event.pointerId);
-    setInteraction({
+    beginInteraction({
       type: manualMode ? "manual" : "marquee",
       pointerId: event.pointerId,
       startWorld: world,
@@ -1089,28 +1113,28 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
     pointersRef.current.set(event.pointerId, canvasPoint);
     setCursorWorld(screenToWorld(canvasPoint, viewportRef.current));
 
-    if (interaction?.type === "pinch") {
+    if (interactionRef.current?.type === "pinch") {
       const points = Array.from(pointersRef.current.values()).slice(0, 2);
       if (points.length === 2) {
         const distance = pointerDistance(points[0], points[1]);
         const midpoint = pointerMidpoint(points[0], points[1]);
-        setViewport(zoomAtScreenPoint(interaction.viewport, interaction.viewport.zoom * (distance / interaction.startDistance), midpoint));
+        setViewport(zoomAtScreenPoint(interactionRef.current.viewport, interactionRef.current.viewport.zoom * (distance / interactionRef.current.startDistance), midpoint));
       }
       return;
     }
 
-    if (interaction?.type === "pan" && interaction.pointerId === event.pointerId) {
+    if (interactionRef.current?.type === "pan" && interactionRef.current.pointerId === event.pointerId) {
       setViewport({
-        ...interaction.viewport,
-        x: interaction.viewport.x + canvasPoint.x - interaction.startScreen.x,
-        y: interaction.viewport.y + canvasPoint.y - interaction.startScreen.y
+        ...interactionRef.current.viewport,
+        x: interactionRef.current.viewport.x + canvasPoint.x - interactionRef.current.startScreen.x,
+        y: interactionRef.current.viewport.y + canvasPoint.y - interactionRef.current.startScreen.y
       });
       return;
     }
 
-    if ((interaction?.type === "marquee" || interaction?.type === "manual") && interaction.pointerId === event.pointerId) {
-      setInteraction({
-        ...interaction,
+    if ((interactionRef.current?.type === "marquee" || interactionRef.current?.type === "manual") && interactionRef.current.pointerId === event.pointerId) {
+      beginInteraction({
+        ...interactionRef.current,
         currentWorld: screenToWorld(canvasPoint, viewportRef.current)
       });
     }
@@ -1119,9 +1143,9 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   async function handlePointerUp(event: PointerEvent<HTMLDivElement>) {
     pointersRef.current.delete(event.pointerId);
 
-    if (interaction?.type === "manual" && interaction.pointerId === event.pointerId && activeSheet) {
-      const bbox = normalizeRect(interaction.startWorld, interaction.currentWorld);
-      setInteraction(null);
+    if (interactionRef.current?.type === "manual" && interactionRef.current.pointerId === event.pointerId && activeSheet) {
+      const bbox = normalizeRect(interactionRef.current.startWorld, interactionRef.current.currentWorld);
+      beginInteraction(null);
 
       if (rectWidth(bbox) < 4 || rectHeight(bbox) < 4) {
         return;
@@ -1136,9 +1160,9 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
       return;
     }
 
-    if (interaction?.type === "marquee" && interaction.pointerId === event.pointerId) {
-      const rect = normalizeRect(interaction.startWorld, interaction.currentWorld);
-      setInteraction(null);
+    if (interactionRef.current?.type === "marquee" && interactionRef.current.pointerId === event.pointerId) {
+      const rect = normalizeRect(interactionRef.current.startWorld, interactionRef.current.currentWorld);
+      beginInteraction(null);
 
       if (rectWidth(rect) < 3 && rectHeight(rect) < 3) {
         setSelectedIds(new Set());
@@ -1154,14 +1178,14 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
       return;
     }
 
-    if (interaction?.type === "pan" || interaction?.type === "pinch") {
-      setInteraction(null);
+    if (interactionRef.current?.type === "pan" || interactionRef.current?.type === "pinch") {
+      beginInteraction(null);
     }
   }
 
   function handlePointerCancel(event: PointerEvent<HTMLDivElement>) {
     pointersRef.current.delete(event.pointerId);
-    setInteraction(null);
+    beginInteraction(null);
   }
 
   async function runAuditFromChat() {
@@ -1606,6 +1630,10 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
         return;
       }
 
+      if (event.key === "Shift") {
+        setIsShiftPressed(true);
+      }
+
       if (event.code === "Space" && canvasIsActive) {
         event.preventDefault();
         setIsSpacePressed(true);
@@ -1621,7 +1649,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
 
       if (event.key === "Escape") {
         event.preventDefault();
-        setInteraction(null);
+        beginInteraction(null);
         setManualDraft(null);
         setRejectPanelOpen(false);
         setRejectReason("");
@@ -1701,6 +1729,10 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
       if (event.code === "Space") {
         setIsSpacePressed(false);
       }
+
+      if (event.key === "Shift") {
+        setIsShiftPressed(false);
+      }
     }
 
     window.addEventListener("keydown", handleKeyDown);
@@ -1737,7 +1769,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   }
 
   return (
-    <div className="overflow-hidden border border-truss-line bg-truss-panel">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden border border-truss-line bg-truss-panel">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-truss-line bg-truss-raised px-3 py-2">
         <div className="min-w-0">
           <p className="truss-mono-label">Prancha ativa</p>
@@ -1803,465 +1835,465 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
         </div>
       ) : null}
 
-      <div className="grid min-h-[calc(100dvh-205px)] grid-cols-1 xl:grid-cols-[minmax(0,1fr)_390px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div
-          aria-label="Canvas da prancha. Use roda para pan, Ctrl mais roda para zoom no cursor, Espaco mais arrasto para pan e F para Fit View."
-          className={`relative min-h-[720px] select-none overflow-hidden bg-truss-canvas bg-[linear-gradient(to_right,rgba(121,131,138,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(121,131,138,0.12)_1px,transparent_1px)] bg-[size:28px_28px] outline-none xl:min-h-[calc(100dvh-205px)] ${
-            interaction?.type === "pan" ? "cursor-grabbing" : isSpacePressed ? "cursor-grab" : "cursor-crosshair"
-          }`}
-          onDoubleClick={() => {
-            appendTurn({
-              role: "truss",
-              text: "Double click no canvas capturado. O ponto esta reservado para menu de criacao futuro."
-            });
-          }}
-          onPointerCancel={handlePointerCancel}
-          onPointerDown={handlePointerDown}
-          onPointerEnter={() => setCanvasIsActive(true)}
-          onPointerLeave={() => {
-            pointersRef.current.clear();
-            setInteraction(null);
-            setCursorWorld(null);
-          }}
-          onPointerMove={handlePointerMove}
-          onPointerUp={(event) => void handlePointerUp(event)}
-          onWheel={handleWheel}
-          ref={canvasRef}
-          role="application"
-          style={{ touchAction: "none" }}
-          tabIndex={0}
-        >
-          <CanvasRulers canvasSize={canvasSizeState} sheet={activeSheet} viewport={viewport} />
-
-          <div className="absolute left-10 top-10 z-20 flex min-h-[34px] max-w-[calc(100%-3.25rem)] items-center gap-2 border border-truss-line bg-truss-panel/95 px-3 font-mono text-[11px] uppercase tracking-[0.06em] text-truss-subtle shadow-truss-panel">
-            {manualMode ? (
-              <RegionSelectIcon className="h-4 w-4 text-truss-accent" />
-            ) : (
-              <FocusRegionIcon className="h-4 w-4 text-truss-accent" />
-            )}
-            {manualMode
-              ? "Modo achado manual"
-              : (
-                  <>
-                    <span>{selectedIds.size} selecionado(s)</span>
-                    <Kbd>Ctrl</Kbd>
-                    <span>+ wheel zoom</span>
-                    <Kbd>F</Kbd>
-                    <span>fit</span>
-                  </>
-                )}
-          </div>
-
-          {isAuditing ? (
-            <div className="pointer-events-none absolute inset-y-7 left-0 z-20 w-1/2 animate-[truss-scan-sweep_1.55s_ease-in-out_infinite] truss-scan-sweep" />
-          ) : null}
-
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[minmax(0,1fr)_390px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="flex min-h-0 min-w-0 flex-col">
           <div
-            className="absolute left-0 top-0 will-change-transform"
-            style={{
-              height: activeSheet.height_pt * CANVAS_NAVIGATION.renderScale,
-              transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
-              transformOrigin: "0 0",
-              width: activeSheet.width_pt * CANVAS_NAVIGATION.renderScale
+            aria-label="Canvas da prancha. Use roda para pan, Ctrl mais roda para zoom no cursor, Espaco mais arrasto para pan e F para Fit View."
+            className={`relative min-h-0 flex-1 select-none overflow-hidden bg-truss-canvas bg-[linear-gradient(to_right,rgba(121,131,138,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(121,131,138,0.12)_1px,transparent_1px)] bg-[size:28px_28px] outline-none ${
+              interaction?.type === "pan"
+                ? "cursor-grabbing"
+                : manualMode || isShiftPressed
+                  ? "cursor-crosshair"
+                  : "cursor-grab"
+            }`}
+            onDoubleClick={() => {
+              appendTurn({
+                role: "truss",
+                text: "Double click no canvas capturado. O ponto esta reservado para menu de criacao futuro."
+              });
             }}
+            onPointerCancel={handlePointerCancel}
+            onPointerDown={handlePointerDown}
+            onPointerEnter={() => setCanvasIsActive(true)}
+            onPointerLeave={() => {
+              pointersRef.current.clear();
+              beginInteraction(null);
+              setCursorWorld(null);
+            }}
+            onPointerMove={handlePointerMove}
+            onPointerUp={(event) => void handlePointerUp(event)}
+            onWheel={handleWheel}
+            ref={canvasRef}
+            role="application"
+            style={{ touchAction: "none" }}
+            tabIndex={0}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element -- Local rendered PDF sheets need direct transform control. */}
-            <img
-              alt={`Render da ${activeSheet.label}`}
-              className="max-h-none max-w-none select-none border border-truss-line bg-truss-sheet shadow-[0_18px_55px_rgba(0,0,0,0.55)]"
-              draggable={false}
-              src={`${apiBaseUrl}/sheets/${activeSheet.id}/image`}
+            <CanvasRulers canvasSize={canvasSizeState} sheet={activeSheet} viewport={viewport} />
+
+            <div className="absolute left-10 top-10 z-20 flex min-h-[34px] max-w-[calc(100%-3.25rem)] items-center gap-2 border border-truss-line bg-truss-panel/95 px-3 font-mono text-[11px] uppercase tracking-[0.06em] text-truss-subtle shadow-truss-panel">
+              {manualMode ? (
+                <RegionSelectIcon className="h-4 w-4 text-truss-accent" />
+              ) : (
+                <FocusRegionIcon className="h-4 w-4 text-truss-accent" />
+              )}
+              {manualMode
+                ? "Modo achado manual"
+                : (
+                    <>
+                      <span>{selectedIds.size} selecionado(s)</span>
+                      <Kbd>Ctrl</Kbd>
+                      <span>+ wheel zoom</span>
+                      <Kbd>F</Kbd>
+                      <span>fit</span>
+                    </>
+                  )}
+            </div>
+
+            {isAuditing ? (
+              <div className="pointer-events-none absolute inset-y-7 left-0 z-20 w-1/2 animate-[truss-scan-sweep_1.55s_ease-in-out_infinite] truss-scan-sweep" />
+            ) : null}
+
+            <div
+              className="absolute left-0 top-0 will-change-transform"
               style={{
                 height: activeSheet.height_pt * CANVAS_NAVIGATION.renderScale,
+                transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
+                transformOrigin: "0 0",
                 width: activeSheet.width_pt * CANVAS_NAVIGATION.renderScale
               }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- Local rendered PDF sheets need direct transform control. */}
+              <img
+                alt={`Render da ${activeSheet.label}`}
+                className="max-h-none max-w-none select-none border border-truss-line bg-truss-sheet shadow-[0_18px_55px_rgba(0,0,0,0.55)]"
+                draggable={false}
+                src={`${apiBaseUrl}/sheets/${activeSheet.id}/image`}
+                style={{
+                  height: activeSheet.height_pt * CANVAS_NAVIGATION.renderScale,
+                  width: activeSheet.width_pt * CANVAS_NAVIGATION.renderScale
+                }}
+              />
+              {showFindings
+                ? filteredFindings.map((finding) => {
+                    const severity = severityMeta[finding.severity];
+                    const isActive = selectedIds.has(finding.id);
+
+                    return (
+                      <button
+                        aria-label={`Selecionar achado ${severity.label}: ${finding.description}`}
+                        className={`absolute border bg-truss-accent/10 text-left transition-colors ${severity.ring} data-[active=true]:shadow-truss-red data-[draft=true]:border-dashed data-[status=confirmed]:border-truss-success data-[status=confirmed]:bg-truss-success/10 data-[status=rejected]:border-truss-subtle data-[status=rejected]:bg-truss-base/20`}
+                        data-active={isActive}
+                        data-draft={finding.isDraft}
+                        data-status={finding.status}
+                        key={finding.id}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                        }}
+                        onPointerDown={(event) => {
+                          // Sem stopPropagation: o canvas precisa ver o evento para
+                          // iniciar o pan. Achados de pagina inteira cobrem todo o
+                          // canvas, e engolir o pointerdown aqui trava a navegacao.
+                          selectFinding(finding, event.shiftKey);
+                        }}
+                        style={{
+                          height: (finding.bbox.y1 - finding.bbox.y0) * CANVAS_NAVIGATION.renderScale,
+                          left: finding.bbox.x0 * CANVAS_NAVIGATION.renderScale,
+                          top: finding.bbox.y0 * CANVAS_NAVIGATION.renderScale,
+                          width: (finding.bbox.x1 - finding.bbox.x0) * CANVAS_NAVIGATION.renderScale
+                        }}
+                        title={`${finding.description} ${finding.isDraft ? "(draft local)" : ""}`}
+                        type="button"
+                      >
+                        <span className={`absolute -left-px -top-5 border px-1.5 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.08em] ${severity.ring} ${severity.tone}`}>
+                          {finding.isDraft ? "DRAFT" : severity.label}
+                        </span>
+                      </button>
+                    );
+                  })
+                : null}
+            </div>
+
+            {marqueeRect ? (
+              <div
+                className={`pointer-events-none absolute z-10 border ${
+                  interaction?.type === "manual"
+                    ? "border-truss-success bg-truss-success/10"
+                    : "border-truss-accent bg-truss-accent/10"
+                }`}
+                style={{
+                  height: rectHeight(marqueeRect) * viewport.zoom * CANVAS_NAVIGATION.renderScale,
+                  left: worldToScreen({ x: marqueeRect.x0, y: marqueeRect.y0 }, viewport).x,
+                  top: worldToScreen({ x: marqueeRect.x0, y: marqueeRect.y0 }, viewport).y,
+                  width: rectWidth(marqueeRect) * viewport.zoom * CANVAS_NAVIGATION.renderScale
+                }}
+              />
+            ) : null}
+
+            {manualDraft ? (
+              <div
+                className="pointer-events-none absolute z-10 border border-truss-success bg-truss-success/10 truss-region-focus"
+                style={{
+                  height: rectHeight(manualDraft.bbox) * viewport.zoom * CANVAS_NAVIGATION.renderScale,
+                  left: worldToScreen({ x: manualDraft.bbox.x0, y: manualDraft.bbox.y0 }, viewport).x,
+                  top: worldToScreen({ x: manualDraft.bbox.x0, y: manualDraft.bbox.y0 }, viewport).y,
+                  width: rectWidth(manualDraft.bbox) * viewport.zoom * CANVAS_NAVIGATION.renderScale
+                }}
+              />
+            ) : null}
+
+            <ZoomControls
+              canRedo={historyState.canRedo}
+              canUndo={historyState.canUndo}
+              onFit={fitView}
+              onRedo={redo}
+              onReset={resetView}
+              onUndo={undo}
+              onZoomIn={() => zoomByFactor(CANVAS_NAVIGATION.zoomStep)}
+              onZoomOut={() => zoomByFactor(1 / CANVAS_NAVIGATION.zoomStep)}
+              zoom={viewport.zoom}
             />
-            {showFindings
-              ? filteredFindings.map((finding) => {
+
+            {contentBounds ? (
+              <CanvasMinimap
+                bounds={contentBounds}
+                canvasSize={canvasSizeState}
+                findings={filteredFindings}
+                hidden={!showMinimap}
+                onCenter={centerOnWorld}
+                onToggle={() => setShowMinimap((current) => !current)}
+                viewport={viewport}
+              />
+            ) : null}
+
+            <div className="absolute inset-x-0 bottom-0 z-20 flex min-h-8 flex-wrap items-center gap-x-4 gap-y-1 border-t border-truss-line bg-truss-raised/95 px-3 py-1 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle">
+              <span>cursor / {formatPoint(cursorWorld)}</span>
+              <span>zoom / {Math.round(viewport.zoom * 100)}%</span>
+              <span>folha / {Math.round(activeSheet.width_pt)} x {Math.round(activeSheet.height_pt)} pt</span>
+              <span>selecionados / {selectedIds.size}</span>
+              <span className={isAuditing ? "text-truss-accent" : "text-truss-subtle"}>
+                auditoria / {isAuditing ? "varrendo" : "pronta"}
+              </span>
+            </div>
+          </div>
+
+          <FindingsDrawer count={filteredFindings.length}>
+            <div className="border-b border-truss-line px-3 py-3">
+              <div className="grid gap-2">
+                <div className="truss-segment overflow-x-auto">
+                  {(["all", "pending", "confirmed", "rejected"] as const).map((status) => (
+                    <button
+                      className="h-[34px] px-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle transition-colors hover:bg-truss-panel2 hover:text-truss-text data-[active=true]:bg-truss-accentSoft data-[active=true]:text-[#ffb3aa]"
+                      data-active={statusFilter === status}
+                      key={status}
+                      onClick={() => setStatusFilter(status)}
+                      type="button"
+                    >
+                      {status === "all" ? "todos" : status}
+                    </button>
+                  ))}
+                </div>
+                <div className="truss-segment overflow-x-auto">
+                  {(["all", "critical", "high", "medium", "low"] as const).map((severity) => (
+                    <button
+                      className="h-[34px] px-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle transition-colors hover:bg-truss-panel2 hover:text-truss-text data-[active=true]:bg-truss-accentSoft data-[active=true]:text-[#ffb3aa]"
+                      data-active={severityFilter === severity}
+                      key={severity}
+                      onClick={() => setSeverityFilter(severity)}
+                      type="button"
+                    >
+                      {severity}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  <button className="truss-icon-button w-full" onClick={copySelection} title="Copiar selecionados, Ctrl+C" type="button">
+                    <Copy aria-hidden="true" className="truss-icon h-4 w-4" />
+                  </button>
+                  <button className="truss-icon-button w-full" onClick={duplicateSelection} title="Duplicar selecionados, Ctrl+D" type="button">
+                    <Plus aria-hidden="true" className="truss-icon h-4 w-4" />
+                  </button>
+                  <button className="truss-icon-button w-full" onClick={removeSelection} title="Remover selecionados da sessao, Delete" type="button">
+                    <Trash2 aria-hidden="true" className="truss-icon h-4 w-4" />
+                  </button>
+                  <button className="truss-icon-button w-full" onClick={() => setSelectedIds(new Set())} title="Limpar selecao, Esc" type="button">
+                    <X aria-hidden="true" className="truss-icon h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="max-h-[34vh] overflow-y-auto border-b border-truss-line">
+              {filteredFindings.length === 0 ? (
+                <div className="m-3 border border-dashed border-truss-line px-3 py-5 text-center text-sm text-truss-muted">
+                  Nenhum achado nesse filtro.
+                </div>
+              ) : (
+                filteredFindings.map((finding) => {
                   const severity = severityMeta[finding.severity];
-                  const isActive = selectedIds.has(finding.id);
+                  const level = confidenceLevel(finding.confidence);
 
                   return (
                     <button
-                      aria-label={`Selecionar achado ${severity.label}: ${finding.description}`}
-                      className={`absolute border bg-truss-accent/10 text-left transition-colors ${severity.ring} data-[active=true]:shadow-truss-red data-[draft=true]:border-dashed data-[status=confirmed]:border-truss-success data-[status=confirmed]:bg-truss-success/10 data-[status=rejected]:border-truss-subtle data-[status=rejected]:bg-truss-base/20`}
-                      data-active={isActive}
-                      data-draft={finding.isDraft}
-                      data-status={finding.status}
+                      className="flex w-full gap-3 border-b border-truss-line px-3 py-3 text-left transition-colors hover:bg-truss-panel data-[active=true]:bg-truss-accentSoft data-[active=true]:shadow-[inset_2px_0_0_var(--red)]"
+                      data-active={selectedIds.has(finding.id)}
                       key={finding.id}
                       onClick={(event) => {
-                        event.stopPropagation();
-                      }}
-                      onPointerDown={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
                         selectFinding(finding, event.shiftKey);
+                        focusFinding(finding, false);
                       }}
-                      style={{
-                        height: (finding.bbox.y1 - finding.bbox.y0) * CANVAS_NAVIGATION.renderScale,
-                        left: finding.bbox.x0 * CANVAS_NAVIGATION.renderScale,
-                        top: finding.bbox.y0 * CANVAS_NAVIGATION.renderScale,
-                        width: (finding.bbox.x1 - finding.bbox.x0) * CANVAS_NAVIGATION.renderScale
-                      }}
-                      title={`${finding.description} ${finding.isDraft ? "(draft local)" : ""}`}
                       type="button"
                     >
-                      <span className={`absolute -left-px -top-5 border px-1.5 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.08em] ${severity.ring} ${severity.tone}`}>
-                        {finding.isDraft ? "DRAFT" : severity.label}
+                      <AlertTriangle aria-hidden="true" className={`truss-icon mt-0.5 h-4 w-4 shrink-0 ${severity.tone}`} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm leading-5 text-truss-text">
+                          {finding.description}
+                          {finding.isDraft ? <span className="ml-2 font-mono text-[10px] text-truss-warning">DRAFT</span> : null}
+                        </span>
+                        <span className="mt-2 flex flex-wrap items-center gap-2">
+                          <SeverityBadge severity={finding.severity} />
+                          <StatusBadge status={finding.status} />
+                          <span className="inline-flex h-6 items-center gap-1 border border-truss-line bg-truss-raised px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle">
+                            <ConfidenceBarsIcon className={`h-3.5 w-3.5 ${level === "high" ? "text-truss-muted" : level === "medium" ? "text-truss-warning" : "text-truss-subtle"}`} />
+                            {confidenceLabel(finding.confidence)}
+                          </span>
+                        </span>
                       </span>
                     </button>
                   );
                 })
-              : null}
-          </div>
+              )}
+            </div>
 
-          {marqueeRect ? (
-            <div
-              className={`pointer-events-none absolute z-10 border ${
-                interaction?.type === "manual"
-                  ? "border-truss-success bg-truss-success/10"
-                  : "border-truss-accent bg-truss-accent/10"
-              }`}
-              style={{
-                height: rectHeight(marqueeRect) * viewport.zoom * CANVAS_NAVIGATION.renderScale,
-                left: worldToScreen({ x: marqueeRect.x0, y: marqueeRect.y0 }, viewport).x,
-                top: worldToScreen({ x: marqueeRect.x0, y: marqueeRect.y0 }, viewport).y,
-                width: rectWidth(marqueeRect) * viewport.zoom * CANVAS_NAVIGATION.renderScale
-              }}
-            />
-          ) : null}
+            {manualDraft ? (
+              <div className="border-b border-truss-line p-3">
+                <form className="border border-truss-success/40 bg-truss-success/10 p-3" onSubmit={(event) => void submitManualFinding(event)}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="truss-mono-label text-truss-success">Novo achado manual</p>
+                    <button
+                      className="font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle hover:text-truss-text"
+                      onClick={() => setManualDraft(null)}
+                      type="button"
+                    >
+                      cancelar
+                    </button>
+                  </div>
+                  <p className="mt-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle">
+                    Regiao / {Math.round(manualDraft.bbox.x0)},{Math.round(manualDraft.bbox.y0)} - {Math.round(manualDraft.bbox.x1)},{Math.round(manualDraft.bbox.y1)} pt
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <label className="grid gap-1">
+                      <span className="truss-mono-label">Tipo</span>
+                      <select
+                        className="truss-field px-2 font-mono text-[11px]"
+                        onChange={(event) => setManualType(event.target.value as FindingType)}
+                        value={manualType}
+                      >
+                        <option value="attention">ATTENTION</option>
+                        <option value="inconsistency">INCONSISTENCY</option>
+                        <option value="missing_information">MISSING INFO</option>
+                        <option value="unverifiable">NOT VERIFIABLE</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="truss-mono-label">Severidade</span>
+                      <select
+                        className="truss-field px-2 font-mono text-[11px]"
+                        onChange={(event) => setManualSeverity(event.target.value as FindingSeverity)}
+                        value={manualSeverity}
+                      >
+                        <option value="low">LOW</option>
+                        <option value="medium">MEDIUM</option>
+                        <option value="high">HIGH</option>
+                        <option value="critical">CRITICAL</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <TypeBadge type={manualType} />
+                    <SeverityBadge severity={manualSeverity} />
+                    <ConfidenceBadge confidence={1} />
+                  </div>
+                  <label className="mt-3 grid gap-1">
+                    <span className="truss-mono-label">Descricao</span>
+                    <textarea
+                      className="truss-field resize-none px-3 py-2 text-sm leading-5"
+                      onChange={(event) => setManualDescription(event.target.value)}
+                      placeholder="Descreva a suspeita observada nessa regiao."
+                      value={manualDescription}
+                    />
+                  </label>
+                  <button
+                    className="truss-button truss-button-primary mt-3 w-full disabled:opacity-50"
+                    disabled={isCreatingManual || !manualDescription.trim()}
+                    type="submit"
+                  >
+                    Registrar achado
+                  </button>
+                </form>
+              </div>
+            ) : null}
 
-          {manualDraft ? (
-            <div
-              className="pointer-events-none absolute z-10 border border-truss-success bg-truss-success/10 truss-region-focus"
-              style={{
-                height: rectHeight(manualDraft.bbox) * viewport.zoom * CANVAS_NAVIGATION.renderScale,
-                left: worldToScreen({ x: manualDraft.bbox.x0, y: manualDraft.bbox.y0 }, viewport).x,
-                top: worldToScreen({ x: manualDraft.bbox.x0, y: manualDraft.bbox.y0 }, viewport).y,
-                width: rectWidth(manualDraft.bbox) * viewport.zoom * CANVAS_NAVIGATION.renderScale
-              }}
-            />
-          ) : null}
+            {activeFinding ? (
+              <div className="border-b border-truss-line p-3">
+                <div className="border border-truss-accent/40 bg-truss-accentSoft p-3 text-sm text-truss-text">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truss-mono-label mr-auto">
+                      Achado {activeFindingIndex + 1} de {findings.length}
+                    </p>
+                    <StatusBadge status={activeFinding.status} />
+                  </div>
+                  <p className="mt-2 leading-6">{activeFinding.description}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <TypeBadge type={activeFinding.type} />
+                    <SeverityBadge severity={activeFinding.severity} />
+                    <ConfidenceBadge confidence={activeFinding.confidence} />
+                  </div>
+                  {activeFinding.type !== "inconsistency" && activeFinding.status === "pending" ? (
+                    <div className="mt-3 border border-truss-warning/35 bg-truss-warning/10 px-3 py-2 text-xs leading-5 text-truss-text">
+                      Hipotese pendente de verificacao humana. Severidade mede impacto, nao certeza.
+                    </div>
+                  ) : null}
+                  <div className="mt-3 grid gap-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle">
+                    <span>Regiao / {formatBBox(activeFinding)}</span>
+                    <span>Origem / {activeFinding.origin}</span>
+                    {activeFinding.isDraft ? <span>Persistencia / draft local</span> : null}
+                    {activeFinding.rejection_reason ? <span>Rejeicao / {activeFinding.rejection_reason}</span> : null}
+                  </div>
+                  {activeFinding.evidence.length > 0 ? (
+                    <div className="mt-3 border border-truss-line bg-truss-panel/70 p-2">
+                      <p className="truss-mono-label">Evidencias</p>
+                      <ul className="mt-2 grid gap-1 text-xs leading-5 text-truss-muted">
+                        {activeFinding.evidence.slice(0, 3).map((evidence, index) => (
+                          <li key={`${activeFinding.id}-${index}`}>{evidence}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button className="truss-icon-button" onClick={() => moveFinding(-1)} title="Achado anterior" type="button">
+                      <ChevronLeft aria-hidden="true" className="truss-icon h-4 w-4" />
+                    </button>
+                    <button className="truss-icon-button" onClick={() => moveFinding(1)} title="Proximo achado" type="button">
+                      <ChevronRight aria-hidden="true" className="truss-icon h-4 w-4" />
+                    </button>
+                    <button
+                      className="truss-icon-button hover:border-truss-success/50 hover:text-truss-success"
+                      disabled={isSavingFeedback}
+                      onClick={() => void setFindingStatus("confirmed")}
+                      title="Confirmar achado"
+                      type="button"
+                    >
+                      <Check aria-hidden="true" className="truss-icon h-4 w-4" />
+                    </button>
+                    <button
+                      className="truss-icon-button hover:border-truss-danger/50 hover:text-truss-danger"
+                      disabled={isSavingFeedback}
+                      onClick={() => {
+                        setRejectPanelOpen(true);
+                        setRejectFindingId(activeFinding.id);
+                        setRejectReason(activeFinding.rejection_reason ?? "");
+                      }}
+                      title="Rejeitar achado"
+                      type="button"
+                    >
+                      <X aria-hidden="true" className="truss-icon h-4 w-4" />
+                    </button>
+                    <button
+                      className="truss-icon-button"
+                      onClick={() => focusFinding(activeFinding)}
+                      title="Focar regiao selecionada"
+                      type="button"
+                    >
+                      <Maximize2 aria-hidden="true" className="truss-icon h-4 w-4" />
+                    </button>
+                  </div>
+                  {rejectPanelOpen && rejectFindingId === activeFinding.id ? (
+                    <form
+                      className="mt-3 border border-truss-danger/35 bg-truss-danger/10 p-3"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void setFindingStatus("rejected", rejectReason);
+                      }}
+                    >
+                      <label className="grid gap-1">
+                        <span className="truss-mono-label text-truss-danger">Justificativa de rejeicao</span>
+                        <textarea
+                          className="truss-field resize-none px-3 py-2 text-sm leading-5"
+                          onChange={(event) => setRejectReason(event.target.value)}
+                          placeholder="Explique por que esse achado nao procede."
+                          value={rejectReason}
+                        />
+                      </label>
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          className="truss-button flex-1"
+                          onClick={() => {
+                            setRejectPanelOpen(false);
+                            setRejectReason("");
+                            setRejectFindingId("");
+                          }}
+                          type="button"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          className="truss-button truss-button-primary flex-1 disabled:opacity-50"
+                          disabled={isSavingFeedback || !rejectReason.trim()}
+                          type="submit"
+                        >
+                          Salvar rejeicao
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
 
-          <ZoomControls
-            canRedo={historyState.canRedo}
-            canUndo={historyState.canUndo}
-            onFit={fitView}
-            onRedo={redo}
-            onReset={resetView}
-            onUndo={undo}
-            onZoomIn={() => zoomByFactor(CANVAS_NAVIGATION.zoomStep)}
-            onZoomOut={() => zoomByFactor(1 / CANVAS_NAVIGATION.zoomStep)}
-            zoom={viewport.zoom}
-          />
-
-          {contentBounds ? (
-            <CanvasMinimap
-              bounds={contentBounds}
-              canvasSize={canvasSizeState}
-              findings={filteredFindings}
-              hidden={!showMinimap}
-              onCenter={centerOnWorld}
-              onToggle={() => setShowMinimap((current) => !current)}
-              viewport={viewport}
-            />
-          ) : null}
-
-          <div className="absolute inset-x-0 bottom-0 z-20 flex min-h-8 flex-wrap items-center gap-x-4 gap-y-1 border-t border-truss-line bg-truss-raised/95 px-3 py-1 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle">
-            <span>cursor / {formatPoint(cursorWorld)}</span>
-            <span>zoom / {Math.round(viewport.zoom * 100)}%</span>
-            <span>folha / {Math.round(activeSheet.width_pt)} x {Math.round(activeSheet.height_pt)} pt</span>
-            <span>selecionados / {selectedIds.size}</span>
-            <span className={isAuditing ? "text-truss-accent" : "text-truss-subtle"}>
-              auditoria / {isAuditing ? "varrendo" : "pronta"}
-            </span>
-          </div>
+          </FindingsDrawer>
         </div>
 
-        <aside className="flex min-h-[620px] flex-col border-t border-truss-line bg-truss-raised xl:border-l xl:border-t-0">
-          <div className="border-b border-truss-line px-3 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <FindingBboxIcon className="h-4 w-4 text-truss-accent" />
-                <p className="truss-mono-label">Achados</p>
-              </div>
-              <span className="font-mono text-[11px] text-truss-subtle">
-                {filteredFindings.length}/{findings.length}
-              </span>
-            </div>
-
-            <div className="mt-3 grid gap-2">
-              <div className="truss-segment overflow-x-auto">
-                {(["all", "pending", "confirmed", "rejected"] as const).map((status) => (
-                  <button
-                    className="h-[34px] px-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle transition-colors hover:bg-truss-panel2 hover:text-truss-text data-[active=true]:bg-truss-accentSoft data-[active=true]:text-[#ffb3aa]"
-                    data-active={statusFilter === status}
-                    key={status}
-                    onClick={() => setStatusFilter(status)}
-                    type="button"
-                  >
-                    {status === "all" ? "todos" : status}
-                  </button>
-                ))}
-              </div>
-              <div className="truss-segment overflow-x-auto">
-                {(["all", "critical", "high", "medium", "low"] as const).map((severity) => (
-                  <button
-                    className="h-[34px] px-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle transition-colors hover:bg-truss-panel2 hover:text-truss-text data-[active=true]:bg-truss-accentSoft data-[active=true]:text-[#ffb3aa]"
-                    data-active={severityFilter === severity}
-                    key={severity}
-                    onClick={() => setSeverityFilter(severity)}
-                    type="button"
-                  >
-                    {severity}
-                  </button>
-                ))}
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                <button className="truss-icon-button w-full" onClick={copySelection} title="Copiar selecionados, Ctrl+C" type="button">
-                  <Copy aria-hidden="true" className="truss-icon h-4 w-4" />
-                </button>
-                <button className="truss-icon-button w-full" onClick={duplicateSelection} title="Duplicar selecionados, Ctrl+D" type="button">
-                  <Plus aria-hidden="true" className="truss-icon h-4 w-4" />
-                </button>
-                <button className="truss-icon-button w-full" onClick={removeSelection} title="Remover selecionados da sessao, Delete" type="button">
-                  <Trash2 aria-hidden="true" className="truss-icon h-4 w-4" />
-                </button>
-                <button className="truss-icon-button w-full" onClick={() => setSelectedIds(new Set())} title="Limpar selecao, Esc" type="button">
-                  <X aria-hidden="true" className="truss-icon h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="max-h-[34vh] overflow-y-auto border-b border-truss-line">
-            {filteredFindings.length === 0 ? (
-              <div className="m-3 border border-dashed border-truss-line px-3 py-5 text-center text-sm text-truss-muted">
-                Nenhum achado nesse filtro.
-              </div>
-            ) : (
-              filteredFindings.map((finding) => {
-                const severity = severityMeta[finding.severity];
-                const level = confidenceLevel(finding.confidence);
-
-                return (
-                  <button
-                    className="flex w-full gap-3 border-b border-truss-line px-3 py-3 text-left transition-colors hover:bg-truss-panel data-[active=true]:bg-truss-accentSoft data-[active=true]:shadow-[inset_2px_0_0_var(--red)]"
-                    data-active={selectedIds.has(finding.id)}
-                    key={finding.id}
-                    onClick={(event) => {
-                      selectFinding(finding, event.shiftKey);
-                      focusFinding(finding, false);
-                    }}
-                    type="button"
-                  >
-                    <AlertTriangle aria-hidden="true" className={`truss-icon mt-0.5 h-4 w-4 shrink-0 ${severity.tone}`} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm leading-5 text-truss-text">
-                        {finding.description}
-                        {finding.isDraft ? <span className="ml-2 font-mono text-[10px] text-truss-warning">DRAFT</span> : null}
-                      </span>
-                      <span className="mt-2 flex flex-wrap items-center gap-2">
-                        <SeverityBadge severity={finding.severity} />
-                        <StatusBadge status={finding.status} />
-                        <span className="inline-flex h-6 items-center gap-1 border border-truss-line bg-truss-raised px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle">
-                          <ConfidenceBarsIcon className={`h-3.5 w-3.5 ${level === "high" ? "text-truss-muted" : level === "medium" ? "text-truss-warning" : "text-truss-subtle"}`} />
-                          {confidenceLabel(finding.confidence)}
-                        </span>
-                      </span>
-                    </span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-
-          {manualDraft ? (
-            <div className="border-b border-truss-line p-3">
-              <form className="border border-truss-success/40 bg-truss-success/10 p-3" onSubmit={(event) => void submitManualFinding(event)}>
-                <div className="flex items-center justify-between gap-3">
-                  <p className="truss-mono-label text-truss-success">Novo achado manual</p>
-                  <button
-                    className="font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle hover:text-truss-text"
-                    onClick={() => setManualDraft(null)}
-                    type="button"
-                  >
-                    cancelar
-                  </button>
-                </div>
-                <p className="mt-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle">
-                  Regiao / {Math.round(manualDraft.bbox.x0)},{Math.round(manualDraft.bbox.y0)} - {Math.round(manualDraft.bbox.x1)},{Math.round(manualDraft.bbox.y1)} pt
-                </p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <label className="grid gap-1">
-                    <span className="truss-mono-label">Tipo</span>
-                    <select
-                      className="truss-field px-2 font-mono text-[11px]"
-                      onChange={(event) => setManualType(event.target.value as FindingType)}
-                      value={manualType}
-                    >
-                      <option value="attention">ATTENTION</option>
-                      <option value="inconsistency">INCONSISTENCY</option>
-                      <option value="missing_information">MISSING INFO</option>
-                      <option value="unverifiable">NOT VERIFIABLE</option>
-                    </select>
-                  </label>
-                  <label className="grid gap-1">
-                    <span className="truss-mono-label">Severidade</span>
-                    <select
-                      className="truss-field px-2 font-mono text-[11px]"
-                      onChange={(event) => setManualSeverity(event.target.value as FindingSeverity)}
-                      value={manualSeverity}
-                    >
-                      <option value="low">LOW</option>
-                      <option value="medium">MEDIUM</option>
-                      <option value="high">HIGH</option>
-                      <option value="critical">CRITICAL</option>
-                    </select>
-                  </label>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <TypeBadge type={manualType} />
-                  <SeverityBadge severity={manualSeverity} />
-                  <ConfidenceBadge confidence={1} />
-                </div>
-                <label className="mt-3 grid gap-1">
-                  <span className="truss-mono-label">Descricao</span>
-                  <textarea
-                    className="truss-field resize-none px-3 py-2 text-sm leading-5"
-                    onChange={(event) => setManualDescription(event.target.value)}
-                    placeholder="Descreva a suspeita observada nessa regiao."
-                    value={manualDescription}
-                  />
-                </label>
-                <button
-                  className="truss-button truss-button-primary mt-3 w-full disabled:opacity-50"
-                  disabled={isCreatingManual || !manualDescription.trim()}
-                  type="submit"
-                >
-                  Registrar achado
-                </button>
-              </form>
-            </div>
-          ) : null}
-
-          {activeFinding ? (
-            <div className="border-b border-truss-line p-3">
-              <div className="border border-truss-accent/40 bg-truss-accentSoft p-3 text-sm text-truss-text">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="truss-mono-label mr-auto">
-                    Achado {activeFindingIndex + 1} de {findings.length}
-                  </p>
-                  <StatusBadge status={activeFinding.status} />
-                </div>
-                <p className="mt-2 leading-6">{activeFinding.description}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <TypeBadge type={activeFinding.type} />
-                  <SeverityBadge severity={activeFinding.severity} />
-                  <ConfidenceBadge confidence={activeFinding.confidence} />
-                </div>
-                {activeFinding.type !== "inconsistency" && activeFinding.status === "pending" ? (
-                  <div className="mt-3 border border-truss-warning/35 bg-truss-warning/10 px-3 py-2 text-xs leading-5 text-truss-text">
-                    Hipotese pendente de verificacao humana. Severidade mede impacto, nao certeza.
-                  </div>
-                ) : null}
-                <div className="mt-3 grid gap-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle">
-                  <span>Regiao / {formatBBox(activeFinding)}</span>
-                  <span>Origem / {activeFinding.origin}</span>
-                  {activeFinding.isDraft ? <span>Persistencia / draft local</span> : null}
-                  {activeFinding.rejection_reason ? <span>Rejeicao / {activeFinding.rejection_reason}</span> : null}
-                </div>
-                {activeFinding.evidence.length > 0 ? (
-                  <div className="mt-3 border border-truss-line bg-truss-panel/70 p-2">
-                    <p className="truss-mono-label">Evidencias</p>
-                    <ul className="mt-2 grid gap-1 text-xs leading-5 text-truss-muted">
-                      {activeFinding.evidence.slice(0, 3).map((evidence, index) => (
-                        <li key={`${activeFinding.id}-${index}`}>{evidence}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button className="truss-icon-button" onClick={() => moveFinding(-1)} title="Achado anterior" type="button">
-                    <ChevronLeft aria-hidden="true" className="truss-icon h-4 w-4" />
-                  </button>
-                  <button className="truss-icon-button" onClick={() => moveFinding(1)} title="Proximo achado" type="button">
-                    <ChevronRight aria-hidden="true" className="truss-icon h-4 w-4" />
-                  </button>
-                  <button
-                    className="truss-icon-button hover:border-truss-success/50 hover:text-truss-success"
-                    disabled={isSavingFeedback}
-                    onClick={() => void setFindingStatus("confirmed")}
-                    title="Confirmar achado"
-                    type="button"
-                  >
-                    <Check aria-hidden="true" className="truss-icon h-4 w-4" />
-                  </button>
-                  <button
-                    className="truss-icon-button hover:border-truss-danger/50 hover:text-truss-danger"
-                    disabled={isSavingFeedback}
-                    onClick={() => {
-                      setRejectPanelOpen(true);
-                      setRejectFindingId(activeFinding.id);
-                      setRejectReason(activeFinding.rejection_reason ?? "");
-                    }}
-                    title="Rejeitar achado"
-                    type="button"
-                  >
-                    <X aria-hidden="true" className="truss-icon h-4 w-4" />
-                  </button>
-                  <button
-                    className="truss-icon-button"
-                    onClick={() => focusFinding(activeFinding)}
-                    title="Focar regiao selecionada"
-                    type="button"
-                  >
-                    <Maximize2 aria-hidden="true" className="truss-icon h-4 w-4" />
-                  </button>
-                </div>
-                {rejectPanelOpen && rejectFindingId === activeFinding.id ? (
-                  <form
-                    className="mt-3 border border-truss-danger/35 bg-truss-danger/10 p-3"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void setFindingStatus("rejected", rejectReason);
-                    }}
-                  >
-                    <label className="grid gap-1">
-                      <span className="truss-mono-label text-truss-danger">Justificativa de rejeicao</span>
-                      <textarea
-                        className="truss-field resize-none px-3 py-2 text-sm leading-5"
-                        onChange={(event) => setRejectReason(event.target.value)}
-                        placeholder="Explique por que esse achado nao procede."
-                        value={rejectReason}
-                      />
-                    </label>
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        className="truss-button flex-1"
-                        onClick={() => {
-                          setRejectPanelOpen(false);
-                          setRejectReason("");
-                          setRejectFindingId("");
-                        }}
-                        type="button"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        className="truss-button truss-button-primary flex-1 disabled:opacity-50"
-                        disabled={isSavingFeedback || !rejectReason.trim()}
-                        type="submit"
-                      >
-                        Salvar rejeicao
-                      </button>
-                    </div>
-                  </form>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
+        <aside className="flex min-h-0 flex-col border-t border-truss-line bg-truss-raised xl:border-l xl:border-t-0">
           <TrussChat
             activeFinding={activeFinding}
             activeConversationId={conversationId}

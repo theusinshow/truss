@@ -255,7 +255,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
   }
 
   return (
-    <div className="grid flex-1 grid-cols-1 bg-truss-base/70 lg:grid-cols-[296px_minmax(0,1fr)]">
+    <div className="grid min-h-0 flex-1 grid-cols-1 bg-truss-base/70 lg:grid-cols-[296px_minmax(0,1fr)]">
       <aside className="border-b border-truss-line bg-truss-raised lg:border-b-0 lg:border-r">
         <div className="border-b border-truss-line p-4">
           <div className="flex items-center justify-between gap-4">
@@ -320,7 +320,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
         </div>
       </aside>
 
-      <section className="min-h-[620px] p-3 sm:p-4">
+      <section className="flex min-h-0 flex-col p-3 sm:p-4">
         {error ? (
           <div className="mb-4 border border-truss-danger/30 bg-truss-danger/10 px-4 py-3 text-sm text-truss-text" role="alert">
             {error}
@@ -377,7 +377,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
         </label>
 
         {selectedProject ? (
-          <div>
+          <div className="flex min-h-0 flex-1 flex-col">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border border-truss-line bg-truss-panel px-4 py-3">
               <div className="min-w-0">
                 <p className="truss-mono-label">Projeto ativo</p>
