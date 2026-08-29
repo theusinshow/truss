@@ -1114,7 +1114,7 @@ findings validados por humano preservados com status original.
   - `get_sheet_map(sheet_id, settings)` passa a devolver o snapshot mais recente e inclui `views`
   - `get_sheet_map_by_id(sheet_map_id, settings) -> dict[str, object]`
 
-- [ ] **Step 1: Escrever o teste de imutabilidade**
+- [x] **Step 1: Escrever o teste de imutabilidade**
 
 Acrescentar em `apps/api/tests/test_sheetmap_builder.py`:
 
@@ -1167,7 +1167,7 @@ def test_previous_snapshot_survives_a_pipeline_change(
     assert len(rows) == 2
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_sheetmap_builder.py -v`
 Expected: FAIL - o `DELETE` atual remove o snapshot anterior e `save_sheet_map` nao aceita
@@ -1218,7 +1218,7 @@ class TitleCandidate:
     size: float
 ```
 
-- [ ] **Step 4: Implementar o hash de snapshot**
+- [x] **Step 4: Implementar o hash de snapshot**
 
 Create `apps/api/truss_api/sheetmap/snapshot.py`:
 
@@ -1271,7 +1271,7 @@ def pipeline_version_for(content_hash: str) -> str:
     return f"{SHEET_MAP_PIPELINE}+{content_hash}"
 ```
 
-- [ ] **Step 5: Tornar o repositorio imutavel**
+- [x] **Step 5: Tornar o repositorio imutavel**
 
 Em `apps/api/truss_api/sheetmap/repository.py`, substituir os dois `DELETE` do inicio de
 `save_sheet_map` por reutilizacao, e persistir views. O corpo passa a ser:
@@ -1455,12 +1455,12 @@ from truss_api.sheetmap.views.models import DetectedView
 
 e remover a constante `PIPELINE_VERSION` antiga, substituindo seus usos por `SHEET_MAP_PIPELINE`.
 
-- [ ] **Step 6: Rodar os testes**
+- [x] **Step 6: Rodar os testes**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_sheetmap_builder.py -v`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/api/truss_api/sheetmap/views/ apps/api/truss_api/sheetmap/snapshot.py apps/api/truss_api/sheetmap/repository.py apps/api/tests/test_sheetmap_builder.py
@@ -3931,14 +3931,30 @@ da view deve levar 15/16 a 16/16.
 
 ### Ainda nao iniciado
 
-Task 4 esta **parcial**: so os modelos (`views/models.py`) foram feitos. O snapshot imutavel
-nao existe - `repository.py` ainda tem `PIPELINE_VERSION = "sheetmap-v0.1"` e ainda apaga o
-Sheet Map anterior com `DELETE`, que e exatamente o conflito C1. Falta tudo dos Steps 1, 2, 4,
-5, 6 e 7 da Task 4.
-
 Tasks 6 (tabelas e zonas por subtracao), 7 (detector), 8 (rule packs **geral** e **pessoal**
 separados), 9 (orquestrador sem fallback), 10 (overlays) e 11 (calibracao medida) nao foram
 iniciadas.
+
+### Atualizacao 2026-08-29 - Task 4 concluida, conflito C1 fechado
+
+`save_sheet_map` nao apaga mais nada. O `pipeline_version` embute o hash do snapshot
+(`sheetmap-v0.2+<hash16>`) e a restricao `UNIQUE (sheet_id, pipeline_version)` passa a ser a
+garantia de imutabilidade. Entrada identica reutiliza a linha; entrada diferente cria snapshot
+novo ao lado do antigo. `get_sheet_map` serve o mais recente do pipeline corrente e
+`get_sheet_map_by_id` enderecana um diretamente.
+
+O plano nao listava `builder.py` nos arquivos da Task 4, mas ele e quem chama `save_sheet_map` e
+precisou mudar junto: passou a usar `extract_page` + `geometry_from_extraction` da Task 2,
+gravar o artefato rico e calcular o `snapshot_hash`. As views seguem vazias ate a Task 7.
+
+O `response_model` `SheetMap` ganhou `views`; sem o campo o pydantic descartava o snapshot em
+silencio e o contrato pareceria correto servindo nada.
+
+**Consequencia a planejar:** os 85 sheet_maps existentes tem `pipeline_version =
+"sheetmap-v0.1"` e nao casam com o filtro `LIKE 'sheetmap-v0.2%'`. As linhas estao intactas e
+nada foi apagado, mas **deixam de ser servidas: o viewer devolve 404 para todo sheet map ate as
+folhas serem reprocessadas**. Reprocessar exige os PDFs originais em `data/originals/`, que nao
+sao versionados e **nao estao neste clone**. Trazer os originais e pre-requisito da Task 11.
 
 ### Atualizacao 2026-08-29 - dividas fechadas
 

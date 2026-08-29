@@ -42,6 +42,10 @@ def test_import_builds_sheet_map_and_endpoint_serves_it(client: TestClient) -> N
     assert payload["sheet_code"] == "EST-0010-A"
     assert payload["sheet_type"] == "planta_locacao"
     assert any(region["region_kind"] == "carimbo" for region in payload["regions"])
+    # As views chegam vazias ate a Task 7, mas o contrato ja as expoe: sem o
+    # campo no response_model o pydantic descartaria silenciosamente o snapshot.
+    assert payload["views"] == []
+    assert payload["pipeline_version"].startswith("sheetmap-v0.2+")
 
 
 def test_sheet_map_endpoint_returns_404_for_unknown_sheet(client: TestClient) -> None:

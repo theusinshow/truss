@@ -5,14 +5,18 @@ import fitz
 from truss_api.core.settings import Settings
 from truss_api.db.connection import transaction
 from truss_api.sheetmap import repository
+from truss_api.sheetmap.artifacts import artifact_hash, write_extraction
 from truss_api.sheetmap.classifier import classify_sheet_type
-from truss_api.sheetmap.geometry import extract_page_geometry, write_page_geometry
+from truss_api.sheetmap.geometry import geometry_from_extraction, write_page_geometry
+from truss_api.sheetmap.primitives import EXTRACTOR_VERSION, extract_page
 from truss_api.sheetmap.regions import (
     REGION_TITLE_BLOCK,
     detect_regions,
     extract_line_boxes,
 )
+from truss_api.sheetmap.snapshot import snapshot_hash
 from truss_api.sheetmap.title_block import TitleBlockFields, parse_title_block
+from truss_api.sheetmap.views.models import DetectedView
 
 
 PAPER_FORMATS: tuple[tuple[str, float, float], ...] = (
@@ -51,10 +55,10 @@ def orientation_for(width_pt: float, height_pt: float) -> str:
 def _load_document_context(
     document_id: str,
     settings: Settings,
-) -> tuple[str, list[dict[str, object]]]:
+) -> tuple[str, str, list[dict[str, object]]]:
     with transaction(settings) as connection:
         document = connection.execute(
-            "SELECT stored_file_path FROM documents WHERE id = ?",
+            "SELECT stored_file_path, content_hash FROM documents WHERE id = ?",
             (document_id,),
         ).fetchone()
 
@@ -69,14 +73,18 @@ def _load_document_context(
             (document_id,),
         ).fetchall()
 
-    return str(document["stored_file_path"]), [dict(row) for row in sheets]
+    return (
+        str(document["stored_file_path"]),
+        str(document["content_hash"]),
+        [dict(row) for row in sheets],
+    )
 
 
 def build_sheet_map_for_document(
     document_id: str,
     settings: Settings,
 ) -> list[dict[str, object]]:
-    stored_path, sheets = _load_document_context(document_id, settings)
+    stored_path, document_hash, sheets = _load_document_context(document_id, settings)
     pdf_path = settings.data_dir / stored_path
     built: list[dict[str, object]] = []
 
@@ -84,7 +92,8 @@ def build_sheet_map_for_document(
     try:
         for sheet in sheets:
             page = pdf.load_page(int(sheet["page_index"]))
-            geometry = extract_page_geometry(page)
+            extraction = extract_page(page)
+            geometry = geometry_from_extraction(extraction)
             text_boxes = extract_line_boxes(page)
             regions = detect_regions(geometry, text_boxes)
 
@@ -106,10 +115,29 @@ def build_sheet_map_for_document(
                 sheet_id=str(sheet["id"]),
                 settings=settings,
             )
+            write_extraction(
+                extraction,
+                project_id=str(sheet["project_id"]),
+                revision_id=str(sheet["revision_id"]),
+                sheet_id=str(sheet["id"]),
+                settings=settings,
+            )
 
             title_block_payload = dict(asdict(fields))
             title_block_payload["classification_source"] = classification.source
             title_block_payload["classification_confidence"] = classification.confidence
+
+            # As views chegam na Task 7; o snapshot ja e enderecado por conteudo
+            # sem elas, e passa a incluir a lista assim que o detector existir.
+            views: list[DetectedView] = []
+            content_hash = snapshot_hash(
+                sheet_type=classification.sheet_type,
+                sheet_code=fields.sheet_code,
+                title_block=title_block_payload,
+                regions=list(regions),
+                views=list(views),
+                extraction_hash=artifact_hash(extraction),
+            )
 
             built.append(
                 repository.save_sheet_map(
@@ -123,6 +151,10 @@ def build_sheet_map_for_document(
                     orientation=orientation_for(geometry.width_pt, geometry.height_pt),
                     title_block=title_block_payload,
                     regions=regions,
+                    views=views,
+                    snapshot_hash=content_hash,
+                    extractor_version=EXTRACTOR_VERSION,
+                    document_hash=document_hash,
                     settings=settings,
                 )
             )

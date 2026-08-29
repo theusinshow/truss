@@ -99,3 +99,42 @@ Rationale:
 - the guard is content-based and independent of the calibrated tolerances, so it does not disturb
   the 94% measurement - the association output on the base project is byte-identical before and
   after it.
+
+## 2026-08-29 - Sheet Map snapshots are immutable and content-addressed
+
+`save_sheet_map` no longer deletes the previous Sheet Map. The `pipeline_version` now embeds the
+snapshot hash (`sheetmap-v0.2+<hash16>`), so the existing `UNIQUE (sheet_id, pipeline_version)`
+constraint doubles as the immutability guarantee. Reprocessing identical input finds the row and
+reuses it; changed input writes a new row beside the old one. `get_sheet_map` serves the most
+recent snapshot of the current pipeline, and `get_sheet_map_by_id` addresses one directly.
+
+This closes conflict C1 of the F2 plan: a Sheet Map referenced by an audit run could previously be
+destroyed by a rebuild, leaving findings pointing at a row that no longer existed.
+
+Rationale:
+
+- audits, findings, and human feedback reference a specific snapshot, so deleting one rewrites
+  history that a person already reviewed;
+- addressing by content means a rebuild is free when nothing changed, and honest when something did;
+- no table was rebuilt and no migration is destructive - the change is a write-path change plus the
+  additive columns of migration `003`.
+
+Consequence to plan for: the 85 existing sheet_maps carry `pipeline_version = "sheetmap-v0.1"`,
+which does not match the `LIKE 'sheetmap-v0.2%'` filter. **The rows are intact and nothing was
+deleted, but they stop being served, so the viewer returns 404 for every sheet map until the
+sheets are reprocessed.** Reprocessing requires the original PDFs under `data/originals/`, which
+are not versioned and are currently absent from this clone.
+
+## 2026-08-29 - Views cross the API boundary with raw and normalized apart
+
+`SheetMap.views` was added to the API response model, carrying `title_raw`/`title`,
+`declared_scale_raw`/`declared_scale`, and `level_raw`/`level` as separate fields.
+
+Rationale:
+
+- the repository returns views, and without the field the pydantic `response_model` dropped them
+  silently - the contract would have looked correct while serving nothing;
+- the viewer must be able to show what the PDF literally says, not an unconfirmed interpretation,
+  so collapsing raw and normalized into one column would destroy the distinction the ground truth
+  depends on;
+- the list is empty until the detector of Task 7 fills it, so the change is additive and observable.
