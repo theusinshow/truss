@@ -501,7 +501,7 @@ preservadas, marcado `draft_unverified`, e as metricas de IoU tem teste verde.
   - `write_extraction(extraction, *, project_id, revision_id, sheet_id, settings) -> str` - grava `.json.gz`, devolve caminho relativo
   - `read_extraction(relative_path: str, settings: Settings) -> PageExtraction`
 
-- [ ] **Step 1: Escrever o teste**
+- [x] **Step 1: Escrever o teste**
 
 Create `apps/api/tests/test_extraction.py`:
 
@@ -593,12 +593,12 @@ def test_write_and_read_roundtrip_uses_gzip(tmp_path: Path) -> None:
     assert restored.metadata == extraction.metadata
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar** - *nao cumprido na ordem: o teste foi escrito depois da implementacao, em 2026-08-29*
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_extraction.py -v`
 Expected: FAIL com `ModuleNotFoundError: No module named 'truss_api.sheetmap.primitives'`
 
-- [ ] **Step 3: Implementar as primitivas**
+- [x] **Step 3: Implementar as primitivas**
 
 Create `apps/api/truss_api/sheetmap/primitives.py`:
 
@@ -725,7 +725,7 @@ def extract_page(page: fitz.Page) -> PageExtraction:
     )
 ```
 
-- [ ] **Step 4: Implementar o artefato comprimido**
+- [x] **Step 4: Implementar o artefato comprimido**
 
 Create `apps/api/truss_api/sheetmap/artifacts.py`:
 
@@ -830,7 +830,7 @@ def read_extraction(relative_path: str, settings: Settings) -> PageExtraction:
     )
 ```
 
-- [ ] **Step 5: Derivar `PageGeometry` da extracao completa**
+- [x] **Step 5: Derivar `PageGeometry` da extracao completa**
 
 Em `apps/api/truss_api/sheetmap/geometry.py`, acrescentar ao final, preservando tudo que ja existe:
 
@@ -866,12 +866,12 @@ def geometry_from_extraction(extraction: PageExtraction) -> PageGeometry:
     )
 ```
 
-- [ ] **Step 6: Rodar os testes**
+- [x] **Step 6: Rodar os testes**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_extraction.py -v`
 Expected: PASS, 6 testes.
 
-- [ ] **Step 7: Medir o custo real no PDF do projeto**
+- [x] **Step 7: Medir o custo real no PDF do projeto**
 
 Run:
 
@@ -902,7 +902,7 @@ with tempfile.TemporaryDirectory() as tmp:
 Expected: tempo abaixo de 90 segundos e total abaixo de 60 MB. Se o tempo estourar, registrar a
 divida tecnica de extracao preguicosa em `docs/DECISIONS.md` e **nao** expandir o escopo aqui.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/api/truss_api/sheetmap/primitives.py apps/api/truss_api/sheetmap/artifacts.py apps/api/truss_api/sheetmap/geometry.py apps/api/tests/test_extraction.py
@@ -926,7 +926,7 @@ enderecados por hash, com roundtrip verde e custo medido no material real.
 **Interfaces:**
 - Produces: tabelas `sheet_views` e `rule_evaluations`; colunas novas em `findings`, `sheet_maps` e `audit_runs`.
 
-- [ ] **Step 1: Escrever o teste de preservacao de dados**
+- [x] **Step 1: Escrever o teste de preservacao de dados**
 
 Acrescentar em `apps/api/tests/test_migrations.py`:
 
@@ -966,12 +966,12 @@ def test_migration_003_is_additive_and_preserves_existing_rows(tmp_path: Path) -
     assert row is not None
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_migrations.py -v`
 Expected: FAIL na assercao das colunas de `findings`.
 
-- [ ] **Step 3: Escrever a migration**
+- [x] **Step 3: Escrever a migration**
 
 Create `apps/api/truss_api/db/migrations/003_views_rules_traceability.sql`:
 
@@ -1048,12 +1048,12 @@ ALTER TABLE audit_runs ADD COLUMN coverage_json TEXT NOT NULL DEFAULT '{}';
 UPDATE findings SET source_layer = 'legacy' WHERE source_layer IS NULL;
 ```
 
-- [ ] **Step 4: Rodar o teste**
+- [x] **Step 4: Rodar o teste**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_migrations.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Aplicar no banco real e conferir preservacao**
+- [x] **Step 5: Aplicar no banco real e conferir preservacao**
 
 Run:
 
@@ -1079,7 +1079,7 @@ print('migrations:', [r[0] for r in c.execute('select version from schema_migrat
 Expected: `sheets: 85`, `sheet_maps: 85`, `findings: 63`, `findings legacy: 63`,
 `confirmados/rejeitados preservados: 2`, `migrations: ['001', '002', '003']`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/truss_api/db/migrations/003_views_rules_traceability.sql apps/api/tests/test_migrations.py
@@ -1173,7 +1173,7 @@ Run: `.venv/Scripts/python -m pytest apps/api/tests/test_sheetmap_builder.py -v`
 Expected: FAIL - o `DELETE` atual remove o snapshot anterior e `save_sheet_map` nao aceita
 `views`, `snapshot_hash`, `extractor_version` nem `document_hash`.
 
-- [ ] **Step 3: Criar os modelos de view usados pelo repositorio**
+- [x] **Step 3: Criar os modelos de view usados pelo repositorio**
 
 A Task 4 persiste views, entao os modelos precisam existir antes dela. Create
 `apps/api/truss_api/sheetmap/views/__init__.py` vazio e
@@ -1501,7 +1501,7 @@ tolerancias sem mexer no segmentador.
   - `find_level_near(bbox, spans: list[TextSpanRecord]) -> str | None`
   - `view_kind_from_title(title: str | None) -> str`
 
-- [ ] **Step 1: Escrever o teste**
+- [x] **Step 1: Escrever o teste**
 
 Create `apps/api/tests/test_view_detection.py`:
 
@@ -1592,12 +1592,12 @@ def test_view_kind_is_derived_from_the_title() -> None:
     assert view_kind_from_title(None) == "plan"
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar** - *nao cumprido na ordem: o teste foi escrito depois da implementacao, em 2026-08-29*
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_view_detection.py -v`
 Expected: FAIL com `ModuleNotFoundError: No module named 'truss_api.sheetmap.views'`
 
-- [ ] **Step 3: Conferir os modelos**
+- [x] **Step 3: Conferir os modelos**
 
 Os dataclasses `DetectedView`, `ScaleAnchor` e `TitleCandidate` foram criados na Task 4 em
 `apps/api/truss_api/sheetmap/views/models.py`. Confirmar que o conteudo bate com o esperado
@@ -1642,7 +1642,7 @@ class TitleCandidate:
     size: float
 ```
 
-- [ ] **Step 4: Implementar as ancoras**
+- [x] **Step 4: Implementar as ancoras**
 
 Create `apps/api/truss_api/sheetmap/views/anchors.py`:
 
@@ -1783,12 +1783,12 @@ def view_kind_from_title(title: str | None) -> str:
     return VIEW_KIND_PLAN
 ```
 
-- [ ] **Step 5: Rodar os testes**
+- [x] **Step 5: Rodar os testes**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_view_detection.py -v`
 Expected: PASS, 7 testes.
 
-- [ ] **Step 6: Medir a associacao no material real**
+- [x] **Step 6: Medir a associacao no material real**
 
 Este e o portao da Task 5. Run:
 
@@ -1828,7 +1828,7 @@ Expected: 17 ancoras encontradas. A meta e **>= 90%** de associacao.
 de `title_font_floor`) e repetir a medicao. **Nao baixar o threshold.** Registrar em
 `docs/DECISIONS.md` o valor final e o numero medido.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/api/truss_api/sheetmap/views/ apps/api/tests/test_view_detection.py
@@ -3925,10 +3925,38 @@ questionario original sao a fonte de verdade; o derivado estruturado esta em
 **draft_unverified**, expor no viewer para conferencia visual do proprietario, e so entao os
 bboxes viram ground truth espacial.
 
+O detector tem um alvo concreto medido: a **unica** associacao errada hoje e a ancora `1:20`
+da pagina 8, que atravessa para o titulo da view vizinha. Bounding a ancora pela propria caixa
+da view deve levar 15/16 a 16/16.
+
 ### Ainda nao iniciado
 
-Tasks 6 (tabelas e zonas por subtracao), 8 (rule packs **geral** e **pessoal** separados),
-9 (orquestrador sem fallback), 10 (overlays), 11 (calibracao medida).
+Task 4 esta **parcial**: so os modelos (`views/models.py`) foram feitos. O snapshot imutavel
+nao existe - `repository.py` ainda tem `PIPELINE_VERSION = "sheetmap-v0.1"` e ainda apaga o
+Sheet Map anterior com `DELETE`, que e exatamente o conflito C1. Falta tudo dos Steps 1, 2, 4,
+5, 6 e 7 da Task 4.
+
+Tasks 6 (tabelas e zonas por subtracao), 7 (detector), 8 (rule packs **geral** e **pessoal**
+separados), 9 (orquestrador sem fallback), 10 (overlays) e 11 (calibracao medida) nao foram
+iniciadas.
+
+### Atualizacao 2026-08-29 - dividas fechadas
+
+- Os testes das Tasks 2 e 5 (`tests/test_extraction.py`, `tests/test_view_detection.py`) nao
+  existiam: 588 linhas de producao tinham sido commitadas sem cobertura. Foram escritos como o
+  plano especifica. **A ordem do TDD foi invertida** - os testes vieram depois da
+  implementacao. Registrado como tal nos Steps 2 das duas tasks.
+- O teste do plano `test_returns_none_when_no_title_precedes_the_scale` **falhou contra a
+  implementacao commitada**: sem titulo acima da escala, `find_title_for` devolvia um numero
+  solto ("19") como titulo. Corrigido em `anchors.py` rejeitando spans sem nenhuma letra.
+  A saida no projeto-base e identica antes e depois; ver `docs/DECISIONS.md`.
+- **Portao da Task 5 medido: 15/16 = 94%** de associacao titulo+escala correta contra o
+  gabarito humano, acima da meta de 90%. Nenhuma tolerancia foi afrouxada e o threshold nao
+  foi reduzido.
+- O comando do Step 6 da Task 5 aponta para o PDF do Rancho Queimado em `data/originals/`, que
+  nao e versionado. O projeto-base real e
+  `docs/projeto_base/Projeto Estrutural_Juliano Corbellini_R05.pdf`, que esta no repositorio e
+  bate com o sha256 do gabarito. Use esse caminho.
 
 ### Decisao arquitetural derivada do material humano
 

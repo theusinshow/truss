@@ -102,7 +102,14 @@ def find_title_for(
         if abs(span.bbox[0] - anchor.bbox[0]) > TITLE_MAX_HORIZONTAL_OFFSET_PT:
             continue
 
-        if NUMERIC_SCALE_PATTERN.search(normalize(span.text)):
+        text = normalize(span.text)
+        if NUMERIC_SCALE_PATTERN.search(text):
+            continue
+
+        # Numero de pagina, cota ou nivel solto nunca e titulo. Sem esta guarda
+        # o piso de fonte colapsa em folhas de texto pequeno e um numero vira
+        # titulo falso - pior para a associacao do que devolver None.
+        if not any(character.isalpha() for character in text):
             continue
 
         candidates.append(span)
