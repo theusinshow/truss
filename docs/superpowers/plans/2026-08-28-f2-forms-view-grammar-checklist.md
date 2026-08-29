@@ -2405,7 +2405,7 @@ apontam para `.json` sem hash, que continua em disco e nao e mais lido. Nenhuma 
   - `validate_pack(payload: dict) -> None` levanta `RulePackSchemaError`
   - `evaluate(pack: RulePack, snapshot: dict[str, object]) -> list[RuleEvaluation]`
 
-- [ ] **Step 1: Escrever o teste**
+- [x] **Step 1: Escrever o teste**
 
 Create `apps/api/tests/test_rules_engine.py`:
 
@@ -2515,12 +2515,12 @@ def test_duplicate_identifiers_are_reported_once() -> None:
     assert len(duplicates) == 1
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_rules_engine.py -v`
 Expected: FAIL com `ModuleNotFoundError: No module named 'truss_api.rules'`
 
-- [ ] **Step 3: Implementar modelos e schema**
+- [x] **Step 3: Implementar modelos e schema**
 
 Create `apps/api/truss_api/rules/__init__.py` vazio, `apps/api/truss_api/rules/models.py`:
 
@@ -2630,7 +2630,7 @@ def validate_pack(payload: dict) -> None:
             raise RulePackSchemaError(f"severity invalida em {rule['rule_id']}")
 ```
 
-- [ ] **Step 4: Escrever o rule pack**
+- [x] **Step 4: Escrever o rule pack** - *dois packs, nao um: geral e pessoal*
 
 Create `apps/api/truss_api/rules/packs/planta_formas.v1.yml`:
 
@@ -2698,7 +2698,7 @@ rules:
     description: Duas views compartilham o mesmo identificador ou titulo.
 ```
 
-- [ ] **Step 5: Implementar loader e engine**
+- [x] **Step 5: Implementar loader e engine**
 
 Create `apps/api/truss_api/rules/loader.py`:
 
@@ -2925,12 +2925,12 @@ def _evaluate_view_rule(rule: Rule, pack: RulePack, view: dict):
     )
 ```
 
-- [ ] **Step 6: Rodar os testes**
+- [x] **Step 6: Rodar os testes**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_rules_engine.py -v`
 Expected: PASS, 7 testes.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/api/truss_api/rules/ apps/api/tests/test_rules_engine.py
@@ -4037,6 +4037,39 @@ conferir nos overlays da Task 10, e **a Task 8 nao pode assumir caixa justa**.
 as paginas 4 e 25, que o gabarito cobre com uma view cada - o classificador chama a 4 de
 `desconhecido`. E nao comprava seguranca: sem gate, nas 29 paginas saem **49 views, 49 com titulo**.
 Um teste substitui o gate pela propriedade real - folha sem declaracao de escala nao gera view.
+
+### Atualizacao 2026-08-29 - Task 8 concluida, com dois packs
+
+**Dois rule packs, nao um.** `formas_geral.v1.yml` (`scope: general`) e `formas_pessoal.v1.yml`
+(`scope: personal`), como a decisao derivada do material humano exigia. O pessoal carrega **so** o
+que diverge: nivel obrigatorio em toda planta (`missing_information` / `high`), enquanto o geral
+trata a ausencia como ponto de atencao (`attention` / `low`). Uma preferencia apresentada como
+norma e um falso positivo com passos a mais.
+
+As regras negativas do gabarito viraram `applies_to_view_kinds` e isencoes declaradas, nao casos
+especiais no motor: perspectiva auxiliar nunca e view tecnica incompleta; `ESCALA INDICADA` vale
+numa view tecnica e `ESCALA REPRESENTATIVA` nao; subview nao repete o titulo do agrupador;
+`P21=P38` e equivalencia intencional, nao duplicidade.
+
+**Medido contra o gabarito, sobre as views que o detector realmente produz:**
+
+- **pack geral: 0 FAIL. pack pessoal: 0 FAIL.** O gabarito declara `confirmed_zero` para
+  `EST-0050-B` a `EST-0090-B`.
+- distribuicao dos outcomes, para provar que nao e vacuidade: `level_declared` 8 PASS / 8
+  NOT_APPLICABLE, `scale_declared` 13 PASS / 3 NOT_APPLICABLE, `title_present` 13 PASS / 3
+  NOT_APPLICABLE, `category_matches_content` 5 PASS / 1 UNKNOWN. Os tres NOT_APPLICABLE de cada
+  regra de view sao as tres perspectivas auxiliares. **Nenhuma regra e vazia e nenhuma foi
+  silenciada para chegar a zero.**
+
+**Bug encontrado pela medicao, nao por teste.** `find_level_near` devolvia o primeiro span de nivel
+dentro da bbox **na ordem do documento**, e as bboxes largas alcancam o titulo da view vizinha: na
+pagina 5 a planta do meio reportava `-167`, o nivel da vizinha, em vez do seu `-350`. E a regra
+**passava**, afirmando "nivel declarado" com o valor errado. O nivel passou a vir do proprio titulo,
+que e onde a politica humana manda declara-lo. Medido: **7/8 para 8/8**.
+
+**Dois criterios de aceite da F2 nao sao computaveis aqui.** "cobertura dos findings do ground truth
+>= 60%" e "precisao >= 70%" precisam de um conjunto positivo, e o gabarito espera zero findings nas
+seis folhas. Exigem folhas com defeito conhecido, que o material de calibracao ainda nao tem.
 
 ### Decisao arquitetural derivada do material humano
 

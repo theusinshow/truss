@@ -1,0 +1,22 @@
+# Preferencia pessoal do proprietario, separada da regra geral de proposito.
+# Fonte: calibration/human-review/forms-policy-decisions-v1.md - "Preferencia
+# explicita do proprietario: toda planta de formas deve declarar nivel no
+# titulo. A regra geral pode reconhecer casos simples (...), mas o rule pack
+# pessoal deve exigir nivel sempre."
+#
+# Este pack contem apenas o que diverge da regra geral. Tudo que ja e norma
+# vive em formas_geral.v1.yml e nao e repetido aqui.
+pack_id: formas_pessoal
+version: "1.0.0"
+sheet_type: planta_formas
+scope: personal
+rules:
+  - rule_id: forms.view.level_declared
+    version: "1.0.0"
+    check: view_has_level
+    target: view
+    severity: high
+    category: identification
+    finding_type: missing_information
+    description: Planta de formas sem nivel declarado no titulo.
+    applies_to_view_kinds: [plan]

@@ -255,3 +255,74 @@ the plan's simpler rule was kept rather than replaced by an equally unvalidated 
 
 This is what the plan already anticipates: boxes are `draft_unverified` until the owner confirms
 them visually against the overlays of Task 10. Task 8 should not assume the boxes are tight.
+
+## 2026-08-29 - Two rule packs: general rule and personal preference
+
+The F2 plan specified one pack, `planta_formas.v1.yml`. Two shipped instead: `formas_geral.v1.yml`
+(`scope: general`) and `formas_pessoal.v1.yml` (`scope: personal`).
+
+Rationale:
+
+- `forms-policy-decisions-v1.md`, confirmed by the owner, separates them explicitly on levels: "A
+  regra geral pode reconhecer casos simples em que base/topo seriam compreensiveis sem nivel, mas o
+  rule pack pessoal deve exigir nivel sempre";
+- a preference presented as a norm is a false positive with extra steps. The general pack reports a
+  missing level as `attention` / `low`; the personal pack reports the same absence as
+  `missing_information` / `high`;
+- the `rule_scope` column already exists on `rule_evaluations` and `findings`, so nothing new was
+  needed to keep them apart downstream;
+- the personal pack carries **only** what diverges. Everything already normative lives in the
+  general pack and is not repeated.
+
+Scope lives inside the pack file, not in its name: a pack declares which sheet type it covers and
+with what authority. `finding_type` is constrained by the schema to the vocabulary `findings.type`
+already uses, so a pack cannot invent a parallel one.
+
+The negative rules of the ground truth are encoded as `applies_to_view_kinds` and explicit
+exemptions, not as special cases in the engine:
+
+- an auxiliary perspective is never an incomplete technical view - the title, scale, and level rules
+  are `NOT_APPLICABLE` to `perspective`;
+- `ESCALA INDICADA` is a valid declaration for a technical view; `ESCALA REPRESENTATIVA` is not, and
+  a plan, section, or detail declaring only it fails;
+- a subview does not repeat its grouping detail's title;
+- `P21=P38` and `P28=P37` are intentional equivalences, so a title carrying `=` keys duplicate
+  detection by title rather than by ordinal.
+
+## 2026-08-29 - Checklist measured against the ground truth: zero findings, as confirmed
+
+Both packs were run over the views the detector actually produces on the six forms sheets:
+
+- **general pack: 0 FAIL. Personal pack: 0 FAIL.** The ground truth declares
+  `expected_findings: confirmed_zero` for `EST-0050-B` through `EST-0090-B`, so this matches.
+
+Zero findings is only meaningful if the rules were exercised, so the outcome distribution was
+measured too: `level_declared` 8 PASS / 8 NOT_APPLICABLE, `scale_declared` 13 PASS / 3
+NOT_APPLICABLE, `title_present` 13 PASS / 3 NOT_APPLICABLE, `category_matches_content` 5 PASS / 1
+UNKNOWN. The three `NOT_APPLICABLE` in each view rule are the three auxiliary perspectives, exactly
+as the policy requires. **No rule is vacuous and none was silenced to reach zero.**
+
+The plan's acceptance criteria "cobertura dos findings do ground truth >= 60%" and "precisao >= 70%"
+**cannot be computed here**: the ground truth expects zero findings on all six sheets, so there is
+no positive set to recall against. They need sheets with known defects, which the calibration
+material does not yet contain.
+
+## 2026-08-29 - A view's level comes from its own title, not from a spatial scan
+
+`find_level_in` reads the level from the view's title, and the detector falls back to the bounding
+box scan only when the title carries none.
+
+Rationale:
+
+- found by the Task 8 measurement, not by a test. `find_level_near` returns the first level span
+  inside the bounding box **in document order**, and the boxes are wide enough to reach a
+  neighbour's title. On page 5 the middle plan reported `-167`, the level of the plan beside it,
+  instead of its own `-350`;
+- the checklist rule then **passed**, asserting "level declared" while holding the wrong value - a
+  silent wrong answer is worse than a reported absence;
+- the human policy puts the level in the title: "toda planta de formas deve declarar nivel no
+  titulo". The title is the authoritative source and does not depend on box precision.
+
+Measured against the ground truth over the eight plan views that declare a single numeric level:
+**7/8 before, 8/8 after**. The eight remaining ground-truth levels are descriptive
+(`varios`, `338 -> 680 principalmente`) and have no single value to compare.

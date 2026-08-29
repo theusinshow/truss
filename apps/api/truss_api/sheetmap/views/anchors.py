@@ -141,6 +141,20 @@ def find_title_for(
     )
 
 
+def find_level_in(text: str | None) -> str | None:
+    """Nivel declarado dentro de um texto, tipicamente o titulo da view.
+
+    A politica humana confirmada diz que a planta de formas declara o nivel no
+    titulo, entao esta e a fonte preferida - a varredura espacial da bbox
+    alcanca titulos vizinhos e devolve o nivel errado.
+    """
+    if not text:
+        return None
+
+    match = LEVEL_PATTERN.search(normalize(text))
+    return match.group(1) if match else None
+
+
 def find_level_near(bbox: BBox, spans: list[TextSpanRecord]) -> str | None:
     """Nivel declarado dentro da regiao da view.
 

@@ -1,0 +1,76 @@
+# Regra geral de plantas de formas: o que qualquer projeto deveria cumprir.
+# Fonte: calibration/human-review/forms-policy-decisions-v1.md, confirmado pelo
+# proprietario em 2026-08-28. Preferencia pessoal NAO entra aqui - vive em
+# formas_pessoal.v1.yml, para que uma preferencia nunca seja lida como norma.
+pack_id: formas_geral
+version: "1.0.0"
+sheet_type: planta_formas
+scope: general
+rules:
+  - rule_id: forms.sheet.has_main_view
+    version: "1.0.0"
+    check: sheet_has_view
+    target: sheet
+    severity: high
+    category: composition
+    finding_type: missing_information
+    description: A folha de formas nao apresenta nenhuma view identificavel.
+
+  # "Toda view tecnica precisa estar coberta por um titulo proprio ou por um
+  # titulo agrupador inequivocamente associado." Subview e perspectiva auxiliar
+  # ficam de fora por regra negativa do gabarito.
+  - rule_id: forms.view.title_present
+    version: "1.0.0"
+    check: view_has_title
+    target: view
+    severity: medium
+    category: identification
+    finding_type: missing_information
+    description: View tecnica sem titulo declarado.
+    applies_to_view_kinds: [plan, section, detail]
+
+  # "Escala numerica propria, escala compartilhada pelo grupo ou uma declaracao
+  # valida de ESCALA INDICADA." ESCALA REPRESENTATIVA vale so para perspectiva.
+  - rule_id: forms.view.scale_declared
+    version: "1.0.0"
+    check: view_has_technical_scale
+    target: view
+    severity: high
+    category: identification
+    finding_type: missing_information
+    description: View tecnica sem escala numerica nem declaracao de ESCALA INDICADA.
+    applies_to_view_kinds: [plan, section, detail]
+
+  # A regra geral e leniente por decisao do proprietario: base e topo podem ser
+  # compreensiveis sem nivel, entao a ausencia e ponto de atencao, nao omissao.
+  - rule_id: forms.view.level_declared
+    version: "1.0.0"
+    check: view_has_level
+    target: view
+    severity: low
+    category: identification
+    finding_type: attention
+    description: Planta sem indicacao de nivel.
+    applies_to_view_kinds: [plan]
+
+  # "Carimbo classificado como planta de formas com conteudo dominante de outro
+  # tipo: INCONSISTENCY, severidade MEDIUM."
+  - rule_id: forms.sheet.category_matches_content
+    version: "1.0.0"
+    check: category_matches_views
+    target: sheet
+    severity: medium
+    category: identification
+    finding_type: inconsistency
+    description: A categoria do carimbo nao corresponde ao conteudo das views.
+
+  # "Duplicidade de identificador gera ATTENTION_POINT, salvo quando a semantica
+  # de agrupamento demonstrar equivalencia intencional" - P21=P38 nao e duplicata.
+  - rule_id: forms.sheet.duplicate_identifier
+    version: "1.0.0"
+    check: unique_view_identifiers
+    target: sheet
+    severity: medium
+    category: identification
+    finding_type: attention
+    description: Duas views compartilham o mesmo identificador ou titulo.

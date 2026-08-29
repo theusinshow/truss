@@ -10,6 +10,7 @@ from truss_api.sheetmap.regions import (
     DetectedRegion,
 )
 from truss_api.sheetmap.views.anchors import (
+    find_level_in,
     find_level_near,
     find_scale_anchors,
     find_title_for,
@@ -171,8 +172,13 @@ def detect_forms_views(
                 # O texto bruto da declaracao fica ao lado do valor: "ESCALA
                 # REPRESENTATIVA" e uma declaracao valida sem escala numerica.
                 declared_scale=MeasuredValue(raw=anchor.text, normalized=anchor.scale),
-                # Nivel nunca e normalizado no detector: exige tabela confirmada.
-                level=MeasuredValue(raw=find_level_near(bbox, extraction.spans)),
+                # O titulo tem precedencia: a bbox alcanca views vizinhas e a
+                # varredura espacial devolvia o nivel do vizinho. Nunca
+                # normalizado aqui - normalizar exige tabela confirmada.
+                level=MeasuredValue(
+                    raw=find_level_in(title.raw if title else None)
+                    or find_level_near(bbox, extraction.spans)
+                ),
                 bbox=bbox,
                 confidence=0.85 if title else 0.5,
                 provenance=PROVENANCE,

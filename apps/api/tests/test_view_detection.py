@@ -2,8 +2,15 @@ import fitz
 
 from tests.factories import make_forms_sheet_pdf_bytes
 from truss_api.sheetmap.geometry import geometry_from_extraction
-from truss_api.sheetmap.primitives import TextSpanRecord, extract_page
+from truss_api.sheetmap.primitives import (
+    PageExtraction,
+    PageMetadata,
+    TextSpanRecord,
+    extract_page,
+)
 from truss_api.sheetmap.regions import (
+    REGION_DRAWING,
+    REGION_FRAME,
     REGION_TABLE,
     DetectedRegion,
     detect_regions,
@@ -166,3 +173,44 @@ def test_two_anchors_never_claim_the_same_title() -> None:
         "PLANTA DE FORMAS - TOPO RESERVATORIO",
         "DETALHE 01 LAJE PRE-FABRICADA",
     ]
+
+
+def test_level_comes_from_the_view_own_title_before_the_bounding_box() -> None:
+    """Regressao medida na pagina 5 do projeto-base.
+
+    A bbox de uma view alcanca o titulo da view vizinha, e `find_level_near`
+    devolve a primeira ocorrencia na ordem do documento - que pode ser a do
+    vizinho. A regra de checklist entao passava afirmando "nivel declarado" com
+    o valor errado. A politica humana diz que a planta declara o nivel no
+    titulo, entao o titulo tem precedencia sobre a varredura espacial.
+    """
+    # O span do vizinho vem primeiro na ordem do documento, embora esteja mais
+    # abaixo na folha: e exatamente a ordenacao que produzia o valor errado.
+    spans = [
+        _span("PLANTA DE FORMAS - FUNDO PISCINA (NIVEL -167)", 1800, 1390, 15.8),
+        _span("ESCALA 1:50", 1800, 1420, 5.9),
+        _span("PLANTA DE FORMAS - INTERMEDIARIA PISCINA (NIVEL -350)", 700, 1000, 15.8),
+        _span("ESCALA 1:50", 700, 1030, 5.9),
+    ]
+    extraction = PageExtraction(
+        metadata=PageMetadata(
+            width_pt=2384.0,
+            height_pt=1684.0,
+            rotation=0,
+            mediabox=(0.0, 0.0, 2384.0, 1684.0),
+            cropbox=(0.0, 0.0, 2384.0, 1684.0),
+            rotation_matrix=(1.0, 0.0, 0.0, 1.0, 0.0, 0.0),
+        ),
+        spans=spans,
+    )
+    regions = [
+        DetectedRegion(REGION_FRAME, 0, 0, 2384, 1684, 0.95),
+        DetectedRegion(REGION_DRAWING, 0, 0, 2384, 1684, 0.95),
+    ]
+
+    levels = {
+        view.title.raw: view.level.raw for view in detect_forms_views(extraction, regions)
+    }
+
+    assert levels["PLANTA DE FORMAS - INTERMEDIARIA PISCINA (NIVEL -350)"] == "-350"
+    assert levels["PLANTA DE FORMAS - FUNDO PISCINA (NIVEL -167)"] == "-167"
