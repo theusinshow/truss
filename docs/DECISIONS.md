@@ -138,3 +138,59 @@ Rationale:
   so collapsing raw and normalized into one column would destroy the distinction the ground truth
   depends on;
 - the list is empty until the detector of Task 7 fills it, so the change is additive and observable.
+
+## 2026-08-29 - Drawing zone is the frame minus the title block, in disjoint bands
+
+The drawing zone was a single rectangle cut off at the top edge of the title block. It is now a
+list of disjoint bands: the frame with the title block subtracted, sliced at the horizontal edges
+of the occupied regions. This closes conflict C3.
+
+Measured on all 29 pages of the base project: **+7.4% drawing area recovered, 2 zones per sheet**.
+The recovered strip is not cosmetic - **5 of the 16 view anchors on the six forms sheets sit
+inside it**, including the only view on pages 4 and 25. The old truncation would have cost the
+Task 7 detector roughly a third of the views and two sheets entirely.
+
+Rationale:
+
+- the title block occupies a corner, not a full-width band, so cutting at its top edge threw away
+  the strip beside it;
+- bands keep the zone exact instead of approximating it with one rectangle;
+- `DetectedRegion` gained `parent_kind`, so a zone records that it is nested in the frame. The
+  column is not persisted - migration `003` has no `parent_kind` on `sheet_regions` - so it lives
+  in memory and inside the snapshot hash only.
+
+## 2026-08-29 - No table detector: the material has no rectangle cells
+
+Task 6 of the F2 plan specified `detect_tables(geometry, spans)` and subtracting the result from
+the drawing zone. Neither half survived contact with the material, so neither shipped.
+
+The plan's algorithm was implemented and measured first. On page 6 it reported **10 tables, each
+of them a piece of the floor plan itself** - the largest 1585x742 pt, containing `L301`, `L302`,
+`h=15`, the slab labels. It chains each cell to the previous one in the cluster, so a cluster
+snakes across the whole sheet.
+
+A stricter grid test - shared edges, uniform cell size, mostly-filled rows and columns - was then
+tried, and found **zero** tables. The reason is structural, and holds for any cell-based approach:
+
+- `geometry_from_extraction` keeps only rects above 0.0002 of page area. On page 6 that discards
+  8050 of 15785 distinct rects, and what survives has a median size of 76x76 pt - slab and beam
+  outlines, not table cells. `detect_tables(geometry, ...)` cannot see a cell even in principle.
+- Going to the raw primitives does not help: pages 6 and 25 contain **zero `re` primitives**
+  (41711 lines, 762 curves, 33 quads on page 6). The tables are drawn as line segments, and the
+  `rect` of a line primitive is the bounding box of its whole drawing path - which is exactly why
+  the plan's version produced page-sized blobs.
+
+Reconstructing cells from line intersections is a real piece of work, it is not what Task 6
+describes, and there is no table ground truth in `calibration/juliano-corbellini-r05.yml` to
+measure it against.
+
+Subtracting tables was also wrong on its own terms. `forms-policy-decisions-v1.md`, the confirmed
+human source of truth, says tables *belong to the view*: "Tabelas de vigas, pilares, lajes e
+materiais proximas das plantas pertencem ao contexto da view". Carving a table out of the drawing
+zone would split a view's own area. The policy only requires that a table not become an
+independent view - and it will not, because the Task 7 detector builds views from scale anchors,
+and a table declares no scale.
+
+`REGION_TABLE`, `REGION_NOTE_BLOCK` and `REGION_LEGEND` are kept as declared names with no
+detector behind them. The `spans` parameter of `detect_regions` was dropped rather than kept
+unused, so the signature does not promise something it ignores.

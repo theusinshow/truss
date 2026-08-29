@@ -10,6 +10,15 @@ from truss_api.sheetmap.geometry import PageGeometry
 REGION_FRAME = "moldura"
 REGION_TITLE_BLOCK = "carimbo"
 REGION_DRAWING = "area_desenho"
+# Regioes de conteudo previstas pela F2. Ainda sem detector: as tabelas do
+# material real sao desenhadas como segmentos de linha, nao como retangulos de
+# celula, entao nao ha o que agrupar. Ver docs/DECISIONS.md.
+REGION_TABLE = "table"
+REGION_NOTE_BLOCK = "note_block"
+REGION_LEGEND = "legend"
+
+# Uma faixa mais estreita que isso nao comporta uma view; sobra de subtracao.
+MIN_ZONE_SIDE_PT = 60.0
 
 FRAME_MIN_AREA_RATIO = 0.70
 FRAME_MAX_AREA_RATIO = 0.995
@@ -38,6 +47,7 @@ class DetectedRegion:
     x1: float
     y1: float
     confidence: float
+    parent_kind: str | None = None
 
 
 def extract_line_boxes(page: fitz.Page) -> list[TextBox]:
@@ -131,6 +141,77 @@ def detect_title_block(
     )
 
 
+def drawing_zones(
+    frame: DetectedRegion,
+    occupied: list[DetectedRegion],
+) -> list[DetectedRegion]:
+    """Zona de desenho como faixas disjuntas: moldura menos regioes ocupadas.
+
+    Corta em faixas horizontais definidas pelas bordas verticais das regioes
+    ocupadas, e dentro de cada faixa remove os intervalos horizontais cobertos.
+    Evita a truncagem anterior, que descartava tudo abaixo do topo do carimbo -
+    inclusive a faixa lateral onde ficam views reais.
+    """
+    if not occupied:
+        return [
+            DetectedRegion(
+                REGION_DRAWING,
+                frame.x0,
+                frame.y0,
+                frame.x1,
+                frame.y1,
+                frame.confidence,
+                parent_kind=REGION_FRAME,
+            )
+        ]
+
+    edges = sorted(
+        {frame.y0, frame.y1}
+        | {edge for region in occupied for edge in (region.y0, region.y1)}
+    )
+    zones: list[DetectedRegion] = []
+
+    for top, bottom in zip(edges, edges[1:]):
+        if bottom - top < MIN_ZONE_SIDE_PT:
+            continue
+
+        blockers = sorted(
+            (region for region in occupied if region.y0 < bottom and region.y1 > top),
+            key=lambda region: region.x0,
+        )
+
+        cursor = frame.x0
+        for blocker in blockers:
+            if blocker.x0 - cursor >= MIN_ZONE_SIDE_PT:
+                zones.append(
+                    DetectedRegion(
+                        REGION_DRAWING,
+                        cursor,
+                        top,
+                        blocker.x0,
+                        bottom,
+                        frame.confidence,
+                        parent_kind=REGION_FRAME,
+                    )
+                )
+            cursor = max(cursor, blocker.x1)
+
+        if frame.x1 - cursor >= MIN_ZONE_SIDE_PT:
+            zones.append(
+                DetectedRegion(
+                    REGION_DRAWING,
+                    cursor,
+                    top,
+                    frame.x1,
+                    bottom,
+                    frame.confidence,
+                    parent_kind=REGION_FRAME,
+                )
+            )
+
+    return zones
+
+
 def detect_regions(
     geometry: PageGeometry,
     text_boxes: list[TextBox],
@@ -142,16 +223,7 @@ def detect_regions(
     if title_block is not None:
         regions.append(title_block)
 
-    drawing_bottom = title_block.y0 if title_block is not None else frame.y1
-    regions.append(
-        DetectedRegion(
-            region_kind=REGION_DRAWING,
-            x0=frame.x0,
-            y0=frame.y0,
-            x1=frame.x1,
-            y1=drawing_bottom,
-            confidence=frame.confidence,
-        )
-    )
+    occupied = [region for region in regions if region.region_kind != REGION_FRAME]
+    regions.extend(drawing_zones(frame, occupied))
 
     return regions

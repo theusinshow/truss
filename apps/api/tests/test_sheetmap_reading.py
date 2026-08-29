@@ -10,11 +10,14 @@ from truss_api.sheetmap.geometry import GeometryRect, PageGeometry
 from truss_api.sheetmap.regions import (
     REGION_DRAWING,
     REGION_FRAME,
+    REGION_TABLE,
     REGION_TITLE_BLOCK,
+    DetectedRegion,
     TextBox,
     detect_frame,
     detect_regions,
     detect_title_block,
+    drawing_zones,
 )
 from truss_api.sheetmap.title_block import TitleBlockFields, parse_title_block
 
@@ -64,16 +67,43 @@ def test_title_block_ignores_anchors_outside_the_bottom_right_corner() -> None:
     assert detect_title_block(boxes, _geometry(), detect_frame(_geometry())) is None
 
 
-def test_detect_regions_returns_frame_title_block_and_drawing_area() -> None:
+def test_detect_regions_returns_frame_title_block_and_drawing_zones() -> None:
     regions = detect_regions(_geometry(), _title_block_boxes())
 
-    assert [region.region_kind for region in regions] == [
-        REGION_FRAME,
-        REGION_TITLE_BLOCK,
-        REGION_DRAWING,
-    ]
-    drawing = regions[2]
-    assert drawing.y1 == 700
+    kinds = [region.region_kind for region in regions]
+    assert kinds[0] == REGION_FRAME
+    assert REGION_TITLE_BLOCK in kinds
+    assert kinds.count(REGION_DRAWING) >= 1
+
+    frame = regions[0]
+    drawing = [region for region in regions if region.region_kind == REGION_DRAWING]
+    assert max(zone.y1 for zone in drawing) == frame.y1, (
+        "a zona de desenho nao pode parar no topo do carimbo"
+    )
+
+
+def test_drawing_zone_is_not_truncated_at_the_title_block_top() -> None:
+    """A zona de desenho nao pode perder a faixa lateral ao lado do carimbo."""
+    frame = DetectedRegion(REGION_FRAME, 20, 10, 970, 770, 0.95)
+    title_block = DetectedRegion(REGION_TITLE_BLOCK, 700, 700, 970, 770, 0.9)
+
+    zones = drawing_zones(frame, [title_block])
+
+    total_area = sum((z.x1 - z.x0) * (z.y1 - z.y0) for z in zones)
+    truncated_area = (frame.x1 - frame.x0) * (title_block.y0 - frame.y0)
+
+    assert total_area > truncated_area
+    assert all(z.region_kind == REGION_DRAWING for z in zones)
+
+
+def test_drawing_zones_do_not_overlap_occupied_regions() -> None:
+    frame = DetectedRegion(REGION_FRAME, 0, 0, 1000, 1000, 0.95)
+    table = DetectedRegion(REGION_TABLE, 800, 0, 1000, 400, 0.8)
+
+    zones = drawing_zones(frame, [table])
+
+    for zone in zones:
+        assert not (zone.x0 < 1000 and zone.x1 > 800 and zone.y0 < 400 and zone.y1 > 0)
 
 
 def _region_and_boxes(lines: list[str]):

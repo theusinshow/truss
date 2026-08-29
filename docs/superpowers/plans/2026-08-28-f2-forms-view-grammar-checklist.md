@@ -1856,7 +1856,7 @@ com o numero registrado.
   - `drawing_zones(frame: DetectedRegion, occupied: list[DetectedRegion]) -> list[DetectedRegion]`
   - `detect_regions(geometry, text_boxes, spans=None) -> list[DetectedRegion]` - parametro novo opcional, contrato preservado
 
-- [ ] **Step 1: Escrever o teste**
+- [x] **Step 1: Escrever o teste**
 
 Acrescentar em `apps/api/tests/test_sheetmap_reading.py`:
 
@@ -1885,12 +1885,12 @@ def test_drawing_zones_do_not_overlap_occupied_regions() -> None:
         assert not (zone.x0 < 1000 and zone.x1 > 800 and zone.y0 < 400 and zone.y1 > 0)
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_sheetmap_reading.py -v`
 Expected: FAIL com `ImportError: cannot import name 'drawing_zones'`
 
-- [ ] **Step 3: Implementar a subtracao de regioes**
+- [x] **Step 3: Implementar a subtracao de regioes** - *detect_tables nao entregue; ver a atualizacao no fim do plano*
 
 Em `apps/api/truss_api/sheetmap/regions.py`, acrescentar as constantes e substituir a construcao
 da zona de desenho:
@@ -2036,12 +2036,12 @@ class DetectedRegion:
     parent_kind: str | None = None
 ```
 
-- [ ] **Step 4: Rodar os testes**
+- [x] **Step 4: Rodar os testes**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_sheetmap_reading.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/truss_api/sheetmap/regions.py apps/api/tests/test_sheetmap_reading.py
@@ -3973,6 +3973,41 @@ sao versionados e **nao estao neste clone**. Trazer os originais e pre-requisito
   nao e versionado. O projeto-base real e
   `docs/projeto_base/Projeto Estrutural_Juliano Corbellini_R05.pdf`, que esta no repositorio e
   bate com o sha256 do gabarito. Use esse caminho.
+
+### Atualizacao 2026-08-29 - Task 6 parcial: zona de desenho sim, tabelas nao
+
+**Entregue e medido.** `drawing_zones` devolve a moldura menos o carimbo em faixas disjuntas,
+fechando o conflito C3. Nas 29 paginas do projeto-base: **+7,4% de area de desenho, 2 zonas por
+folha**. Nao e ganho cosmetico - **5 das 16 ancoras de view das seis folhas de formas estao
+dentro da faixa recuperada**, incluindo a unica view das paginas 4 e 25. A truncagem antiga
+custaria ao detector da Task 7 cerca de um terco das views e duas folhas inteiras.
+`DetectedRegion` ganhou `parent_kind` (so em memoria: `sheet_regions` nao tem a coluna).
+
+**Nao entregue: `detect_tables`.** As duas metades da especificacao caem no material real.
+
+O algoritmo do plano foi implementado e medido primeiro: na pagina 6 reportou **10 tabelas, todas
+pedacos da propria planta de formas** - a maior com 1585x742 pt, contendo `L301`, `L302`, `h=15`.
+Ele encadeia cada celula a ultima do cluster, entao o cluster serpenteia pela folha inteira.
+
+Um teste de grade mais estrito (bordas compartilhadas, celula uniforme, linhas e colunas
+preenchidas) achou **zero**. A causa e estrutural e vale para qualquer abordagem por celula:
+
+- `geometry_from_extraction` so mantem rects acima de 0,0002 da area da pagina. Na pagina 6 isso
+  descarta 8050 de 15785 rects distintos, e o que sobra tem mediana 76x76 pt - contorno de laje e
+  viga, nao celula. `detect_tables(geometry, ...)` nao ve uma celula nem em principio.
+- Ir as primitivas cruas nao resolve: as paginas 6 e 25 tem **zero primitivas `re`** (41711
+  linhas, 762 curvas, 33 quads na pagina 6). As tabelas sao desenhadas como segmentos, e o `rect`
+  de uma primitiva de linha e o bounding box do caminho inteiro - por isso a versao do plano
+  produziu manchas do tamanho da pagina.
+
+Subtrair tabelas tambem contraria a fonte de verdade humana. `forms-policy-decisions-v1.md` diz
+que tabelas **pertencem a view**: "Tabelas de vigas, pilares, lajes e materiais proximas das
+plantas pertencem ao contexto da view". Recortar a tabela da zona de desenho partiria a area da
+propria view. A politica so exige que a tabela nao vire view independente - e nao vira, porque o
+detector da Task 7 constroi views a partir de ancoras de escala, e tabela nao declara escala.
+
+`REGION_TABLE`, `REGION_NOTE_BLOCK` e `REGION_LEGEND` ficam como nomes declarados sem detector. O
+parametro `spans` de `detect_regions` foi removido em vez de ficar sem uso.
 
 ### Decisao arquitetural derivada do material humano
 

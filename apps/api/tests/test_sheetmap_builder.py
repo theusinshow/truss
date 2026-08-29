@@ -81,12 +81,23 @@ def test_build_is_idempotent_and_does_not_duplicate_regions(
     settings: Settings, document: dict[str, object]
 ) -> None:
     build_sheet_map_for_document(str(document["id"]), settings)
+    once = sheetmap_repository.get_sheet_map(
+        str(document["sheets"][0]["id"]), settings
+    )
+
     build_sheet_map_for_document(str(document["id"]), settings)
+    twice = sheetmap_repository.get_sheet_map(
+        str(document["sheets"][0]["id"]), settings
+    )
 
-    first_sheet = document["sheets"][0]
-    sheet_map = sheetmap_repository.get_sheet_map(str(first_sheet["id"]), settings)
-
-    assert len(sheet_map["regions"]) == 3
+    # O numero de zonas de desenho depende do que ocupa a moldura, entao o que
+    # importa e a estabilidade entre construcoes, nao uma contagem fixa.
+    assert len(twice["regions"]) == len(once["regions"])
+    assert [region["region_kind"] for region in twice["regions"]] == [
+        region["region_kind"] for region in once["regions"]
+    ]
+    assert any(region["region_kind"] == "moldura" for region in once["regions"])
+    assert any(region["region_kind"] == "area_desenho" for region in once["regions"])
 
 
 def test_get_sheet_map_raises_when_missing(settings: Settings) -> None:
