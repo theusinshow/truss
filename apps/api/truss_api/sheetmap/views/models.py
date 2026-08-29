@@ -60,3 +60,6 @@ class TitleCandidate:
     title: str
     bbox: BBox
     size: float
+    # `title` vem normalizado (maiusculas, sem acento) porque e o que casa com
+    # padroes; `raw` preserva o que esta escrito na folha.
+    raw: str = ""

@@ -194,3 +194,64 @@ and a table declares no scale.
 `REGION_TABLE`, `REGION_NOTE_BLOCK` and `REGION_LEGEND` are kept as declared names with no
 detector behind them. The `spans` parameter of `detect_regions` was dropped rather than kept
 unused, so the signature does not promise something it ignores.
+
+## 2026-08-29 - A title belongs to exactly one view
+
+`find_title_for` accepts a set of already-claimed title bboxes, and the detector assigns titles to
+anchors greedily by smallest global distance instead of letting each anchor search on its own.
+
+Rationale:
+
+- searching independently let two neighbouring anchors pick the same title. Measured on page 8 of
+  the base project: the `1:20` anchor of `DETALHE 01 LAJE PRE-FABRICADA` and the `1:50` anchor of
+  the plan beside it both returned `PLANTA DE FORMAS - TOPO RESERVATORIO`;
+- the distance is `hypot(dx, dy)`, so horizontal separation breaks the tie a vertical-only metric
+  cannot - the two anchors sat at the same height;
+- **this closed the last association error: 15/16 became 16/16.**
+
+`TitleCandidate` also gained `raw`, the literal span text with the ordinal prefix removed, because
+`title` is normalized (uppercase, unaccented) for pattern matching and the ground truth records
+what the sheet actually says.
+
+## 2026-08-29 - View detection is not gated by sheet_type
+
+The plan gated `detect_forms_views` on `classification.sheet_type == "planta_formas"`. The gate was
+removed.
+
+Rationale:
+
+- it produced zero views for two of the six human-reviewed sheets. The classifier calls page 4
+  `desconhecido` and page 25 `planta_armaduras`, while the ground truth records one view on each -
+  so the gate was keyed on a classification that had failed;
+- it buys no safety. The detector only builds a view from an explicit `ESCALA` anchor, so a sheet
+  that declares no scale yields nothing. Measured ungated over all 29 pages: **49 views, 49 of them
+  with a title** - there is no low-confidence noise for the gate to suppress;
+- views are data, not findings. What must be scoped to forms sheets is the Task 8 checklist, not
+  the extraction of views.
+
+A test replaces the gate with the real safety property: a sheet without a scale declaration yields
+no views.
+
+## 2026-08-29 - View detection measured; bounding boxes remain unverified
+
+Detector measured against the human ground truth over the six forms sheets of the base project:
+
+- **16 views detected, ground truth has 16**
+- **16/16 with title and scale (100%)**
+- **16/16 associated to the correct ground-truth title for their scale (100%)**
+- **16/16 correct `view_kind`**
+- no invalid bounding box, no view overlapping the title block
+
+The **bounding boxes themselves are not validated**, and the plan's completion criterion does not
+cover them. The ground truth has no spatial boxes - only a free-text `position_hint` such as
+"superior esquerda". Scored against that proxy, only **8 of 16** boxes have their centre in the
+quadrant the owner described: the plan sets a view's right edge to the drawing zone's right edge,
+so every view spans the full sheet width, and a view with no following anchor in its column runs to
+the bottom of the zone.
+
+A row-and-column partition was prototyped as an alternative and measured **8/16 under the same
+criterion** - no better. `position_hint` is free text and too noisy to tune geometry against, so
+the plan's simpler rule was kept rather than replaced by an equally unvalidated one.
+
+This is what the plan already anticipates: boxes are `draft_unverified` until the owner confirms
+them visually against the overlays of Task 10. Task 8 should not assume the boxes are tight.

@@ -1,3 +1,4 @@
+from collections.abc import Collection
 import re
 import statistics
 
@@ -88,11 +89,16 @@ def find_title_for(
     anchor: ScaleAnchor,
     spans: list[TextSpanRecord],
     font_floor: float,
+    claimed: Collection[BBox] = (),
 ) -> TitleCandidate | None:
     candidates: list[TextSpanRecord] = []
 
     for span in spans:
         if span.size < font_floor:
+            continue
+
+        # Um titulo pertence a exatamente uma view.
+        if span.bbox in claimed:
             continue
 
         gap = anchor.bbox[1] - span.bbox[3]
@@ -121,11 +127,17 @@ def find_title_for(
     text = normalize(closest.text)
     match = IDENTIFIER_PATTERN.match(text)
 
+    # O identificador e campo proprio, entao sai tambem do texto bruto: o
+    # gabarito humano registra "CORTE A-A", nunca "1 CORTE A-A".
+    raw_text = closest.text.strip()
+    raw_match = IDENTIFIER_PATTERN.match(raw_text)
+
     return TitleCandidate(
         identifier=match.group(1) if match else None,
         title=match.group(2) if match else text,
         bbox=closest.bbox,
         size=closest.size,
+        raw=raw_match.group(2) if raw_match else raw_text,
     )
 
 

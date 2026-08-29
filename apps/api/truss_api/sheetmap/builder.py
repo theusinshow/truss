@@ -16,6 +16,7 @@ from truss_api.sheetmap.regions import (
 )
 from truss_api.sheetmap.snapshot import snapshot_hash
 from truss_api.sheetmap.title_block import TitleBlockFields, parse_title_block
+from truss_api.sheetmap.views.detector import detect_forms_views
 from truss_api.sheetmap.views.models import DetectedView
 
 
@@ -127,9 +128,11 @@ def build_sheet_map_for_document(
             title_block_payload["classification_source"] = classification.source
             title_block_payload["classification_confidence"] = classification.confidence
 
-            # As views chegam na Task 7; o snapshot ja e enderecado por conteudo
-            # sem elas, e passa a incluir a lista assim que o detector existir.
-            views: list[DetectedView] = []
+            # Sem gate por sheet_type: o detector exige uma declaracao ESCALA
+            # explicita, entao uma folha sem ancora nao produz view nenhuma. Um
+            # gate em `planta_formas` zerava as folhas de detalhamento que o
+            # gabarito humano cobre - ver docs/DECISIONS.md.
+            views: list[DetectedView] = detect_forms_views(extraction, regions)
             content_hash = snapshot_hash(
                 sheet_type=classification.sheet_type,
                 sheet_code=fields.sheet_code,

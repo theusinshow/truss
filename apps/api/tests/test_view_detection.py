@@ -1,4 +1,15 @@
-from truss_api.sheetmap.primitives import TextSpanRecord
+import fitz
+
+from tests.factories import make_forms_sheet_pdf_bytes
+from truss_api.sheetmap.geometry import geometry_from_extraction
+from truss_api.sheetmap.primitives import TextSpanRecord, extract_page
+from truss_api.sheetmap.regions import (
+    REGION_TABLE,
+    DetectedRegion,
+    detect_regions,
+    extract_line_boxes,
+)
+from truss_api.sheetmap.views.detector import _assign_titles, detect_forms_views
 from truss_api.sheetmap.views.anchors import (
     find_level_near,
     find_scale_anchors,
@@ -82,3 +93,76 @@ def test_view_kind_is_derived_from_the_title() -> None:
     assert view_kind_from_title("DETALHE 01 LAJE") == "detail"
     assert view_kind_from_title("PLANTA DE FORMAS - TERREO") == "plan"
     assert view_kind_from_title(None) == "plan"
+
+
+def _detect() -> list:
+    document = fitz.open(stream=make_forms_sheet_pdf_bytes(), filetype="pdf")
+    page = document.load_page(0)
+    extraction = extract_page(page)
+    regions = detect_regions(geometry_from_extraction(extraction), extract_line_boxes(page))
+    return detect_forms_views(extraction, regions)
+
+
+def test_detects_one_view_per_scale_anchor() -> None:
+    assert len(_detect()) == 3
+
+
+def test_each_view_carries_title_scale_and_kind() -> None:
+    views = {view.title.raw: view for view in _detect()}
+
+    assert views["PLANTA DE FORMAS - TERREO"].declared_scale.normalized == "1:50"
+    assert views["PLANTA DE FORMAS - TERREO"].declared_scale.raw == "ESCALA 1:50"
+    assert views["PLANTA DE FORMAS - TERREO"].view_kind == "plan"
+    assert views["CORTE A-A"].view_kind == "section"
+    assert views["DETALHE 01 LAJE"].view_kind == "detail"
+
+
+def test_plan_view_captures_the_declared_level_without_normalizing_it() -> None:
+    plan = next(view for view in _detect() if view.view_kind == "plan")
+
+    assert plan.level.raw == "-0.05"
+    assert plan.level.normalized is None
+
+
+def test_views_do_not_include_the_title_block() -> None:
+    for view in _detect():
+        assert view.bbox[0] < 1700 or view.bbox[1] < 1400
+
+
+def test_a_table_does_not_become_a_view() -> None:
+    """Um quadro de pilares com escala proxima nao pode virar view."""
+    document = fitz.open(stream=make_forms_sheet_pdf_bytes(), filetype="pdf")
+    page = document.load_page(0)
+    extraction = extract_page(page)
+    regions = detect_regions(geometry_from_extraction(extraction), extract_line_boxes(page))
+    regions.append(DetectedRegion(REGION_TABLE, 190, 190, 950, 640, 0.7))
+
+    views = detect_forms_views(extraction, regions)
+
+    assert all(not (190 <= v.bbox[0] <= 950 and 190 <= v.bbox[1] <= 640) for v in views)
+
+
+def test_every_view_records_provenance() -> None:
+    assert all(view.provenance for view in _detect())
+
+
+def test_two_anchors_never_claim_the_same_title() -> None:
+    """Regressao medida na pagina 8 do projeto-base.
+
+    A ancora 1:20 do detalhe e a ancora 1:50 da planta vizinha escolhiam ambas
+    "PLANTA DE FORMAS - TOPO RESERVATORIO", porque cada ancora buscava seu
+    titulo isoladamente. Um titulo pertence a exatamente uma view.
+    """
+    spans = [
+        _span("PLANTA DE FORMAS - TOPO RESERVATORIO", 300, 100, 15.8),
+        _span("ESCALA 1:50", 300, 130, 5.9),
+        _span("DETALHE 01 LAJE PRE-FABRICADA", 900, 100, 15.8),
+        _span("ESCALA 1:20", 900, 130, 5.9),
+    ]
+
+    titles = _assign_titles(find_scale_anchors(spans, exclude=None), spans)
+
+    assert [title.title if title else None for title in titles] == [
+        "PLANTA DE FORMAS - TOPO RESERVATORIO",
+        "DETALHE 01 LAJE PRE-FABRICADA",
+    ]

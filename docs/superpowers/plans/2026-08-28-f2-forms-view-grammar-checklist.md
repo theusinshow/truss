@@ -2070,7 +2070,7 @@ invade tabelas.
   - `detect_forms_views(extraction: PageExtraction, regions: list[DetectedRegion]) -> list[DetectedView]`
   - `build_sheet_map_for_document` passa a gravar `views` e o snapshot
 
-- [ ] **Step 1: Escrever o teste com fixture sintetica**
+- [x] **Step 1: Escrever o teste com fixture sintetica**
 
 Acrescentar em `apps/api/tests/factories.py`:
 
@@ -2168,12 +2168,12 @@ def test_every_view_records_provenance() -> None:
     assert all(view.provenance for view in _detect())
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_view_detection.py -v`
 Expected: FAIL com `ModuleNotFoundError: No module named 'truss_api.sheetmap.views.detector'`
 
-- [ ] **Step 3: Implementar o detector**
+- [x] **Step 3: Implementar o detector**
 
 Create `apps/api/truss_api/sheetmap/views/detector.py`:
 
@@ -2299,7 +2299,7 @@ def detect_forms_views(
     return views
 ```
 
-- [ ] **Step 4: Ligar ao builder**
+- [x] **Step 4: Ligar ao builder**
 
 Em `apps/api/truss_api/sheetmap/builder.py`, substituir o corpo do laco por pipeline completo.
 As linhas que hoje chamam `extract_page_geometry` e `write_page_geometry` passam a ser:
@@ -2336,12 +2336,12 @@ e a chamada a `repository.save_sheet_map` ganha os argumentos
 Nota de ordem: `classification` e calculada antes de `views`, entao a linha que a define deve
 permanecer acima. `title_block_payload` tambem precisa ser montado antes do `snapshot_hash`.
 
-- [ ] **Step 5: Rodar os testes**
+- [x] **Step 5: Rodar os testes**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_view_detection.py apps/api/tests/test_sheetmap_builder.py -v`
 Expected: PASS.
 
-- [ ] **Step 6: Medir a deteccao no material real**
+- [x] **Step 6: Medir a deteccao no material real**
 
 Run:
 
@@ -2371,7 +2371,7 @@ print(f'views detectadas: {total} | com titulo e escala: {titled} ({100*titled/t
 
 Expected: 17 views, e **>= 90%** com titulo e escala.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/api/truss_api/sheetmap/views/detector.py apps/api/truss_api/sheetmap/builder.py apps/api/tests/
@@ -4008,6 +4008,35 @@ detector da Task 7 constroi views a partir de ancoras de escala, e tabela nao de
 
 `REGION_TABLE`, `REGION_NOTE_BLOCK` e `REGION_LEGEND` ficam como nomes declarados sem detector. O
 parametro `spans` de `detect_regions` foi removido em vez de ficar sem uso.
+
+### Atualizacao 2026-08-29 - Task 7 concluida, associacao em 100%
+
+Medido contra o gabarito humano nas seis folhas de formas do projeto-base:
+
+- **16 views detectadas, gabarito tem 16**
+- **16/16 com titulo e escala (100%)** - criterio do plano era >= 90%
+- **16/16 associadas ao titulo correto do gabarito para a sua escala (100%)**
+- **16/16 com `view_kind` correto**
+- nenhum bbox invalido, nenhuma view invadindo o carimbo
+
+O que fechou o ultimo erro: **um titulo pertence a exatamente uma view**. Buscando isoladamente,
+duas ancoras vizinhas escolhiam o mesmo titulo - era o erro da pagina 8. `find_title_for` passou a
+aceitar titulos ja reivindicados e o detector atribui por menor distancia global com `hypot`, para
+que a separacao horizontal desempate onde a vertical nao desempata. 15/16 virou 16/16.
+
+**Os bboxes nao estao validados.** O gabarito nao tem caixa espacial, so `position_hint` em texto
+livre. Contra esse proxy, apenas **8 de 16** caixas tem o centro no quadrante descrito: o plano faz
+a borda direita da view ser a borda da zona de desenho, entao toda view ocupa a largura inteira, e
+uma view sem ancora seguinte na coluna desce ate o fim da zona. Um particionamento por linhas e
+colunas foi prototipado e mediu **8/16 sob o mesmo criterio** - igual. `position_hint` e ruidoso
+demais para calibrar geometria, entao a regra do plano foi mantida em vez de trocada por outra
+igualmente nao validada. Segue valendo o combinado: bbox e `draft_unverified` ate o proprietario
+conferir nos overlays da Task 10, e **a Task 8 nao pode assumir caixa justa**.
+
+**Gate removido.** O plano condicionava a deteccao a `sheet_type == "planta_formas"`. Isso zerava
+as paginas 4 e 25, que o gabarito cobre com uma view cada - o classificador chama a 4 de
+`desconhecido`. E nao comprava seguranca: sem gate, nas 29 paginas saem **49 views, 49 com titulo**.
+Um teste substitui o gate pela propriedade real - folha sem declaracao de escala nao gera view.
 
 ### Decisao arquitetural derivada do material humano
 

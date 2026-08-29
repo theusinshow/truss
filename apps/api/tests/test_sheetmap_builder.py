@@ -23,7 +23,7 @@ from truss_api.sheetmap.views.models import (
     DetectedView,
     MeasuredValue,
 )
-from tests.factories import make_structural_pdf_bytes
+from tests.factories import make_forms_sheet_pdf_bytes, make_structural_pdf_bytes
 
 
 @pytest.fixture()
@@ -280,3 +280,49 @@ def test_snapshot_persists_subviews_under_their_grouping_detail(
 
     assert child["parent_view_id"] == parent["id"]
     assert parent["parent_view_id"] is None
+
+
+def test_sheet_without_a_scale_declaration_yields_no_views(
+    settings: Settings, document: dict[str, object]
+) -> None:
+    """Propriedade de seguranca que substitui o gate por sheet_type.
+
+    O detector so constroi view a partir de uma ancora ESCALA explicita, entao
+    uma folha que nao declara escala nao produz view - independente de como ela
+    foi classificada.
+    """
+    built = build_sheet_map_for_document(str(document["id"]), settings)
+
+    assert all(sheet_map["views"] == [] for sheet_map in built)
+
+
+def test_forms_sheet_persists_its_detected_views_end_to_end(settings: Settings) -> None:
+    project = projects_repository.create_project(ProjectCreate(name="F"), settings)
+    revision = projects_repository.create_revision(
+        str(project["id"]), RevisionCreate(notes="R"), settings
+    )
+    prepared = prepare_pdf_storage(
+        content=make_forms_sheet_pdf_bytes(),
+        filename="formas.pdf",
+        project_id=str(project["id"]),
+        revision_id=str(revision["id"]),
+        settings=settings,
+    )
+    document = documents_repository.create_document_from_prepared_pdf(
+        project_id=str(project["id"]),
+        revision_id=str(revision["id"]),
+        prepared_pdf=prepared,
+        settings=settings,
+    )
+
+    built = build_sheet_map_for_document(str(document["id"]), settings)
+    views = built[0]["views"]
+
+    assert [view["title_raw"] for view in views] == [
+        "PLANTA DE FORMAS - TERREO",
+        "CORTE A-A",
+        "DETALHE 01 LAJE",
+    ]
+    assert [view["view_kind"] for view in views] == ["plan", "section", "detail"]
+    assert [view["declared_scale"] for view in views] == ["1:50", "1:50", "1:20"]
+    assert all(view["provenance"] for view in views)
