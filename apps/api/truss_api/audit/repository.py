@@ -74,6 +74,10 @@ def create_audit_run(
     findings: list[dict[str, object]],
     settings: Settings,
     cache_key: str | None = None,
+    sheet_map_id: str | None = None,
+    rule_pack_version: str = "",
+    coverage: dict[str, int] | None = None,
+    evaluations: list[object] | None = None,
 ) -> dict[str, object]:
     now = _now()
     audit_run_id = str(uuid4())
@@ -92,9 +96,12 @@ def create_audit_run(
                 status,
                 summary,
                 started_at,
-                completed_at
+                completed_at,
+                sheet_map_id,
+                rule_pack_version,
+                coverage_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 audit_run_id,
@@ -103,42 +110,52 @@ def create_audit_run(
                 sheet_context["project_id"],
                 sheet_context["revision_id"],
                 "aggressive",
-                "deterministic-v0.1",
+                "deterministic-v0.2",
                 "completed",
                 f"{len(findings)} achados gerados por regras deterministicas.",
                 now,
                 now,
+                sheet_map_id,
+                rule_pack_version,
+                json.dumps(coverage or {}),
             ),
         )
 
         for finding in findings:
             bbox = finding["bbox"]
+            dedupe_key = finding.get("dedupe_key")
+            existing = None
+
+            if dedupe_key:
+                existing = connection.execute(
+                    """
+                    SELECT id FROM findings
+                    WHERE sheet_id = ? AND dedupe_key = ?
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (str(sheet_context["sheet_id"]), dedupe_key),
+                ).fetchone()
+
+            if existing is not None:
+                # Achado ja conhecido: vincula a nova execucao e preserva
+                # integralmente o status decidido por humano.
+                connection.execute(
+                    "UPDATE findings SET audit_run_id = ?, updated_at = ? WHERE id = ?",
+                    (audit_run_id, now, str(existing["id"])),
+                )
+                continue
+
             connection.execute(
                 """
                 INSERT INTO findings (
-                    id,
-                    audit_run_id,
-                    sheet_id,
-                    document_id,
-                    project_id,
-                    revision_id,
-                    category,
-                    type,
-                    description,
-                    severity,
-                    confidence,
-                    x0,
-                    y0,
-                    x1,
-                    y1,
-                    evidence_json,
-                    origin,
-                    status,
-                    rejection_reason,
-                    created_at,
-                    updated_at
+                    id, audit_run_id, sheet_id, document_id, project_id, revision_id,
+                    category, type, description, severity, confidence,
+                    x0, y0, x1, y1, evidence_json, origin, status, rejection_reason,
+                    created_at, updated_at,
+                    rule_id, rule_version, rule_scope, sheet_map_id, view_id,
+                    source_layer, dedupe_key
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid4()),
@@ -161,6 +178,42 @@ def create_audit_run(
                     "pending",
                     None,
                     now,
+                    now,
+                    finding.get("rule_id"),
+                    finding.get("rule_version"),
+                    finding.get("rule_scope"),
+                    sheet_map_id,
+                    finding.get("view_id"),
+                    finding.get("source_layer"),
+                    dedupe_key,
+                ),
+            )
+
+        for evaluation in evaluations or []:
+            connection.execute(
+                """
+                INSERT INTO rule_evaluations (
+                    id, audit_run_id, sheet_map_id, sheet_id, rule_id, rule_version,
+                    rule_pack_id, rule_pack_version, rule_scope, target_kind, target_id,
+                    outcome, confidence, reason, evidence_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(uuid4()),
+                    audit_run_id,
+                    sheet_map_id,
+                    str(sheet_context["sheet_id"]),
+                    evaluation.rule_id,
+                    evaluation.rule_version,
+                    evaluation.rule_pack_id,
+                    evaluation.rule_pack_version,
+                    evaluation.scope,
+                    evaluation.target_kind,
+                    evaluation.target_id,
+                    evaluation.outcome,
+                    evaluation.confidence,
+                    evaluation.reason,
+                    json.dumps(evaluation.evidence, ensure_ascii=False),
                     now,
                 ),
             )
@@ -205,7 +258,8 @@ def get_audit_run(audit_run_id: str, settings: Settings) -> dict[str, object]:
                 status,
                 summary,
                 started_at,
-                completed_at
+                completed_at,
+                coverage_json
             FROM audit_runs
             WHERE id = ?
             """,
@@ -223,8 +277,14 @@ def get_audit_run(audit_run_id: str, settings: Settings) -> dict[str, object]:
         ).fetchall()
 
     data = dict(audit_run)
+    data["coverage"] = json.loads(str(data.pop("coverage_json") or "{}"))
     data["findings"] = [_finding_from_row(row) for row in rows]
     return data
+
+
+def clear_audit_cache(settings: Settings) -> None:
+    with transaction(settings) as connection:
+        connection.execute("DELETE FROM cache_entries WHERE namespace = 'audit'")
 
 
 def list_findings_for_sheet(sheet_id: str, settings: Settings) -> list[dict[str, object]]:

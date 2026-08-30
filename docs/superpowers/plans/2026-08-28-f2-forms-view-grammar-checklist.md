@@ -2960,7 +2960,7 @@ git commit -m "feat: declarative rule engine and forms rule pack v1"
   - `dedupe_key_for(evaluation: RuleEvaluation, sheet_id: str) -> str`
   - `run_deterministic_audit(sheet_id, settings)` devolve o audit run com `coverage`
 
-- [ ] **Step 1: Escrever o teste**
+- [x] **Step 1: Escrever o teste**
 
 Create `apps/api/tests/test_findings_traceability.py`:
 
@@ -3107,12 +3107,12 @@ Acrescentar ao topo do arquivo:
 from truss_api.audit.models import FindingStatusUpdate
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_findings_traceability.py -v`
 Expected: FAIL com `ImportError: cannot import name 'audit_cache_key'`
 
-- [ ] **Step 3: Reescrever o orquestrador**
+- [x] **Step 3: Reescrever o orquestrador**
 
 Substituir integralmente `apps/api/truss_api/sheetmap/../audit/orchestrator.py` por:
 
@@ -3243,7 +3243,7 @@ def run_deterministic_audit(sheet_id: str, settings: Settings) -> dict[str, obje
     )
 ```
 
-- [ ] **Step 4: Estender o repositorio de auditoria**
+- [x] **Step 4: Estender o repositorio de auditoria**
 
 Em `apps/api/truss_api/audit/repository.py`, alterar `create_audit_run` para aceitar os
 parametros novos, persistir `rule_evaluations`, gravar as colunas de rastreabilidade nos findings
@@ -3372,7 +3372,7 @@ E em `get_audit_run`, incluir `coverage` no retorno:
     result["coverage"] = json.loads(str(row["coverage_json"] or "{}"))
 ```
 
-- [ ] **Step 5: Expor os campos novos no contrato**
+- [x] **Step 5: Expor os campos novos no contrato**
 
 Em `apps/api/truss_api/audit/models.py`, acrescentar ao modelo `Finding`:
 
@@ -3386,12 +3386,12 @@ Em `apps/api/truss_api/audit/models.py`, acrescentar ao modelo `Finding`:
 
 Todos com default, para que os findings legados continuem serializando.
 
-- [ ] **Step 6: Rodar os testes**
+- [x] **Step 6: Rodar os testes**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_findings_traceability.py -v`
 Expected: PASS, 5 testes.
 
-- [ ] **Step 7: Golden file de RuleEvaluation e findings**
+- [x] **Step 7: Golden file de RuleEvaluation e findings**
 
 O escopo exige golden files. Um so, sobre a folha sintetica, pega mudanca silenciosa de outcome,
 severidade ou rastreabilidade sem exigir um teste por regra.
@@ -3445,14 +3445,14 @@ Rodar duas vezes: a primeira gera o golden, a segunda compara.
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_findings_traceability.py -v`
 Expected: primeira execucao SKIP no golden, segunda PASS.
 
-- [ ] **Step 8: Rodar a suite inteira**
+- [x] **Step 8: Rodar a suite inteira**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests -q`
 Expected: PASS. `apps/api/tests/test_audit.py` provavelmente falha porque esperava o finding de
 fallback - **atualizar o teste para esperar zero findings e cobertura**, nunca reintroduzir o
 fallback.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add apps/api/truss_api/audit/ apps/api/tests/
@@ -4070,6 +4070,33 @@ que e onde a politica humana manda declara-lo. Medido: **7/8 para 8/8**.
 **Dois criterios de aceite da F2 nao sao computaveis aqui.** "cobertura dos findings do ground truth
 >= 60%" e "precisao >= 70%" precisam de um conjunto positivo, e o gabarito espera zero findings nas
 seis folhas. Exigem folhas com defeito conhecido, que o material de calibracao ainda nao tem.
+
+### Atualizacao 2026-08-29 - Task 9 concluida, fallback removido
+
+O orquestrador roda **os dois escopos** e o `dedupe_key` carrega o escopo. Os dois packs declaram
+`forms.view.level_declared` sobre a mesma view: sem o escopo na chave, o segundo achado casaria com
+o primeiro na reexecucao e seria engolido, e a exigencia do proprietario nunca apareceria - o exato
+problema que a separacao em dois packs existe para evitar. A chave de cache combina id e versao de
+todos os packs, entao mexer num pack invalida a execucao em cache em vez de servir um veredito
+velho.
+
+**O finding de fallback acabou.** Folha limpa devolve zero findings mais o resumo de cobertura
+(`evaluated`, `passed`, `failed`, `unknown`, `not_applicable`, `skipped`). Um achado que diz "nada
+foi encontrado" nao e um achado: ensina o leitor a ignorar a lista. As tres heuristicas antigas de
+texto viraram regras com `rule_id`, versao, escopo, alvo e evidencia.
+
+**Medido ponta a ponta no projeto-base** - import, sheet map, deteccao e auditoria: **0 findings nas
+seis folhas revisadas**, batendo o `confirmed_zero` do gabarito, com cobertura de 19/15/19/15
+avaliacoes nas quatro folhas `planta_formas`.
+
+**Consequencia a planejar:** as paginas 4 e 25 reportam `evaluated: 0`. As views delas sao
+detectadas, mas classificam como `desconhecido` e `planta_armaduras`, e um pack de formas nao pode
+julgar folha que ele nao cobre - o gabarito concorda que sao folhas de `detalhamento_*`. **Duas das
+seis folhas revisadas ficam sem checklist** ate existir um pack para folhas de detalhamento, o que
+esta fora da F2.
+
+`test_audit.py` e `test_assistant.py` foram atualizados: passaram a usar uma folha de formas sem
+view declarada, que gera exatamente o achado de composicao, em vez de depender do fallback.
 
 ### Decisao arquitetural derivada do material humano
 

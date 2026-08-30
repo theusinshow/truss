@@ -38,6 +38,23 @@ class Finding(BaseModel):
     rejection_reason: str | None
     created_at: datetime
     updated_at: datetime
+    # Rastreabilidade da F2. Com default para que findings legados, que nao tem
+    # regra por tras, continuem serializando.
+    rule_id: str | None = None
+    rule_version: str | None = None
+    rule_scope: str | None = None
+    view_id: str | None = None
+    source_layer: str | None = None
+    dedupe_key: str | None = None
+
+
+class AuditCoverage(BaseModel):
+    evaluated: int = 0
+    passed: int = 0
+    failed: int = 0
+    unknown: int = 0
+    not_applicable: int = 0
+    skipped: int = 0
 
 
 class AuditRun(BaseModel):
@@ -54,6 +71,7 @@ class AuditRun(BaseModel):
     summary: str
     started_at: datetime
     completed_at: datetime
+    coverage: AuditCoverage = AuditCoverage()
     findings: list[Finding]
 
 

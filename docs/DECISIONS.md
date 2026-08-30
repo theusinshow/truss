@@ -326,3 +326,48 @@ Rationale:
 Measured against the ground truth over the eight plan views that declare a single numeric level:
 **7/8 before, 8/8 after**. The eight remaining ground-truth levels are descriptive
 (`varios`, `338 -> 680 principalmente`) and have no single value to compare.
+
+## 2026-08-29 - The audit runs both scopes and the dedupe key carries the scope
+
+`run_deterministic_audit` evaluates every pack registered for the sheet type, not one, and
+`dedupe_key_for` includes `evaluation.scope`.
+
+Rationale:
+
+- both packs declare `forms.view.level_declared` against the same view. Without the scope in the
+  key, the second finding would match the first on rerun and be swallowed, so the owner's own
+  requirement would never appear - the exact failure the two-pack split exists to prevent;
+- the cache key combines every pack id and version, so adding, removing, or bumping a pack
+  invalidates the cached run instead of serving a stale verdict;
+- findings carry `rule_scope`, and `rule_evaluations` records `rule_pack_id` and `rule_scope`, so a
+  preference is always distinguishable from a norm downstream.
+
+## 2026-08-29 - The fallback finding is gone; absence of findings is reported as coverage
+
+The orchestrator no longer emits "Auditoria deterministica inicial nao encontrou inconsistencias
+textuais obvias" when nothing failed. A clean sheet returns zero findings plus a coverage summary
+(`evaluated`, `passed`, `failed`, `unknown`, `not_applicable`, `skipped`).
+
+Rationale:
+
+- a finding that says "nothing was found" is not a finding. It trains the reader to dismiss the
+  list, and it is indistinguishable from a real low-severity note;
+- coverage answers the question the fallback was pretending to answer - what was actually checked -
+  without fabricating an entry;
+- the three old text heuristics (no native text, no `ESCALA` anywhere, no recognisable title term)
+  were whole-sheet guesses with no rule identity. They are replaced by rules with `rule_id`,
+  version, scope, target, and evidence.
+
+Measured end to end over the base project - import, sheet map, view detection, audit:
+**0 findings on the six reviewed sheets**, matching the ground truth's `confirmed_zero`, with
+coverage of 19/15/19/15 evaluations on the four `planta_formas` sheets.
+
+Consequence to plan for: pages 4 and 25 report `evaluated: 0`. Their views are detected, but they
+classify as `desconhecido` and `planta_armaduras`, and a forms pack must not judge a sheet it does
+not cover. The ground truth agrees they are `detalhamento_*` sheets. **Two of the six reviewed
+sheets therefore get no checklist at all** until a pack exists for detail sheets, which is outside
+F2. The alternative - letting the forms pack judge them - would invent authority the pack does not
+have.
+
+Legacy findings have no `dedupe_key`, so they never match during deduplication and are left
+untouched. That is the intended behaviour.

@@ -1,94 +1,162 @@
+from hashlib import sha256
+
 from truss_api.audit import repository
 from truss_api.core.settings import Settings
+from truss_api.rules.engine import evaluate
+from truss_api.rules.loader import load_packs
+from truss_api.rules.models import (
+    OUTCOME_FAIL,
+    OUTCOME_NOT_APPLICABLE,
+    OUTCOME_PASS,
+    OUTCOME_SKIPPED,
+    OUTCOME_UNKNOWN,
+    RuleEvaluation,
+)
+from truss_api.sheetmap import repository as sheetmap_repository
+from truss_api.sheetmap.primitives import EXTRACTOR_VERSION
 
 
-def _full_page_bbox(sheet_context: dict[str, object]) -> dict[str, float]:
+AUDIT_PIPELINE_VERSION = "audit-v0.2"
+
+EMPTY_COVERAGE = {
+    "evaluated": 0,
+    "passed": 0,
+    "failed": 0,
+    "unknown": 0,
+    "not_applicable": 0,
+    "skipped": 0,
+}
+
+
+def audit_cache_key(
+    *,
+    document_hash: str,
+    extractor_version: str,
+    pipeline_version: str,
+    snapshot_hash: str,
+    rule_pack_id: str,
+    rule_pack_version: str,
+) -> str:
+    material = "|".join(
+        [
+            document_hash,
+            extractor_version,
+            pipeline_version,
+            snapshot_hash,
+            rule_pack_id,
+            rule_pack_version,
+        ]
+    )
+    return f"audit:{sha256(material.encode('utf-8')).hexdigest()[:24]}"
+
+
+def dedupe_key_for(evaluation: RuleEvaluation, sheet_id: str) -> str:
+    """Identidade estavel de um achado ao longo de reexecucoes.
+
+    O escopo entra na chave porque a regra geral e a preferencia pessoal
+    compartilham `rule_id` sobre o mesmo alvo. Sem ele, a exigencia pessoal do
+    proprietario seria engolida pela regra geral e nunca apareceria.
+    """
+    material = "|".join(
+        [
+            sheet_id,
+            evaluation.scope,
+            evaluation.rule_id,
+            evaluation.target_kind,
+            evaluation.target_id or "",
+        ]
+    )
+    return sha256(material.encode("utf-8")).hexdigest()[:24]
+
+
+def _finding_from_evaluation(
+    evaluation: RuleEvaluation,
+    sheet_context: dict[str, object],
+) -> dict[str, object]:
+    bbox = evaluation.bbox or (
+        0.0,
+        0.0,
+        float(sheet_context["width_pt"]),
+        float(sheet_context["height_pt"]),
+    )
+
     return {
-        "x0": 0.0,
-        "y0": 0.0,
-        "x1": float(sheet_context["width_pt"]),
-        "y1": float(sheet_context["height_pt"]),
+        "category": evaluation.category,
+        "type": evaluation.finding_type,
+        "description": evaluation.reason or evaluation.rule_id,
+        "severity": evaluation.severity,
+        "confidence": evaluation.confidence,
+        "bbox": {"x0": bbox[0], "y0": bbox[1], "x1": bbox[2], "y1": bbox[3]},
+        "evidence": evaluation.evidence,
+        "rule_id": evaluation.rule_id,
+        "rule_version": evaluation.rule_version,
+        "rule_scope": evaluation.scope,
+        "view_id": evaluation.target_id if evaluation.target_kind == "view" else None,
+        "source_layer": "deterministic",
+        "dedupe_key": dedupe_key_for(evaluation, str(sheet_context["sheet_id"])),
     }
 
 
-def _top_band_bbox(sheet_context: dict[str, object]) -> dict[str, float]:
-    height = float(sheet_context["height_pt"])
-    width = float(sheet_context["width_pt"])
+def _coverage(evaluations: list[RuleEvaluation]) -> dict[str, int]:
     return {
-        "x0": 0.0,
-        "y0": 0.0,
-        "x1": width,
-        "y1": min(height, height * 0.22),
+        "evaluated": len(evaluations),
+        "passed": sum(1 for e in evaluations if e.outcome == OUTCOME_PASS),
+        "failed": sum(1 for e in evaluations if e.outcome == OUTCOME_FAIL),
+        "unknown": sum(1 for e in evaluations if e.outcome == OUTCOME_UNKNOWN),
+        "not_applicable": sum(1 for e in evaluations if e.outcome == OUTCOME_NOT_APPLICABLE),
+        "skipped": sum(1 for e in evaluations if e.outcome == OUTCOME_SKIPPED),
     }
 
 
 def run_deterministic_audit(sheet_id: str, settings: Settings) -> dict[str, object]:
     sheet_context = repository.get_sheet_context(sheet_id, settings)
-    cache_key = f"audit:deterministic-v0.1:{sheet_id}"
+    sheet_map = sheetmap_repository.get_sheet_map(sheet_id, settings)
+    packs = load_packs(str(sheet_map["sheet_type"]))
+
+    if not packs:
+        # Sem rule pack para o tipo, o Truss nao inventa conformidade nem erro.
+        return repository.create_audit_run(
+            sheet_context=sheet_context,
+            findings=[],
+            settings=settings,
+            cache_key=None,
+            sheet_map_id=str(sheet_map["id"]),
+            rule_pack_version="",
+            coverage=dict(EMPTY_COVERAGE),
+            evaluations=[],
+        )
+
+    cache_key = audit_cache_key(
+        document_hash=str(sheet_map.get("document_hash") or ""),
+        extractor_version=str(sheet_map.get("extractor_version") or EXTRACTOR_VERSION),
+        pipeline_version=AUDIT_PIPELINE_VERSION,
+        snapshot_hash=str(sheet_map.get("snapshot_hash") or ""),
+        rule_pack_id="+".join(pack.pack_id for pack in packs),
+        rule_pack_version="+".join(pack.version for pack in packs),
+    )
     cached = repository.get_cached_audit_run(cache_key, settings)
     if cached is not None:
         return cached
 
-    text_blocks = repository.list_text_blocks(sheet_id, settings)
-    all_text = "\n".join(str(block["text"]).upper() for block in text_blocks)
-    findings: list[dict[str, object]] = []
+    # Os escopos rodam juntos e ficam separados no resultado: o proprietario ve
+    # a sua exigencia sem que ela seja apresentada como norma.
+    evaluations: list[RuleEvaluation] = []
+    for pack in packs:
+        evaluations.extend(evaluate(pack, sheet_map))
 
-    if not text_blocks:
-        findings.append(
-            {
-                "category": "identification",
-                "type": "unverifiable",
-                "description": "Nenhum texto nativo foi detectado nesta folha. A auditoria textual e limitada sem OCR ou analise visual.",
-                "severity": "high",
-                "confidence": 0.92,
-                "bbox": _full_page_bbox(sheet_context),
-                "evidence": ["PyMuPDF nao retornou blocos de texto nativo para a pagina."],
-            }
-        )
-
-    if "ESCALA" not in all_text:
-        findings.append(
-            {
-                "category": "identification",
-                "type": "missing_information",
-                "description": "Nao foi encontrada indicacao textual de escala na folha.",
-                "severity": "medium",
-                "confidence": 0.72,
-                "bbox": _top_band_bbox(sheet_context),
-                "evidence": ["Busca deterministica por 'ESCALA' nos textos nativos da folha."],
-            }
-        )
-
-    title_terms = ("FORMA", "LOCACAO", "LOCAÇÃO", "CORTE", "DETALHE", "PLANTA")
-    if not any(term in all_text for term in title_terms):
-        findings.append(
-            {
-                "category": "identification",
-                "type": "attention",
-                "description": "Nao foi encontrado titulo tecnico reconhecivel para classificar a prancha.",
-                "severity": "medium",
-                "confidence": 0.68,
-                "bbox": _top_band_bbox(sheet_context),
-                "evidence": ["Termos esperados: FORMA, LOCACAO, CORTE, DETALHE ou PLANTA."],
-            }
-        )
-
-    if not findings:
-        findings.append(
-            {
-                "category": "composition",
-                "type": "attention",
-                "description": "Auditoria deterministica inicial nao encontrou inconsistencias textuais obvias. Revisao visual ainda e necessaria.",
-                "severity": "low",
-                "confidence": 0.55,
-                "bbox": _full_page_bbox(sheet_context),
-                "evidence": ["Primeira passada deterministica concluida sem gatilhos criticos."],
-            }
-        )
+    findings = [
+        _finding_from_evaluation(evaluation, sheet_context)
+        for evaluation in evaluations
+        if evaluation.outcome == OUTCOME_FAIL
+    ]
 
     return repository.create_audit_run(
         sheet_context=sheet_context,
         findings=findings,
         settings=settings,
         cache_key=cache_key,
+        sheet_map_id=str(sheet_map["id"]),
+        rule_pack_version="+".join(f"{pack.pack_id}@{pack.version}" for pack in packs),
+        coverage=_coverage(evaluations),
+        evaluations=evaluations,
     )

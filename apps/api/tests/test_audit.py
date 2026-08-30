@@ -11,6 +11,7 @@ from truss_api.db.schema import initialize_database
 from truss_api.main import app
 from truss_api.projects import repository
 from truss_api.projects.models import ProjectCreate, RevisionCreate
+from tests.factories import make_structural_pdf_bytes
 
 
 @pytest.fixture()
@@ -41,6 +42,12 @@ def make_pdf_bytes(text: str = "FORMA PAVIMENTO 1") -> bytes:
 
 
 def create_imported_sheet(client: TestClient, settings: Settings) -> str:
+    """Folha de formas sem nenhuma view declarada.
+
+    O carimbo da pagina 1 da prancha sintetica declara PLANTA DE FORMAS, entao
+    os rule packs carregam; e ela nao declara escala nenhuma, entao o detector
+    nao produz view e a regra de composicao tem o que apontar.
+    """
     project = repository.create_project(ProjectCreate(name="Audit Project"), settings)
     revision = repository.create_revision(
         str(project["id"]),
@@ -49,15 +56,21 @@ def create_imported_sheet(client: TestClient, settings: Settings) -> str:
     )
     response = client.post(
         f"/projects/{project['id']}/revisions/{revision['id']}/documents",
-        files={"file": ("forma.pdf", make_pdf_bytes(), "application/pdf")},
+        files={"file": ("forma.pdf", make_structural_pdf_bytes(), "application/pdf")},
     )
-    return str(response.json()["sheets"][0]["id"])
+    return str(response.json()["sheets"][1]["id"])
 
 
 def test_deterministic_audit_creates_structured_findings(
     client: TestClient,
     settings: Settings,
 ) -> None:
+    """A folha nao tem view alguma, entao a regra de composicao aponta isso.
+
+    O finding de fallback foi removido: quando nada e apontado, o resultado e
+    zero findings mais a cobertura, nunca um achado artificial dizendo que a
+    auditoria rodou.
+    """
     sheet_id = create_imported_sheet(client, settings)
 
     response = client.post(f"/sheets/{sheet_id}/audit-runs")
@@ -65,13 +78,18 @@ def test_deterministic_audit_creates_structured_findings(
     assert response.status_code == 201
     audit_run = response.json()
     assert audit_run["status"] == "completed"
-    assert audit_run["pipeline_version"] == "deterministic-v0.1"
-    assert len(audit_run["findings"]) >= 1
-    finding = audit_run["findings"][0]
+    assert audit_run["pipeline_version"] == "deterministic-v0.2"
+    assert audit_run["coverage"]["evaluated"] > 0
+
+    finding = next(
+        f for f in audit_run["findings"] if f["rule_id"] == "forms.sheet.has_main_view"
+    )
     assert finding["bbox"]["x0"] < finding["bbox"]["x1"]
     assert finding["bbox"]["y0"] < finding["bbox"]["y1"]
     assert finding["status"] == "pending"
     assert finding["origin"] == "ai"
+    assert finding["source_layer"] == "deterministic"
+    assert finding["rule_scope"] == "general"
 
 
 def test_deterministic_audit_uses_cache_for_same_sheet(
@@ -91,6 +109,7 @@ def test_deterministic_audit_uses_cache_for_same_sheet(
 def test_finding_feedback_is_persisted(client: TestClient, settings: Settings) -> None:
     sheet_id = create_imported_sheet(client, settings)
     audit_run = client.post(f"/sheets/{sheet_id}/audit-runs").json()
+    assert audit_run["findings"], "a folha sem views precisa gerar ao menos um achado"
     finding_id = audit_run["findings"][0]["id"]
 
     response = client.patch(

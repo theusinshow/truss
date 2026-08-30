@@ -24,6 +24,7 @@ from truss_api.db.schema import initialize_database
 from truss_api.main import app
 from truss_api.projects import repository
 from truss_api.projects.models import ProjectCreate, RevisionCreate
+from tests.factories import make_structural_pdf_bytes
 
 
 @pytest.fixture()
@@ -62,9 +63,11 @@ def create_sheet(client: TestClient, settings: Settings) -> str:
     )
     response = client.post(
         f"/projects/{project['id']}/revisions/{revision['id']}/documents",
-        files={"file": ("forma.pdf", make_pdf_bytes(), "application/pdf")},
+        files={"file": ("forma.pdf", make_structural_pdf_bytes(), "application/pdf")},
     )
-    return str(response.json()["sheets"][0]["id"])
+    # Pagina 1: carimbo declara PLANTA DE FORMAS e a folha nao declara escala,
+    # entao a auditoria tem uma regra para apontar e o chat tem contexto real.
+    return str(response.json()["sheets"][1]["id"])
 
 
 def test_sheet_chat_uses_local_provider_and_records_usage(
@@ -180,7 +183,7 @@ def test_sheet_chat_builds_technical_context_for_provider(
     technical_context = captured_context["technical_context"]
     assert technical_context["answer_policy"]["severity_is_not_certainty"] is True
     assert technical_context["answer_policy"]["must_not_approve_issue"] is True
-    assert technical_context["sheet"]["label"] == "Folha 01"
+    assert technical_context["sheet"]["label"] == "Folha 02"
     assert technical_context["summary"]["total_findings"] >= 1
     assert technical_context["focus"]["selected_finding_ids"] == [finding["id"]]
     assert technical_context["findings"][0]["bbox"]["x0"] <= technical_context["findings"][0]["bbox"]["x1"]

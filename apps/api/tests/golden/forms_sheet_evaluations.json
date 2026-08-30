@@ -1,0 +1,122 @@
+[
+  {
+    "rule_id": "forms.sheet.category_matches_content",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "sheet",
+    "outcome": "PASS"
+  },
+  {
+    "rule_id": "forms.sheet.duplicate_identifier",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "sheet",
+    "outcome": "PASS"
+  },
+  {
+    "rule_id": "forms.sheet.has_main_view",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "sheet",
+    "outcome": "PASS"
+  },
+  {
+    "rule_id": "forms.view.level_declared",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "view",
+    "outcome": "NOT_APPLICABLE"
+  },
+  {
+    "rule_id": "forms.view.level_declared",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "view",
+    "outcome": "NOT_APPLICABLE"
+  },
+  {
+    "rule_id": "forms.view.level_declared",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "view",
+    "outcome": "PASS"
+  },
+  {
+    "rule_id": "forms.view.scale_declared",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "view",
+    "outcome": "FAIL"
+  },
+  {
+    "rule_id": "forms.view.scale_declared",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "view",
+    "outcome": "FAIL"
+  },
+  {
+    "rule_id": "forms.view.scale_declared",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "view",
+    "outcome": "FAIL"
+  },
+  {
+    "rule_id": "forms.view.title_present",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "view",
+    "outcome": "PASS"
+  },
+  {
+    "rule_id": "forms.view.title_present",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "view",
+    "outcome": "PASS"
+  },
+  {
+    "rule_id": "forms.view.title_present",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "view",
+    "outcome": "PASS"
+  },
+  {
+    "rule_id": "forms.view.level_declared",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_pessoal",
+    "rule_scope": "personal",
+    "target_kind": "view",
+    "outcome": "NOT_APPLICABLE"
+  },
+  {
+    "rule_id": "forms.view.level_declared",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_pessoal",
+    "rule_scope": "personal",
+    "target_kind": "view",
+    "outcome": "NOT_APPLICABLE"
+  },
+  {
+    "rule_id": "forms.view.level_declared",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_pessoal",
+    "rule_scope": "personal",
+    "target_kind": "view",
+    "outcome": "PASS"
+  }
+]
