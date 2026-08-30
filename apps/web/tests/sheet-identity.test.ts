@@ -21,6 +21,7 @@ function sheetMap(sheetCode: string | null): SheetMap {
     title_block: {},
     built_at: "2026-08-28T00:00:00+00:00",
     regions: [],
+    views: [],
   };
 }
 

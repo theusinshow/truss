@@ -89,7 +89,52 @@ export type Finding = {
   rejection_reason: string | null;
   created_at: string;
   updated_at: string;
+  // Rastreabilidade da F2. Opcionais porque findings legados nao tem regra por
+  // tras: eles vieram das heuristicas anteriores ao motor de rule packs.
+  rule_id?: string | null;
+  rule_version?: string | null;
+  rule_scope?: string | null;
+  view_id?: string | null;
+  source_layer?: string | null;
+  dedupe_key?: string | null;
 };
+
+export type AuditCoverage = {
+  evaluated: number;
+  passed: number;
+  failed: number;
+  unknown: number;
+  not_applicable: number;
+  skipped: number;
+};
+
+/**
+ * Uma auditoria sem achados nao e a mesma coisa que uma auditoria que nao
+ * rodou, e a diferenca precisa aparecer na tela. O motor nao emite mais um
+ * achado artificial dizendo "nada encontrado", entao e a cobertura que sustenta
+ * a leitura de um resultado vazio.
+ */
+export function auditCoverageSummary(coverage: AuditCoverage | null | undefined): string {
+  if (!coverage) {
+    return "";
+  }
+
+  if (coverage.evaluated === 0) {
+    return "Nenhuma regra se aplica a esta folha, entao nada foi verificado.";
+  }
+
+  const parts = [`${coverage.evaluated} verificacoes`, `${coverage.passed} conformes`];
+
+  if (coverage.unknown > 0) {
+    parts.push(`${coverage.unknown} nao verificavel(is)`);
+  }
+
+  if (coverage.not_applicable > 0) {
+    parts.push(`${coverage.not_applicable} nao aplicavel(is)`);
+  }
+
+  return `${parts.join(" · ")}.`;
+}
 
 export type AuditRun = {
   id: string;
@@ -103,6 +148,7 @@ export type AuditRun = {
   summary: string;
   started_at: string;
   completed_at: string;
+  coverage: AuditCoverage;
   findings: Finding[];
 };
 
@@ -487,6 +533,28 @@ export type SheetRegion = {
   confidence: number;
 };
 
+export type SheetView = {
+  id: string;
+  parent_view_id: string | null;
+  view_kind: string;
+  view_role: string | null;
+  identifier: string | null;
+  // Bruto e normalizado seguem separados ate a tela: o viewer mostra o que
+  // esta escrito na folha, nao uma interpretacao nao confirmada.
+  title_raw: string | null;
+  title: string | null;
+  declared_scale_raw: string | null;
+  declared_scale: string | null;
+  level_raw: string | null;
+  level: string | null;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  confidence: number;
+  provenance: string;
+};
+
 export type SheetMap = {
   id: string;
   sheet_id: string;
@@ -502,6 +570,7 @@ export type SheetMap = {
   title_block: Record<string, unknown>;
   built_at: string;
   regions: SheetRegion[];
+  views: SheetView[];
 };
 
 const SHEET_TYPE_LABELS: Record<string, string> = {

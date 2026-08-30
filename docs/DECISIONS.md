@@ -371,3 +371,39 @@ have.
 
 Legacy findings have no `dedupe_key`, so they never match during deduplication and are left
 untouched. That is the intended behaviour.
+
+## 2026-08-29 - View overlays show the sheet's own wording
+
+`ViewOverlays` renders one inspectable rectangle per detected view, labelled with the raw title,
+the scale, and the raw level. Clicking one selects it; focusing a finding that carries `view_id`
+selects the view it was evaluated against.
+
+Rationale:
+
+- the boxes are `draft_unverified` and the owner is the only one who can confirm them, so the
+  overlay has to be legible enough to judge - a bare rectangle would not be;
+- the label uses `title_raw` and `level_raw`, never the normalized columns. The viewer shows what
+  the sheet says; a normalized level the owner has not confirmed would be an invention presented as
+  a reading;
+- the scale prefers the normalized value when it is numeric and falls back to the raw wording
+  otherwise, because `ESCALA REPRESENTATIVA` is a valid declaration and rendering it as empty would
+  read as an absence;
+- old sheet maps have no `views`, so the component receives `[]` and renders nothing.
+
+## 2026-08-29 - An empty findings list states what was checked
+
+The findings drawer distinguishes "no findings on this sheet" from "no findings in this filter",
+and the former is followed by the coverage line from `auditCoverageSummary`.
+
+Rationale:
+
+- removing the fallback finding made an empty list a normal outcome for the first time. Without
+  coverage beside it, an empty list is ambiguous between "checked and clean" and "never checked" -
+  which is precisely the ambiguity the fallback was papering over;
+- `auditCoverageSummary` reports "Nenhuma regra se aplica a esta folha" when `evaluated` is zero,
+  and never phrases anything as approval;
+- unknown counts are surfaced, not hidden, so a sheet whose rules could not be decided does not
+  look conformant.
+
+Not verified visually. The overlays are covered by component tests, but nobody has yet seen them on
+a real sheet: the viewer needs a project imported under the current pipeline, which is Task 11.

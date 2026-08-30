@@ -9,6 +9,7 @@ import {
   Copy,
   Eye,
   EyeOff,
+  LayoutGrid,
   Maximize2,
   Minus,
   Plus,
@@ -38,6 +39,8 @@ import {
   zoomAtScreenPoint
 } from "@/lib/canvas-navigation";
 import {
+  AuditCoverage,
+  auditCoverageSummary,
   createMessageFeedback,
   createManualFinding,
   Conversation,
@@ -68,6 +71,7 @@ import {
   RegionSelectIcon,
   SheetIcon
 } from "@/components/truss-icons";
+import { ViewOverlays } from "@/components/canvas/view-overlays";
 import { FindingsDrawer } from "@/components/findings/findings-drawer";
 import { AgentActivity, ChatMode, ChatRunState, ChatTurn, ChatUsageSummary, TrussChat } from "@/components/truss-chat";
 import { ConfidenceBadge, Kbd, SeverityBadge, StatusBadge, TypeBadge } from "@/components/truss-primitives";
@@ -518,6 +522,9 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   const [selectedIds, setSelectedIdsState] = useState<Set<string>>(new Set());
   const [activeFindingId, setActiveFindingId] = useState("");
   const [showFindings, setShowFindings] = useState(true);
+  const [showViews, setShowViews] = useState(true);
+  const [auditCoverage, setAuditCoverage] = useState<AuditCoverage | null>(null);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [showMinimap, setShowMinimap] = useState(true);
   const [isAuditing, setIsAuditing] = useState(false);
   const [manualMode, setManualMode] = useState(false);
@@ -937,6 +944,11 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
     }
 
     setActiveFindingId(finding.id);
+    // O achado aponta para a view onde ele foi avaliado; destaca-la da o
+    // contexto sem obrigar a procurar no canvas.
+    if (finding.view_id) {
+      setActiveViewId(finding.view_id);
+    }
     centerOnWorld({
       x: (finding.bbox.x0 + finding.bbox.x1) / 2,
       y: (finding.bbox.y0 + finding.bbox.y1) / 2
@@ -1229,13 +1241,16 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
       const auditRun = await runSheetAudit(apiBaseUrl, activeSheet.id);
       findingsRef.current = auditRun.findings;
       setFindings(auditRun.findings);
+      setAuditCoverage(auditRun.coverage ?? null);
       setSelectedIds(new Set(auditRun.findings[0] ? [auditRun.findings[0].id] : []));
       setActiveFindingId(auditRun.findings[0]?.id ?? "");
       setShowFindings(true);
       appendTurn({
         role: "truss",
         tone: auditRun.findings.length > 0 ? "success" : "default",
-        text: findingSummary(auditRun.findings)
+        text: [findingSummary(auditRun.findings), auditCoverageSummary(auditRun.coverage)]
+          .filter(Boolean)
+          .join(" ")
       });
     } catch (auditError) {
       const message =
@@ -1856,6 +1871,17 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             )}
           </button>
           <button
+            aria-label="Mostrar ou ocultar views"
+            aria-pressed={showViews}
+            className="truss-icon-button"
+            data-active={showViews}
+            onClick={() => setShowViews((current) => !current)}
+            title="Mostrar ou ocultar views"
+            type="button"
+          >
+            <LayoutGrid aria-hidden="true" className="truss-icon h-4 w-4" />
+          </button>
+          <button
             aria-label="Adicionar achado manual por selecao de area"
             aria-pressed={manualMode}
             className="truss-icon-button"
@@ -1968,6 +1994,13 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                   width: activeSheet.width_pt * CANVAS_NAVIGATION.renderScale
                 }}
               />
+              {showViews && sheetMap ? (
+                <ViewOverlays
+                  activeViewId={activeViewId}
+                  onSelect={(view) => setActiveViewId(view.id)}
+                  views={sheetMap.views ?? []}
+                />
+              ) : null}
               {showFindings
                 ? filteredFindings.map((finding) => {
                     const severity = severityMeta[finding.severity];
@@ -2120,7 +2153,16 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             <div className="max-h-[34vh] overflow-y-auto border-b border-truss-line">
               {filteredFindings.length === 0 ? (
                 <div className="m-3 border border-dashed border-truss-line px-3 py-5 text-center text-sm text-truss-muted">
-                  Nenhum achado nesse filtro.
+                  {findings.length === 0 && auditCoverage ? (
+                    <>
+                      Nenhum achado nesta folha.
+                      <span className="mt-1 block font-mono text-[10px] uppercase tracking-[0.08em] text-truss-subtle">
+                        {auditCoverageSummary(auditCoverage)}
+                      </span>
+                    </>
+                  ) : (
+                    "Nenhum achado nesse filtro."
+                  )}
                 </div>
               ) : (
                 filteredFindings.map((finding) => {

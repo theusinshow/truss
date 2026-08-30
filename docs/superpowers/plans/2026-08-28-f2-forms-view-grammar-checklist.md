@@ -3483,7 +3483,7 @@ sobrescreve status humano.
   - `SheetView` type em `projects-api.ts`
   - `ViewOverlays` component: props `views: SheetView[]`, `activeViewId: string | null`, `onSelect: (view: SheetView) => void`
 
-- [ ] **Step 1: Escrever o teste**
+- [x] **Step 1: Escrever o teste**
 
 Create `apps/web/tests/view-overlays.test.tsx`:
 
@@ -3537,12 +3537,12 @@ describe("ViewOverlays", () => {
 });
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npm --workspace apps/web run test -- view-overlays`
 Expected: FAIL - modulo nao existe.
 
-- [ ] **Step 3: Acrescentar o tipo**
+- [x] **Step 3: Acrescentar o tipo**
 
 Em `apps/web/lib/projects-api.ts`, acrescentar antes de `SheetMap` e incluir no tipo:
 
@@ -3565,7 +3565,7 @@ export type SheetView = {
 
 e dentro de `SheetMap`, acrescentar `views: SheetView[];`.
 
-- [ ] **Step 4: Implementar o componente**
+- [x] **Step 4: Implementar o componente**
 
 Create `apps/web/components/canvas/view-overlays.tsx`:
 
@@ -3623,7 +3623,7 @@ export function ViewOverlays({
 }
 ```
 
-- [ ] **Step 5: Render no viewer**
+- [x] **Step 5: Render no viewer**
 
 Em `apps/web/components/sheet-viewer.tsx`, acrescentar o estado e o render dentro da camada
 transformada, logo antes do bloco `{showFindings ? ...}`:
@@ -3668,12 +3668,12 @@ Quando um finding tiver `view_id`, selecionar a view correspondente ao foca-lo, 
     }
 ```
 
-- [ ] **Step 6: Validar o frontend**
+- [x] **Step 6: Validar o frontend**
 
 Run: `npm run lint && npm run typecheck && npm run test:web`
 Expected: PASS nos tres.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web/
@@ -4097,6 +4097,26 @@ esta fora da F2.
 
 `test_audit.py` e `test_assistant.py` foram atualizados: passaram a usar uma folha de formas sem
 view declarada, que gera exatamente o achado de composicao, em vez de depender do fallback.
+
+### Atualizacao 2026-08-29 - Task 10 concluida, com o estado vazio honesto
+
+`ViewOverlays` desenha uma caixa inspecionavel por view, rotulada com titulo bruto, escala e nivel
+bruto. Focar um achado que traz `view_id` seleciona a view em que ele foi avaliado.
+
+O rotulo usa `title_raw` e `level_raw`, nunca as colunas normalizadas: o viewer mostra o que a folha
+diz, e um nivel normalizado que o proprietario nao confirmou seria invencao apresentada como
+leitura. A escala prefere o valor normalizado quando numerico e cai no texto da folha quando nao -
+`ESCALA REPRESENTATIVA` e declaracao valida, e mostra-la vazia pareceria ausencia.
+
+**Risco de migracao do plano tratado.** Remover o finding de fallback tornou a lista vazia um
+resultado normal pela primeira vez. A gaveta agora separa "nenhum achado nesta folha" de "nenhum
+achado nesse filtro", e a primeira vem seguida da cobertura. Sem isso, lista vazia fica ambigua
+entre "verificado e limpo" e "nunca verificado" - exatamente a ambiguidade que o fallback
+disfarcava. `auditCoverageSummary` diz "Nenhuma regra se aplica a esta folha" quando `evaluated` e
+zero, e nunca formula nada como aprovacao.
+
+**Nao verificado visualmente.** Os overlays tem teste de componente, mas ninguem os viu numa folha
+real ainda: o viewer precisa de um projeto importado sob o pipeline atual, o que e a Task 11.
 
 ### Decisao arquitetural derivada do material humano
 
