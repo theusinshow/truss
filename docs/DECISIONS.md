@@ -468,3 +468,57 @@ Three criteria remain **not claimable**, and no number here should be read as co
 - **the owner's visual confirmation of the bounding boxes** cannot be done by any agent. Until it
   happens the boxes stay `draft_unverified`, and the measurements above detect regression, not
   correctness.
+
+## 2026-08-29 - Calibration scales by discovery, not by editing tests
+
+`truss_api.calibration.catalog` discovers every ground truth in `calibration/` and locates each
+one's PDF. `test_calibration.py` is parametrized over the discovered set instead of naming files.
+Adding a project is dropping two files.
+
+Rationale:
+
+- the owner has more than ten delivered projects of varied types. Any workflow that needs a test
+  edited per project would not survive the second one;
+- the PDF is matched by **content hash** when the ground truth declares `document.sha256`. Import
+  sanitizes the filename - spaces become hyphens and the hash is prefixed - so the previous
+  name-based lookup failed on the very file Truss itself had stored;
+- a ground truth with no declared `status` is read as `legacy`, never as verified. The F1 ground
+  truth was generated from the pipeline's own output; treating it as verified would turn a
+  regression detector into proof of correctness.
+
+## 2026-08-29 - Ground truth drafts are generated, then corrected by hand
+
+`truss_api.calibration.intake.draft_ground_truth` turns a PDF into a v3 ground truth skeleton
+carrying the detected views.
+
+Rationale:
+
+- writing a 29-sheet ground truth by hand is what stops calibration from growing. Ten projects at
+  that cost do not happen;
+- the draft exists for a human to **correct**, never for the pipeline to measure itself against its
+  own output. Everything it emits is marked unconfirmed: `status: draft_unverified`,
+  `human_confirmed: false` on every view, `bbox_status: draft_unverified`, and
+  `expected_findings.status: not_provided` on every sheet;
+- an approved project is not a project with no expected findings. Emitting `confirmed_zero` would
+  quietly make the ground truth agree with whatever the pipeline currently does;
+- levels are never normalized in a draft - `needs_human_confirmation: true` - because normalizing
+  requires the owner's confirmed table;
+- a page where no view was detected produces no ground truth row, rather than an empty one that
+  would later read as "reviewed and empty".
+
+## 2026-08-29 - Approved projects measure the noise floor, not recall
+
+`truss_api.calibration.noise.measure_project` runs the checklist over a whole project and reports
+findings per sheet and per rule.
+
+Rationale:
+
+- on a project that was delivered and approved, **every finding is a candidate false positive**.
+  That is a real, immediately available measurement, and it is what decides whether the findings
+  list is usable at all. It is how the three spurious findings on pages 9-11 surfaced;
+- it is **not** recall. The owner's "errinhos" exist but are unlabelled, so there is no positive set.
+  Recall becomes computable only when findings are confirmed or rejected in the interface, and that
+  human feedback becomes the ground truth;
+- attribution by rule matters: a noise number with no rule behind it does not say what to fix.
+
+Measured on the base project: **0 findings across 29 sheets, 49 views**. That is the current floor.

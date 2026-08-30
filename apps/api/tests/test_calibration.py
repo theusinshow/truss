@@ -13,8 +13,17 @@ from truss_api.sheetmap import repository as sheetmap_repository
 from truss_api.sheetmap.builder import build_sheet_map_for_document
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+from truss_api.calibration.catalog import (
+    REPO_ROOT,
+    find_reference_pdf,
+    load_ground_truths,
+)
+
 FIXTURE = REPO_ROOT / "calibration" / "rancho-queimado-r01.yml"
+
+# Todo gabarito conferido por humano entra na medicao. Acrescentar um projeto e
+# soltar o PDF e o YAML na pasta: nenhum teste referencia um arquivo pelo nome.
+HUMAN_VERIFIED = [truth for truth in load_ground_truths() if truth.is_human_verified]
 
 
 def _find_reference_pdf(filename: str) -> Path | None:
@@ -92,12 +101,6 @@ def test_sheet_map_matches_calibration_ground_truth(tmp_path: Path) -> None:
     assert code_coverage >= expected["minimum_code_coverage"]
 
 
-FORMS_FIXTURE = REPO_ROOT / "calibration" / "juliano-corbellini-r05.yml"
-BASE_PROJECT_PDF = (
-    REPO_ROOT / "docs" / "projeto_base" / "Projeto Estrutural_Juliano Corbellini_R05.pdf"
-)
-
-
 def _paired_with_ground_truth(detected, expected_views):
     """Casa cada view detectada com a do gabarito de mesma escala e titulo.
 
@@ -136,13 +139,15 @@ def _paired_with_ground_truth(detected, expected_views):
     return matched
 
 
-def test_view_detection_meets_calibration_thresholds() -> None:
-    """Mede a deteccao de views contra o gabarito humano do projeto-base.
+@pytest.mark.skipif(not HUMAN_VERIFIED, reason="nenhum gabarito conferido por humano")
+@pytest.mark.parametrize("truth", HUMAN_VERIFIED, ids=lambda truth: truth.name)
+def test_view_detection_meets_calibration_thresholds(truth) -> None:
+    """Mede a deteccao de views contra cada gabarito conferido por humano.
 
-    O gabarito nao tem caixa espacial, so `position_hint` em texto livre, entao
-    recall por IoU **nao e computavel** e nao e afirmado aqui. O que se mede e o
-    que o gabarito sustenta: quantidade de views, atributos declarados e a
-    associacao correta de titulo e escala.
+    Nenhum gabarito tem caixa espacial - so `position_hint` em texto livre -
+    entao recall por IoU **nao e computavel** e nao e afirmado aqui. O que se
+    mede e o que o gabarito sustenta: quantidade de views, atributos declarados
+    e a associacao correta de titulo e escala.
     """
     import fitz
 
@@ -151,12 +156,13 @@ def test_view_detection_meets_calibration_thresholds() -> None:
     from truss_api.sheetmap.regions import detect_regions, extract_line_boxes
     from truss_api.sheetmap.views.detector import detect_forms_views
 
-    if not BASE_PROJECT_PDF.exists():
-        pytest.skip(f"PDF do projeto-base ausente: {BASE_PROJECT_PDF.name}")
+    pdf_path = find_reference_pdf(truth)
+    if pdf_path is None:
+        pytest.skip(f"PDF ausente para {truth.name}: {truth.filename}")
 
-    expected = yaml.safe_load(FORMS_FIXTURE.read_text(encoding="utf-8"))
-    thresholds = expected["thresholds"]
-    document = fitz.open(BASE_PROJECT_PDF)
+    expected = truth.payload
+    thresholds = truth.thresholds
+    document = fitz.open(pdf_path)
 
     detected_total = expected_total = attributes_ok = associated = 0
 
@@ -177,7 +183,7 @@ def test_view_detection_meets_calibration_thresholds() -> None:
     association_accuracy = associated / detected_total if detected_total else 0.0
 
     print(
-        f"\nviews: {detected_total} detectadas / {expected_total} no gabarito"
+        f"\n[{truth.name}] views: {detected_total} detectadas / {expected_total} no gabarito"
         f" | atributos {attribute_accuracy:.1%}"
         f" | titulo+escala corretos {association_accuracy:.1%}"
     )
