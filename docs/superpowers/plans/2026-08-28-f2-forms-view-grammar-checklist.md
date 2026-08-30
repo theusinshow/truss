@@ -3698,7 +3698,7 @@ um finding com `view_id` destaca a view correspondente.
 **Interfaces:**
 - Consumes: tudo das tarefas anteriores.
 
-- [ ] **Step 1: Reprocessar as 85 folhas com o pipeline novo**
+- [x] **Step 1: Reprocessar as 85 folhas com o pipeline novo**
 
 Run:
 
@@ -3724,7 +3724,7 @@ with transaction(settings) as connection:
 Expected: `sheet maps v0.2: 85`, views > 0, e o total de `sheet_maps` **maior que 85**, provando
 que os snapshots v0.1 nao foram apagados.
 
-- [ ] **Step 2: Preencher o gabarito com a saida, marcada como draft**
+- [x] **Step 2: Preencher o gabarito com a saida, marcada como draft**
 
 Run:
 
@@ -3771,7 +3771,7 @@ print('gabarito preenchido; permanece draft_unverified ate revisao humana')
 PY
 ```
 
-- [ ] **Step 3: Estender o teste de calibracao para medir views**
+- [x] **Step 3: Estender o teste de calibracao para medir views**
 
 Acrescentar em `apps/api/tests/test_calibration.py`:
 
@@ -3833,13 +3833,13 @@ def test_view_detection_meets_calibration_thresholds(tmp_path: Path) -> None:
     assert attribute_accuracy >= thresholds["view_attribute_accuracy"]
 ```
 
-- [ ] **Step 4: Rodar a calibracao**
+- [x] **Step 4: Rodar a calibracao**
 
 Run: `.venv/Scripts/python -m pytest apps/api/tests/test_calibration.py -v -s`
 Expected: impressao das metricas e PASS. Se o recall ou a acuracia ficarem abaixo, **ajustar o
 detector**, nunca o threshold.
 
-- [ ] **Step 5: Rodar tudo**
+- [x] **Step 5: Rodar tudo**
 
 Run:
 
@@ -3850,14 +3850,14 @@ npm run lint && npm run typecheck && npm run test:web
 
 Expected: tudo verde.
 
-- [ ] **Step 6: Registrar as decisoes**
+- [x] **Step 6: Registrar as decisoes**
 
 Acrescentar a `docs/DECISIONS.md` uma entrada com data, contendo: o formato de artefato
 comprimido enderecado por hash, a decisao de embutir o hash no `pipeline_version` em vez de
 reconstruir a tabela, os valores finais das tolerancias de `anchors.py` com o numero de
 associacao medido, e a remocao do finding de fallback com preservacao dos 63 findings legados.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add calibration/ apps/api/tests/test_calibration.py docs/DECISIONS.md
@@ -3876,15 +3876,15 @@ marcado `draft_unverified`.
 
 Nenhum e verificado por leitura; todos por comando rodado.
 
-- [ ] recall de content blocks >= 85% com IoU >= 0,50
-- [ ] associacao correta de titulo, escala e nivel >= 90%
-- [ ] cobertura dos findings do ground truth >= 60%
-- [ ] precisao dos findings >= 70%
-- [ ] 100% dos findings automaticos com `rule_id`, `view_id`, bbox e evidencia
-- [ ] nenhum finding artificial de "nenhum problema encontrado"
-- [ ] `.venv/Scripts/python -m pytest apps/api/tests` integralmente verde
-- [ ] `npm run lint && npm run typecheck && npm run test:web` integralmente verde
-- [ ] migrations preservando as 85 sheets e os 63 findings, com os 2 findings validados por humano
+- [ ] recall de content blocks >= 85% com IoU >= 0,50 - **NAO COMPUTAVEL**: o gabarito nao tem caixa espacial, so `position_hint` em texto livre
+- [x] associacao correta de titulo, escala e nivel >= 90% - **100% medido** (16/16 titulo+escala; nivel 8/8 nas plantas com valor unico)
+- [ ] cobertura dos findings do ground truth >= 60% - **NAO COMPUTAVEL**: o gabarito espera zero findings, entao nao ha conjunto positivo
+- [ ] precisao dos findings >= 70% - **NAO COMPUTAVEL**: idem
+- [x] 100% dos findings automaticos com `rule_id`, `view_id`, bbox e evidencia - verificado por `test_findings_traceability.py`
+- [x] nenhum finding artificial de "nenhum problema encontrado" - fallback removido na Task 9
+- [x] `.venv/Scripts/python -m pytest apps/api/tests` integralmente verde - 106 passed, 1 skipped
+- [x] `npm run lint && npm run typecheck && npm run test:web` integralmente verde - verde
+- [x] migrations preservando as 85 sheets e os 63 findings, com os 2 findings validados por humano - 85 sheet maps v0.1 e 63 findings intactos apos o reprocessamento
       com status original
 - [ ] **validacao manual das seis folhas unicas de formas pelo proprietario**, mudando o gabarito
       para `human_verified`
@@ -4117,6 +4117,52 @@ zero, e nunca formula nada como aprovacao.
 
 **Nao verificado visualmente.** Os overlays tem teste de componente, mas ninguem os viu numa folha
 real ainda: o viewer precisa de um projeto importado sob o pipeline atual, o que e a Task 11.
+
+### Task 1 nao foi implementada, e o motivo importa
+
+Os nove passos da Task 1 seguem desmarcados. Ela cria
+`truss_api/calibration/metrics.py` com `match_boxes`, `precision` e `recall`, e migra o gabarito
+para um formato v2 com caixas espaciais.
+
+O que esse harness mede e exatamente o recall por IoU de content blocks - o criterio que **nao e
+computavel** enquanto o gabarito nao tiver bbox conferido pelo proprietario. Implementar as
+metricas antes disso produziria um numero calculado contra caixas que ninguem validou, que e pior
+que nao ter numero: pareceria medicao.
+
+A calibracao que **e** sustentavel hoje foi implementada em
+`test_view_detection_meets_calibration_thresholds`: quantidade de views, atributos declarados e
+associacao correta de titulo e escala, todos contra o gabarito `human_verified`. A Task 1 volta a
+fazer sentido depois da conferencia visual, junto com o preenchimento dos bboxes.
+
+### Atualizacao 2026-08-29 - Task 11 concluida, F2 fechada ate a conferencia humana
+
+**Reprocessamento.** O PDF do projeto-base, versionado em `docs/projeto_base/`, foi importado no
+banco de trabalho como um segundo projeto e construido no pipeline atual. Resultado: **114 sheet
+maps - os 85 `sheetmap-v0.1` intocados mais 29 `sheetmap-v0.2`**, 49 views, 97 avaliacoes de regra.
+Os 63 findings legados estao intactos, com os dois validados pelo proprietario. Nada foi apagado; o
+banco cresceu, que e o custo da imutabilidade e era o objetivo. As folhas do Rancho Queimado seguem
+em v0.1 e sem ser servidas: reconstrui-las exige os PDFs originais, que nao sao versionados.
+
+**Falso positivo achado pelo reprocessamento.** Rodar o checklist nas 29 folhas produziu **tres
+findings nas paginas 9, 10 e 11 - todos falsos**. Essas folhas tem categoria `PLANTA DE FORMAS` e
+titulo `CORTES E PERSPECTIVAS`, com views `CORTE A-A` a `CORTE E-E` em `ESCALA 1:50`. A regra
+comparava a **categoria** do carimbo, que e a disciplina, e lia "nao tem planta" como "conteudo de
+outro tipo". Quem anuncia o conteudo e o **titulo**. Corrigida: **0 findings nas 29 folhas**, 97
+avaliacoes, 69 PASS, 28 NOT_APPLICABLE. Duas dessas tres folhas estao na propria lista de pendencias
+do gabarito, entao elas nao estao certificadas limpas - o achado era espurio pela evidencia dele
+mesmo.
+
+**Medido contra o gabarito humano nas seis folhas revisadas:** 16 views detectadas de 16 esperadas,
+atributos 100%, titulo+escala corretos 100% (limite era 90%), `view_kind` 16/16, niveis 8/8, zero
+findings. O teste `test_view_detection_meets_calibration_thresholds` roda de verdade, porque o PDF
+do projeto-base esta no repositorio.
+
+**O que a F2 nao pode reivindicar.** Tres criterios de aceite continuam nao computaveis e estao
+anotados como tal na lista: recall de content blocks por IoU (o gabarito nao tem caixa espacial),
+cobertura e precisao de findings (o gabarito espera zero findings, entao nao ha conjunto positivo).
+E o ultimo criterio - **a conferencia visual das seis folhas pelo proprietario** - nao pode ser
+feito por agente nenhum. Ate ela acontecer, os bboxes seguem `draft_unverified` e todos os numeros
+acima medem regressao, nao correcao.
 
 ### Decisao arquitetural derivada do material humano
 

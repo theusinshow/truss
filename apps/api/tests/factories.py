@@ -49,6 +49,9 @@ def make_forms_sheet_pdf_bytes() -> bytes:
     page.insert_text((1750, 1520), "CPF: 951.770.276-00", fontsize=11)
     page.insert_text((1750, 1560), "PROJETO ESTRUTURAL", fontsize=11)
     page.insert_text((1750, 1590), "PLANTA DE FORMAS", fontsize=11)
+    # Como no material real, o carimbo tem categoria (a disciplina) e titulo
+    # (o conteudo). Sem o titulo, a regra de coerencia nao tem o que comparar.
+    page.insert_text((1750, 1610), "PLANTA BAIXAS E PERSPECTIVAS", fontsize=11)
 
     buffer = BytesIO()
     document.save(buffer)

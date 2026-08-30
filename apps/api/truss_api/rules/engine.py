@@ -21,6 +21,17 @@ TECHNICAL_NON_NUMERIC_SCALE = "ESCALA INDICADA"
 # Papeis que nao precisam repetir o titulo do detalhe agrupador.
 ROLES_EXEMPT_FROM_TITLE = frozenset({"subview"})
 
+# O que o titulo do carimbo anuncia como conteudo da folha. A categoria e a
+# disciplina - "PLANTA DE FORMAS" numa folha de cortes de formas esta correta -
+# entao quem se compara com as views e o titulo, nao a categoria.
+ANNOUNCED_CONTENT: tuple[tuple[str, str], ...] = (
+    ("CORTE", "section"),
+    ("SECAO", "section"),
+    ("DETALHE", "detail"),
+    ("DETALHAMENTO", "detail"),
+    ("PLANTA", "plan"),
+)
+
 
 def _bbox(view: dict) -> BBox:
     return (float(view["x0"]), float(view["y0"]), float(view["x1"]), float(view["y1"]))
@@ -106,32 +117,49 @@ def _evaluate_sheet_rule(
         )
 
     if rule.check == "category_matches_views":
-        category = normalize(str(snapshot.get("title_block", {}).get("category") or ""))
-        if not category or not views:
+        title_block = snapshot.get("title_block", {})
+        title = normalize(str(title_block.get("title") or ""))
+        category = normalize(str(title_block.get("category") or ""))
+        announced = sorted({kind for term, kind in ANNOUNCED_CONTENT if term in title})
+
+        if not announced or not views:
             return _result(
                 rule,
                 pack,
                 target_kind="sheet",
                 target_id=None,
                 outcome=OUTCOME_UNKNOWN,
-                reason="Sem categoria no carimbo ou sem views para comparar.",
-                evidence=[f"categoria: {category or 'ausente'}", f"views: {len(views)}"],
+                reason="O carimbo nao anuncia um conteudo reconhecivel, ou nao ha view para comparar.",
+                evidence=[
+                    f"categoria: {category or 'ausente'}",
+                    f"titulo: {title or 'ausente'}",
+                    f"views: {len(views)}",
+                ],
                 bbox=bbox,
                 confidence=0.4,
                 finding_type="unverifiable",
             )
 
-        expects_plan = "FORMAS" in category
-        has_plan = any(view["view_kind"] == "plan" for view in views)
-        coherent = has_plan or not expects_plan
+        present = {view["view_kind"] for view in views}
+        missing = [kind for kind in announced if kind not in present]
+        coherent = not missing
         return _result(
             rule,
             pack,
             target_kind="sheet",
             target_id=None,
             outcome=OUTCOME_PASS if coherent else OUTCOME_FAIL,
-            reason="" if coherent else "Carimbo declara formas, mas nenhuma view e planta.",
-            evidence=[f"categoria: {category}", f"tipos: {[v['view_kind'] for v in views]}"],
+            reason=(
+                ""
+                if coherent
+                else f"O carimbo anuncia {', '.join(missing)}, mas nenhuma view e desse tipo."
+            ),
+            evidence=[
+                f"categoria: {category}",
+                f"titulo: {title}",
+                f"anunciado: {announced}",
+                f"tipos: {sorted(present)}",
+            ],
             bbox=bbox,
             confidence=0.7,
         )

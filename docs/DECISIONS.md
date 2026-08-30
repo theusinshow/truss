@@ -407,3 +407,64 @@ Rationale:
 
 Not verified visually. The overlays are covered by component tests, but nobody has yet seen them on
 a real sheet: the viewer needs a project imported under the current pipeline, which is Task 11.
+
+## 2026-08-29 - Base project reprocessed into the working database
+
+The base project PDF, versioned at `docs/projeto_base/`, was imported into `data/db/truss.sqlite`
+as a second project and built under the current pipeline.
+
+Result: **114 sheet maps - the 85 `sheetmap-v0.1` snapshots untouched plus 29 new `sheetmap-v0.2`**,
+49 detected views, 97 rule evaluations. The 63 legacy findings are intact, including the two the
+owner validated. Nothing was deleted; the database grew, which is the cost of immutability and was
+the point.
+
+The Rancho Queimado sheets stay on `sheetmap-v0.1` and remain unserved, because rebuilding them
+needs the original PDFs, which are not versioned and are absent from this clone.
+
+## 2026-08-29 - The category rule compared the wrong field, and the real material proved it
+
+`category_matches_views` compared the carimbo's **category** against view kinds and read "no plan
+view" as "dominant content of another type". Running it over the whole base project produced
+**three findings on pages 9, 10 and 11 - all false**.
+
+Those sheets carry category `PLANTA DE FORMAS` and title `CORTES E PERSPECTIVAS`, and their views
+are `CORTE A-A`, `CORTE B-B`, `CORTE C-C`, `CORTE D-D`, `CORTE E-E`, each with `ESCALA 1:50`. A
+sheet of sections inside the forms package is forms content. The category is the **discipline**;
+the title is the **content**.
+
+The rule now derives what the carimbo announces from its title and checks that a view of that kind
+exists. A carimbo announcing nothing recognisable yields `UNKNOWN`/`unverifiable`, never `FAIL`.
+After the fix: **0 findings across all 29 sheets**, 97 evaluations, 69 passed, 28 not applicable.
+
+This is what the owner asked for in `forms-policy-decisions-v1.md` - "procurar problemas sem
+aceitar ruido excessivo". Three spurious inconsistencies on a clean project is the noise that
+teaches a reviewer to stop reading the list.
+
+Two of those three sheets - `EST-0100-B`, `EST-0110-B`, `EST-0120-B` - are on the ground truth's own
+pending-review list, so they are not yet confirmed clean. The finding was spurious on its own
+evidence, not because those sheets are certified.
+
+The synthetic forms fixture gained a title line in its carimbo. Without one the rule had nothing to
+compare and returned `UNKNOWN`, which made the golden file stop exercising the decidable path.
+
+## 2026-08-29 - What the F2 acceptance criteria can and cannot claim
+
+Measured against the human-verified ground truth over the six reviewed sheets:
+
+- **view attributes (title and scale declared): 100%** - threshold was 90%
+- **title and scale associated to the correct ground-truth view: 100%** - threshold was 90%
+- **view count: 16 detected, 16 expected**
+- **`view_kind`: 16/16 correct**
+- **levels: 8/8 of the plan views that declare a single numeric level**
+- **findings: 0 on the six sheets**, matching `confirmed_zero`, and 0 across all 29 sheets
+
+Three criteria remain **not claimable**, and no number here should be read as covering them:
+
+- **content block recall at IoU 0.50** is not computable. The ground truth has no spatial boxes,
+  only a free-text `position_hint`. The calibration test says so out loud rather than skipping
+  silently.
+- **finding coverage >= 60% and precision >= 70%** need sheets with known defects. The ground truth
+  expects zero findings everywhere it covers, so there is no positive set to recall against.
+- **the owner's visual confirmation of the bounding boxes** cannot be done by any agent. Until it
+  happens the boxes stay `draft_unverified`, and the measurements above detect regression, not
+  correctness.

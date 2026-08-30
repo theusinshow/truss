@@ -21,10 +21,14 @@ from truss_api.rules.models import (
 from truss_api.rules.schema import RulePackSchemaError, validate_pack
 
 
-def _snapshot(views: list[dict], category: str = "PLANTA DE FORMAS") -> dict:
+def _snapshot(
+    views: list[dict],
+    category: str = "PLANTA DE FORMAS",
+    title: str = "PLANTA BAIXAS E PERSPECTIVAS",
+) -> dict:
     return {
         "sheet_type": "planta_formas",
-        "title_block": {"category": category},
+        "title_block": {"category": category, "title": title},
         "views": views,
         "regions": [{"region_kind": "moldura", "x0": 0, "y0": 0, "x1": 100, "y1": 100}],
     }
@@ -175,16 +179,52 @@ def test_intentional_grouping_equivalence_is_not_a_duplicate() -> None:
     assert _outcome(evaluations, "forms.sheet.duplicate_identifier").outcome == OUTCOME_PASS
 
 
-def test_category_mismatch_is_an_inconsistency_of_medium_severity() -> None:
+def test_carimbo_announcing_plans_without_a_plan_view_is_an_inconsistency() -> None:
     evaluations = evaluate(
         load_pack("planta_formas", SCOPE_GENERAL),
-        _snapshot([_view(view_kind="detail", title_raw="DETALHE 01")]),
+        _snapshot(
+            [_view(view_kind="detail", title_raw="DETALHE 01")],
+            title="PLANTA BAIXAS E PERSPECTIVAS",
+        ),
     )
 
     mismatch = _outcome(evaluations, "forms.sheet.category_matches_content")
     assert mismatch.outcome == OUTCOME_FAIL
     assert mismatch.finding_type == "inconsistency"
     assert mismatch.severity == "medium"
+
+
+def test_a_sheet_of_sections_in_the_forms_package_is_not_a_mismatch() -> None:
+    """Regressao medida nas paginas 9, 10 e 11 do projeto-base.
+
+    O carimbo dessas folhas tem categoria PLANTA DE FORMAS - a disciplina - e
+    titulo CORTES E PERSPECTIVAS - o conteudo. Ler "nao tem planta" como
+    "conteudo dominante de outro tipo" gerava tres falsos positivos: corte de
+    formas e conteudo de formas. Quem anuncia o conteudo e o titulo.
+    """
+    evaluations = evaluate(
+        load_pack("planta_formas", SCOPE_GENERAL),
+        _snapshot(
+            [
+                _view(id="v1", view_kind="section", title_raw="CORTE A-A", level_raw=None),
+                _view(id="v2", view_kind="section", title_raw="CORTE B-B", level_raw=None),
+            ],
+            title="CORTES E PERSPECTIVAS",
+        ),
+    )
+
+    assert _outcome(evaluations, "forms.sheet.category_matches_content").outcome == OUTCOME_PASS
+
+
+def test_a_carimbo_that_announces_nothing_is_unverifiable_not_a_mismatch() -> None:
+    evaluations = evaluate(
+        load_pack("planta_formas", SCOPE_GENERAL),
+        _snapshot([_view(view_kind="detail", title_raw="DETALHE 01")], title="EMISSAO INICIAL"),
+    )
+
+    undecided = _outcome(evaluations, "forms.sheet.category_matches_content")
+    assert undecided.outcome == OUTCOME_UNKNOWN
+    assert undecided.finding_type == "unverifiable"
 
 
 def test_missing_level_is_lenient_in_general_and_mandatory_in_personal() -> None:
