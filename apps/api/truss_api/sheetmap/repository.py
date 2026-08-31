@@ -7,6 +7,7 @@ from truss_api.core.settings import Settings
 from truss_api.db.connection import transaction
 from truss_api.sheetmap.regions import DetectedRegion
 from truss_api.sheetmap.snapshot import SHEET_MAP_PIPELINE, pipeline_version_for
+from truss_api.sheetmap.technical_scopes import DetectedTechnicalScope, scope_for_sheet_type
 from truss_api.sheetmap.views.models import DetectedView
 
 
@@ -33,8 +34,9 @@ def _insert_view(
         INSERT INTO sheet_views (
             id, sheet_map_id, parent_view_id, region_id, view_kind, view_role,
             identifier, title_raw, title, declared_scale_raw, declared_scale,
-            level_raw, level, x0, y0, x1, y1, confidence, provenance, created_at
-        ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            level_raw, level, x0, y0, x1, y1, confidence, provenance,
+            technical_scope, created_at
+        ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             view_id,
@@ -55,6 +57,7 @@ def _insert_view(
             view.bbox[3],
             view.confidence,
             view.provenance,
+            view.technical_scope,
             built_at,
         ),
     )
@@ -77,10 +80,12 @@ def save_sheet_map(
     revision_id: str,
     geometry_path: str,
     sheet_code: str | None,
+    sheet_code_raw: str | None = None,
     sheet_type: str,
     paper_format: str,
     orientation: str,
     title_block: dict[str, object],
+    technical_scopes: list[DetectedTechnicalScope] | None = None,
     regions: list[DetectedRegion],
     views: list[DetectedView],
     snapshot_hash: str,
@@ -91,6 +96,20 @@ def save_sheet_map(
     pipeline_version = pipeline_version_for(snapshot_hash)
     sheet_map_id = str(uuid4())
     built_at = _now()
+    resolved_scopes = technical_scopes
+    if resolved_scopes is None:
+        legacy_scope = scope_for_sheet_type(sheet_type)
+        resolved_scopes = (
+            [
+                DetectedTechnicalScope(
+                    technical_scope=legacy_scope,
+                    confidence=float(title_block.get("classification_confidence") or 0.5),
+                    provenance="sheet_type",
+                )
+            ]
+            if legacy_scope
+            else []
+        )
 
     with transaction(settings) as connection:
         existing = connection.execute(
@@ -107,9 +126,9 @@ def save_sheet_map(
             """
             INSERT INTO sheet_maps (
                 id, sheet_id, project_id, revision_id, pipeline_version, status,
-                geometry_path, sheet_code, sheet_type, paper_format, orientation,
+                geometry_path, sheet_code, sheet_code_raw, sheet_type, paper_format, orientation,
                 title_block_json, built_at, snapshot_hash, extractor_version, document_hash
-            ) VALUES (?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 sheet_map_id,
@@ -119,6 +138,7 @@ def save_sheet_map(
                 pipeline_version,
                 geometry_path,
                 sheet_code,
+                sheet_code_raw if sheet_code_raw is not None else sheet_code,
                 sheet_type,
                 paper_format,
                 orientation,
@@ -129,6 +149,23 @@ def save_sheet_map(
                 document_hash,
             ),
         )
+
+        for item in resolved_scopes:
+            connection.execute(
+                """
+                INSERT INTO sheet_map_scopes (
+                    id, sheet_map_id, technical_scope, confidence, provenance, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(uuid4()),
+                    sheet_map_id,
+                    item.technical_scope,
+                    item.confidence,
+                    item.provenance,
+                    built_at,
+                ),
+            )
 
         for region in regions:
             connection.execute(
@@ -165,6 +202,36 @@ def save_sheet_map(
 def _load(connection: sqlite3.Connection, row: sqlite3.Row) -> dict[str, object]:
     sheet_map = dict(row)
     sheet_map["title_block"] = json.loads(str(row["title_block_json"]))
+    sheet_map["technical_scopes"] = [
+        dict(item)
+        for item in connection.execute(
+            """
+            SELECT technical_scope, confidence, provenance
+            FROM sheet_map_scopes WHERE sheet_map_id = ?
+            ORDER BY CASE technical_scope
+                WHEN 'locacao' THEN 0
+                WHEN 'fundacoes' THEN 1
+                WHEN 'formas' THEN 2
+                WHEN 'armaduras' THEN 3
+                WHEN 'cobertura' THEN 4
+                ELSE 5
+            END, technical_scope
+            """,
+            (str(row["id"]),),
+        ).fetchall()
+    ]
+    if not sheet_map["technical_scopes"]:
+        legacy_scope = scope_for_sheet_type(str(row["sheet_type"]))
+        if legacy_scope:
+            sheet_map["technical_scopes"] = [
+                {
+                    "technical_scope": legacy_scope,
+                    "confidence": float(
+                        sheet_map["title_block"].get("classification_confidence") or 0.5
+                    ),
+                    "provenance": "legacy_sheet_type",
+                }
+            ]
     sheet_map["regions"] = [
         dict(item)
         for item in connection.execute(
@@ -181,7 +248,8 @@ def _load(connection: sqlite3.Connection, row: sqlite3.Row) -> dict[str, object]
             """
             SELECT id, parent_view_id, view_kind, view_role, identifier,
                    title_raw, title, declared_scale_raw, declared_scale,
-                   level_raw, level, x0, y0, x1, y1, confidence, provenance
+                   level_raw, level, x0, y0, x1, y1, confidence, provenance,
+                   technical_scope
             FROM sheet_views WHERE sheet_map_id = ? ORDER BY y0, x0
             """,
             (str(row["id"]),),
@@ -213,6 +281,19 @@ def get_sheet_map(sheet_id: str, settings: Settings) -> dict[str, object]:
             """,
             (sheet_id, f"{SHEET_MAP_PIPELINE}%"),
         ).fetchone()
+
+        # Snapshots v0.2 continuam legiveis ate o documento ser reprocessado.
+        # Eles recebem apenas o escopo derivado do sheet_type, sem mutacao da
+        # linha imutavel nem alegacao de segmentacao multiescopo.
+        if row is None:
+            row = connection.execute(
+                """
+                SELECT * FROM sheet_maps
+                WHERE sheet_id = ?
+                ORDER BY built_at DESC LIMIT 1
+                """,
+                (sheet_id,),
+            ).fetchone()
 
         if row is None:
             raise SheetMapNotFoundError(sheet_id)

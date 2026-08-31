@@ -40,6 +40,7 @@ class RulePack:
     pack_id: str
     version: str
     sheet_type: str
+    technical_scope: str
     scope: str
     rules: list[Rule] = field(default_factory=list)
 
@@ -50,6 +51,7 @@ class RuleEvaluation:
     rule_version: str
     rule_pack_id: str
     rule_pack_version: str
+    technical_scope: str
     scope: str
     target_kind: str
     target_id: str | None

@@ -91,6 +91,16 @@ O pipeline agora persiste:
 
 A auditoria V0.1 inicial é determinística e agressiva, usando regras simples sobre texto nativo: ausência de texto, escala não encontrada e título técnico não reconhecido. A arquitetura preserva a fronteira para regras mais fortes e análise multimodal/IA sem transformar o produto em um prompt monolítico.
 
+O Sheet Map também suporta pranchas de conteúdo misto. `sheet_type` permanece como contrato
+legado, enquanto escopos técnicos como `formas` e `armaduras` podem coexistir na folha e ser
+associados individualmente às views. O motor aplica cada rule pack somente ao seu escopo e mostra
+explicitamente escopos ainda sem cobertura; quando a associação não é confiável, o resultado é
+não verificável em vez de assumir uma classificação.
+
+A identidade da prancha separa evidência de interpretação: `sheet_code_raw` preserva o texto lido
+no carimbo e `sheet_code` só contém a forma canônica verificável. O intake de calibração representa
+todas as páginas, inclusive quando nenhuma view foi segmentada.
+
 ## M10/M6 - Provider local, chat, memória e custo
 
 A aplicação possui uma primeira abstração de AI Provider:

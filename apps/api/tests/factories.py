@@ -33,15 +33,19 @@ def make_forms_sheet_pdf_bytes() -> bytes:
     page.draw_rect(fitz.Rect(71, 29, 2356, 1656), color=(0, 0, 0), width=2)
 
     views = [
-        ("1 PLANTA DE FORMAS - TERREO", "ESCALA 1:50", 200, 200),
-        ("2 CORTE A-A", "ESCALA 1:50", 200, 800),
-        ("3 DETALHE 01 LAJE", "ESCALA 1:20", 1300, 800),
+        ("1 PLANTA DE FORMAS - TERREO", "ESCALA 1:50", 200, 600, 100),
+        ("2 CORTE A-A", "ESCALA 1:50", 200, 1200, 700),
+        ("3 DETALHE 01 LAJE", "ESCALA 1:20", 1300, 1200, 700),
     ]
-    for title, scale, x, y in views:
+    for title, scale, x, y, drawing_top in views:
         page.insert_text((x, y), title, fontsize=16)
         page.insert_text((x, y + 20), scale, fontsize=6)
-        page.insert_text((x + 40, y + 120), "19", fontsize=8)
-        page.draw_rect(fitz.Rect(x, y + 40, x + 700, y + 400), color=(0, 0, 0), width=1)
+        page.insert_text((x + 40, drawing_top + 120), "19", fontsize=8)
+        page.draw_rect(
+            fitz.Rect(x, drawing_top, x + 700, y - 20),
+            color=(0, 0, 0),
+            width=1,
+        )
 
     page.insert_text((320, 340), "NIVEL -0.05", fontsize=8)
 

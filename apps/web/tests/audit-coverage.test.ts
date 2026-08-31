@@ -11,6 +11,9 @@ function coverage(overrides: Partial<AuditCoverage> = {}): AuditCoverage {
     unknown: 0,
     not_applicable: 2,
     skipped: 0,
+    technical_scopes: ["formas"],
+    covered_scopes: ["formas"],
+    uncovered_scopes: [],
     ...overrides,
   };
 }
@@ -34,6 +37,18 @@ describe("auditCoverageSummary", () => {
     const summary = auditCoverageSummary(coverage({ unknown: 3 }));
 
     expect(summary).toMatch(/3 nao verificavel/i);
+  });
+
+  it("surfaces technical scopes that have no rule pack", () => {
+    const summary = auditCoverageSummary(
+      coverage({
+        technical_scopes: ["formas", "armaduras"],
+        covered_scopes: ["formas"],
+        uncovered_scopes: ["armaduras"],
+      }),
+    );
+
+    expect(summary).toMatch(/sem regras para armaduras/i);
   });
 
   it("returns nothing when there is no coverage to report", () => {

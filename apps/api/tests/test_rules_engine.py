@@ -9,7 +9,7 @@ executavel desse documento.
 import pytest
 
 from truss_api.rules.engine import evaluate
-from truss_api.rules.loader import load_pack, load_packs
+from truss_api.rules.loader import load_pack, load_packs, load_packs_for_scopes
 from truss_api.rules.models import (
     OUTCOME_FAIL,
     OUTCOME_NOT_APPLICABLE,
@@ -73,6 +73,43 @@ def test_both_scopes_load_and_validate() -> None:
         "forms.sheet.duplicate_identifier",
     }
     assert all(pack.sheet_type == "planta_formas" for pack in packs.values())
+    assert all(pack.technical_scope == "formas" for pack in packs.values())
+    assert load_packs_for_scopes(["formas", "armaduras"]) == load_packs("planta_formas")
+
+
+def test_mixed_sheet_rules_do_not_cross_into_another_technical_scope() -> None:
+    forms = _view(id="forms", technical_scope="formas")
+    reinforcement = _view(
+        id="reinforcement",
+        technical_scope="armaduras",
+        title_raw=None,
+        declared_scale_raw=None,
+        declared_scale=None,
+        level_raw=None,
+    )
+    snapshot = _snapshot([forms, reinforcement])
+    snapshot["technical_scopes"] = [
+        {"technical_scope": "formas"},
+        {"technical_scope": "armaduras"},
+    ]
+
+    evaluations = evaluate(load_pack("planta_formas", SCOPE_GENERAL), snapshot)
+
+    assert not [evaluation for evaluation in evaluations if evaluation.target_id == "reinforcement"]
+    assert _outcome(evaluations, "forms.sheet.category_matches_content").outcome == OUTCOME_UNKNOWN
+
+
+def test_ambiguous_view_on_mixed_sheet_is_unverifiable() -> None:
+    snapshot = _snapshot([_view(technical_scope=None)])
+    snapshot["technical_scopes"] = [
+        {"technical_scope": "formas"},
+        {"technical_scope": "armaduras"},
+    ]
+
+    evaluations = evaluate(load_pack("planta_formas", SCOPE_GENERAL), snapshot)
+
+    assert _outcome(evaluations, "forms.sheet.has_main_view").outcome == OUTCOME_UNKNOWN
+    assert not [evaluation for evaluation in evaluations if evaluation.target_kind == "view"]
 
 
 def test_invalid_pack_is_rejected_by_schema() -> None:

@@ -5,6 +5,7 @@ import yaml
 
 from truss_api.rules.models import SCOPE_GENERAL, Rule, RulePack
 from truss_api.rules.schema import validate_pack
+from truss_api.sheetmap.technical_scopes import sheet_type_for_scope, scope_for_sheet_type
 
 
 PACKS_DIR = Path(__file__).resolve().parent / "packs"
@@ -17,6 +18,7 @@ def _to_pack(payload: dict) -> RulePack:
         pack_id=payload["pack_id"],
         version=payload["version"],
         sheet_type=payload["sheet_type"],
+        technical_scope=scope_for_sheet_type(payload["sheet_type"]) or payload["sheet_type"],
         scope=payload["scope"],
         rules=[
             Rule(
@@ -55,3 +57,20 @@ def load_pack(sheet_type: str, scope: str = SCOPE_GENERAL) -> RulePack | None:
         (pack for pack in load_packs(sheet_type) if pack.scope == scope),
         None,
     )
+
+
+def load_packs_for_scopes(technical_scopes: list[str]) -> tuple[RulePack, ...]:
+    packs: list[RulePack] = []
+    seen: set[tuple[str, str]] = set()
+
+    for technical_scope in technical_scopes:
+        sheet_type = sheet_type_for_scope(technical_scope)
+        if not sheet_type:
+            continue
+        for pack in load_packs(sheet_type):
+            key = (pack.pack_id, pack.scope)
+            if key not in seen:
+                packs.append(pack)
+                seen.add(key)
+
+    return tuple(packs)

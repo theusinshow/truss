@@ -43,6 +43,7 @@ class Finding(BaseModel):
     rule_id: str | None = None
     rule_version: str | None = None
     rule_scope: str | None = None
+    technical_scope: str | None = None
     view_id: str | None = None
     source_layer: str | None = None
     dedupe_key: str | None = None
@@ -55,6 +56,9 @@ class AuditCoverage(BaseModel):
     unknown: int = 0
     not_applicable: int = 0
     skipped: int = 0
+    technical_scopes: list[str] = Field(default_factory=list)
+    covered_scopes: list[str] = Field(default_factory=list)
+    uncovered_scopes: list[str] = Field(default_factory=list)
 
 
 class AuditRun(BaseModel):

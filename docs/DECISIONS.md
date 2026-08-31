@@ -1,5 +1,99 @@
 # Decisions
 
+## 2026-08-31 - View titles are lower captions, not upper boundaries
+
+The first visual review batch covered six real sheets and 17 detected views. All 17 original
+boxes started at the title and extended downward, while the associated structural drawing was
+above the title. This was a systemic geometry error hidden by synthetic tests whose titles had
+been placed above their drawings.
+
+`deterministic/forms-view-v2` now treats title plus scale as the lower caption of a view:
+
+- the caption closes the bottom of the box;
+- the previous caption in the same column opens the next vertical band;
+- captions on the same row split side-by-side views;
+- a caption below the title-block split can still reach the connected upper drawing zone;
+- all output remains `draft_unverified` until the owner reviews it.
+
+The synthetic PDF fixture now follows the layout measured in the real corpus. New immutable
+snapshots use `sheetmap-v0.5`; earlier snapshots remain untouched and readable. The 12 local
+drafts were regenerated with 230/230 pages, 672 views, 56 role confirmations and two code
+confirmations preserved. All 672 boxes remain drafts.
+
+Second-round pre-audit: forms, location, foundations, the mixed sheet and both timber-roof
+sections now follow their associated drawings. Reinforcement families are spatially
+non-contiguous and their rectangular envelopes overlap; the owner confirmed them explicitly as
+grouping envelopes that still require subviews.
+
+The completed review contains **17/17 owner-confirmed boxes across six sheets**. The coordinates
+are versioned independently in `calibration/spatial/bbox-review-batch-01.yml`, keyed by document
+hash and PDF page. `test_spatial_calibration.py` discovers spatial batches and measures the current
+detector against the human-confirmed boxes with a minimum IoU of 0.90 when the local PDFs are
+present. Explicit memory remains separate from this dataset.
+
+Validation: 141 API tests passed, one skipped; 32 web tests passed; lint and TypeScript typecheck
+passed.
+
+## 2026-08-31 - Intake is page-complete and keeps raw sheet identity
+
+The approved local corpus exposed two silent-loss modes: pages without detected views were omitted
+from calibration drafts, and title-block codes were kept only when they already matched the
+canonical form. The intake contract is now additive and explicit:
+
+- every PDF page produces exactly one draft sheet row, including `views: []`;
+- `view_detection_status: no_views_detected` means segmentation is pending, not that the page is
+  empty or reviewed;
+- `sheet_code_raw` preserves the normalized text found in the title block;
+- `sheet_code` remains the canonical identity and is never completed by inventing a revision;
+- `sheet_code_status` distinguishes canonical detection, raw-only evidence, human confirmation,
+  and `not_verifiable`;
+- technical scopes are recorded even when no view was detected.
+
+The persistent Sheet Map follows the same contract through migration `005_sheet_code_raw.sql`.
+Snapshots introduced here used `sheetmap-v0.4` and included both raw and canonical identity in the
+content hash. The view-geometry decision above supersedes the current version with v0.5. Older
+snapshots remain readable and untouched.
+
+Measured after regenerating the 12 local drafts while preserving 56 role confirmations and two
+code confirmations: **230/230 pages cataloged**, zero page-index gaps, 672 detected views, two
+pages explicitly marked `no_views_detected`, 48 raw-only codes, and 29 codes marked
+`not_verifiable`. Validation: 135 API tests passed, one skipped.
+
+## 2026-08-30 - Sheet maps support multiple technical scopes
+
+The owner confirmed that mixed sheets are common. The concrete evidence is page 30 of
+`Proj_Estrutural_EEEs_Inimutaba_geral.pdf`, whose title combines slab forms with reinforcement
+details. Collapsing it to either `planta_formas` or `planta_armaduras` would make one half of the
+sheet invisible to the rule engine.
+
+The change is additive:
+
+- `sheet_type` remains available for compatibility;
+- `sheet_map_scopes` stores one or more technical scopes with confidence and provenance;
+- `sheet_views.technical_scope` assigns a view when the title or a single-scope sheet supports it;
+- `rule_evaluations.technical_scope` and `findings.technical_scope` preserve which technical
+  domain produced the result;
+- `rule_scope` remains separate and continues to mean authority (`general` or `personal`).
+
+Rule packs are selected by the sheet's technical scopes. On a mixed sheet, view rules see only
+views assigned to the pack's scope. An unassigned view is not borrowed by either side; rules that
+would require that attribution return `UNKNOWN`/`unverifiable`. Whole-sheet category coherence is
+also unverifiable while the mixed title block is not segmented by scope. Audit coverage lists
+`technical_scopes`, `covered_scopes`, and `uncovered_scopes`, so running the forms pack never hides
+that the reinforcement side still has no rule pack.
+
+Snapshots introduced here used `sheetmap-v0.3` and included technical scopes in the content hash.
+The intake identity decision above supersedes the current version with v0.4. Existing
+snapshots remain immutable and readable: until reprocessed, a v0.2 snapshot exposes a derived
+single scope from its legacy `sheet_type`. The viewer displays labels such as
+`Formas + Armaduras`, so the classification is not hidden from the owner.
+
+Measured on the motivating real page: scopes `formas` and `armaduras`, confidence 0.92 each,
+provenance `titulo_ou_carimbo`, and zero views invented where the current detector found none.
+
+Validation after implementation: 132 API tests passed, 1 skipped; 32 web tests passed; lint and
+TypeScript typecheck passed.
+
 ## 2026-07-27 - Testable local settings in API routes
 
 FastAPI routes that touch persistence receive `Settings` through dependency injection.
@@ -488,7 +582,7 @@ Rationale:
 
 ## 2026-08-29 - Ground truth drafts are generated, then corrected by hand
 
-`truss_api.calibration.intake.draft_ground_truth` turns a PDF into a v3 ground truth skeleton
+`truss_api.calibration.intake.draft_ground_truth` turns a PDF into a v4 ground truth skeleton
 carrying the detected views.
 
 Rationale:
@@ -503,8 +597,11 @@ Rationale:
   quietly make the ground truth agree with whatever the pipeline currently does;
 - levels are never normalized in a draft - `needs_human_confirmation: true` - because normalizing
   requires the owner's confirmed table;
-- a page where no view was detected produces no ground truth row, rather than an empty one that
-  would later read as "reviewed and empty".
+- every page produces a row. A page without views carries `views: []` and
+  `view_detection_status: no_views_detected`, which says segmentation is pending rather than
+  "reviewed and empty";
+- raw title-block identity and canonical identity are separate. Missing canonical identity is
+  recorded explicitly and never inferred from a filename.
 
 ## 2026-08-29 - Approved projects measure the noise floor, not recall
 

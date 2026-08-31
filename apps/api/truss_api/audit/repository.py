@@ -76,7 +76,7 @@ def create_audit_run(
     cache_key: str | None = None,
     sheet_map_id: str | None = None,
     rule_pack_version: str = "",
-    coverage: dict[str, int] | None = None,
+    coverage: dict[str, object] | None = None,
     evaluations: list[object] | None = None,
 ) -> dict[str, object]:
     now = _now()
@@ -152,10 +152,10 @@ def create_audit_run(
                     category, type, description, severity, confidence,
                     x0, y0, x1, y1, evidence_json, origin, status, rejection_reason,
                     created_at, updated_at,
-                    rule_id, rule_version, rule_scope, sheet_map_id, view_id,
+                    rule_id, rule_version, rule_scope, technical_scope, sheet_map_id, view_id,
                     source_layer, dedupe_key
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid4()),
@@ -182,6 +182,7 @@ def create_audit_run(
                     finding.get("rule_id"),
                     finding.get("rule_version"),
                     finding.get("rule_scope"),
+                    finding.get("technical_scope"),
                     sheet_map_id,
                     finding.get("view_id"),
                     finding.get("source_layer"),
@@ -194,9 +195,10 @@ def create_audit_run(
                 """
                 INSERT INTO rule_evaluations (
                     id, audit_run_id, sheet_map_id, sheet_id, rule_id, rule_version,
-                    rule_pack_id, rule_pack_version, rule_scope, target_kind, target_id,
+                    rule_pack_id, rule_pack_version, rule_scope, technical_scope,
+                    target_kind, target_id,
                     outcome, confidence, reason, evidence_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid4()),
@@ -208,6 +210,7 @@ def create_audit_run(
                     evaluation.rule_pack_id,
                     evaluation.rule_pack_version,
                     evaluation.scope,
+                    evaluation.technical_scope,
                     evaluation.target_kind,
                     evaluation.target_id,
                     evaluation.outcome,

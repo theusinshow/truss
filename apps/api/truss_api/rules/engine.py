@@ -65,6 +65,7 @@ def _result(
         rule_version=rule.version,
         rule_pack_id=pack.pack_id,
         rule_pack_version=pack.version,
+        technical_scope=pack.technical_scope,
         scope=pack.scope,
         target_kind=target_kind,
         target_id=target_id,
@@ -80,7 +81,7 @@ def _result(
 
 
 def evaluate(pack: RulePack, snapshot: dict) -> list[RuleEvaluation]:
-    views = list(snapshot.get("views", []))
+    views = _views_for_pack(pack, snapshot)
     results: list[RuleEvaluation] = []
 
     for rule in pack.rules:
@@ -94,6 +95,43 @@ def evaluate(pack: RulePack, snapshot: dict) -> list[RuleEvaluation]:
     return results
 
 
+def _snapshot_scopes(snapshot: dict) -> set[str]:
+    return {
+        str(item.get("technical_scope"))
+        for item in snapshot.get("technical_scopes", [])
+        if item.get("technical_scope")
+    }
+
+
+def _views_for_pack(pack: RulePack, snapshot: dict) -> list[dict]:
+    views = list(snapshot.get("views", []))
+    scopes = _snapshot_scopes(snapshot)
+
+    # Snapshot legado ou folha de escopo unico: o comportamento anterior e
+    # preservado, inclusive para views que ainda nao carregam o novo campo.
+    if len(scopes) <= 1:
+        return [
+            view
+            for view in views
+            if not view.get("technical_scope")
+            or view.get("technical_scope") == pack.technical_scope
+        ]
+
+    # Em folha mista, uma regra nunca atravessa para a view do outro escopo.
+    # View ambigua fica fora e sustenta UNKNOWN nas regras de folha.
+    return [
+        view for view in views if view.get("technical_scope") == pack.technical_scope
+    ]
+
+
+def _has_ambiguous_views(pack: RulePack, snapshot: dict) -> bool:
+    return (
+        len(_snapshot_scopes(snapshot)) > 1
+        and pack.technical_scope in _snapshot_scopes(snapshot)
+        and any(not view.get("technical_scope") for view in snapshot.get("views", []))
+    )
+
+
 def _evaluate_sheet_rule(
     rule: Rule,
     pack: RulePack,
@@ -104,22 +142,48 @@ def _evaluate_sheet_rule(
 
     if rule.check == "sheet_has_view":
         has_views = bool(views)
+        ambiguous = not has_views and _has_ambiguous_views(pack, snapshot)
         return _result(
             rule,
             pack,
             target_kind="sheet",
             target_id=None,
-            outcome=OUTCOME_PASS if has_views else OUTCOME_FAIL,
-            reason="" if has_views else "Nenhuma view foi segmentada nesta folha.",
+            outcome=(OUTCOME_PASS if has_views else OUTCOME_UNKNOWN if ambiguous else OUTCOME_FAIL),
+            reason=(
+                ""
+                if has_views
+                else "Ha views sem escopo tecnico confiavel nesta folha mista."
+                if ambiguous
+                else "Nenhuma view foi segmentada nesta folha."
+            ),
             evidence=[f"views detectadas: {len(views)}"],
             bbox=bbox,
-            confidence=0.9,
+            confidence=0.4 if ambiguous else 0.9,
+            finding_type="unverifiable" if ambiguous else None,
         )
 
     if rule.check == "category_matches_views":
         title_block = snapshot.get("title_block", {})
         title = normalize(str(title_block.get("title") or ""))
         category = normalize(str(title_block.get("category") or ""))
+
+        if len(_snapshot_scopes(snapshot)) > 1:
+            return _result(
+                rule,
+                pack,
+                target_kind="sheet",
+                target_id=None,
+                outcome=OUTCOME_UNKNOWN,
+                reason="O carimbo da folha mista nao esta segmentado por escopo tecnico.",
+                evidence=[
+                    f"escopos: {sorted(_snapshot_scopes(snapshot))}",
+                    f"titulo: {title or 'ausente'}",
+                ],
+                bbox=bbox,
+                confidence=0.4,
+                finding_type="unverifiable",
+            )
+
         announced = sorted({kind for term, kind in ANNOUNCED_CONTENT if term in title})
 
         if not announced or not views:

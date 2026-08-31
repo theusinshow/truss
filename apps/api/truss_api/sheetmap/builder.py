@@ -15,7 +15,11 @@ from truss_api.sheetmap.regions import (
     extract_line_boxes,
 )
 from truss_api.sheetmap.snapshot import snapshot_hash
-from truss_api.sheetmap.title_block import TitleBlockFields, parse_title_block
+from truss_api.sheetmap.technical_scopes import (
+    assign_view_scopes,
+    detect_technical_scopes,
+)
+from truss_api.sheetmap.title_block import TitleBlockFields, boxes_inside, parse_title_block
 from truss_api.sheetmap.views.detector import detect_forms_views
 from truss_api.sheetmap.views.models import DetectedView
 
@@ -132,11 +136,28 @@ def build_sheet_map_for_document(
             # explicita, entao uma folha sem ancora nao produz view nenhuma. Um
             # gate em `planta_formas` zerava as folhas de detalhamento que o
             # gabarito humano cobre - ver docs/DECISIONS.md.
-            views: list[DetectedView] = detect_forms_views(extraction, regions)
+            detected_views = detect_forms_views(extraction, regions)
+            title_block_text = (
+                " ".join(box.text for box in boxes_inside(title_block_region, text_boxes))
+                if title_block_region is not None
+                else ""
+            )
+            technical_scopes = detect_technical_scopes(
+                sheet_type=classification.sheet_type,
+                classification_confidence=classification.confidence,
+                title_block_text=title_block_text,
+                views=detected_views,
+            )
+            views: list[DetectedView] = assign_view_scopes(
+                detected_views,
+                technical_scopes,
+            )
             content_hash = snapshot_hash(
                 sheet_type=classification.sheet_type,
                 sheet_code=fields.sheet_code,
+                sheet_code_raw=fields.sheet_code_raw,
                 title_block=title_block_payload,
+                technical_scopes=list(technical_scopes),
                 regions=list(regions),
                 views=list(views),
                 extraction_hash=artifact_hash(extraction),
@@ -149,10 +170,12 @@ def build_sheet_map_for_document(
                     revision_id=str(sheet["revision_id"]),
                     geometry_path=geometry_path,
                     sheet_code=fields.sheet_code,
+                    sheet_code_raw=fields.sheet_code_raw,
                     sheet_type=classification.sheet_type,
                     paper_format=paper_format_for(geometry.width_pt, geometry.height_pt),
                     orientation=orientation_for(geometry.width_pt, geometry.height_pt),
                     title_block=title_block_payload,
+                    technical_scopes=technical_scopes,
                     regions=regions,
                     views=views,
                     snapshot_hash=content_hash,

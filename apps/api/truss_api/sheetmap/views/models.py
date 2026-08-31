@@ -42,6 +42,7 @@ class DetectedView:
     confidence: float
     provenance: str
     view_role: str | None = None
+    technical_scope: str | None = None
     subviews: list["DetectedView"] = field(default_factory=list)
 
 

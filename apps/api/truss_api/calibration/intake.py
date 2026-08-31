@@ -22,7 +22,15 @@ from truss_api.sheetmap.regions import (
     detect_regions,
     extract_line_boxes,
 )
-from truss_api.sheetmap.title_block import TitleBlockFields, parse_title_block
+from truss_api.sheetmap.technical_scopes import (
+    assign_view_scopes,
+    detect_technical_scopes,
+)
+from truss_api.sheetmap.title_block import (
+    TitleBlockFields,
+    boxes_inside,
+    parse_title_block,
+)
 from truss_api.sheetmap.views.detector import detect_forms_views
 from truss_api.sheetmap.views.models import DetectedView
 
@@ -64,7 +72,16 @@ def _view_entry(ordinal: int, view: DetectedView) -> dict:
         "bbox": [round(value, 1) for value in view.bbox],
         "bbox_status": STATUS_DRAFT,
         "human_confirmed": False,
+        "technical_scope": view.technical_scope,
     }
+
+
+def _sheet_code_status(fields: TitleBlockFields) -> str:
+    if fields.sheet_code:
+        return "detected_canonical"
+    if fields.sheet_code_raw:
+        return "raw_only_needs_confirmation"
+    return "not_verifiable"
 
 
 def draft_ground_truth(pdf_path: Path) -> dict:
@@ -79,11 +96,6 @@ def draft_ground_truth(pdf_path: Path) -> dict:
             text_boxes = extract_line_boxes(page)
             regions = detect_regions(geometry_from_extraction(extraction), text_boxes)
 
-            views = detect_forms_views(extraction, regions)
-            if not views:
-                # Folha sem escala declarada nao vira linha de gabarito vazia.
-                continue
-
             title_block_region = next(
                 (r for r in regions if r.region_kind == REGION_TITLE_BLOCK), None
             )
@@ -95,12 +107,40 @@ def draft_ground_truth(pdf_path: Path) -> dict:
             classification = classify_sheet_type(
                 fields, " ".join(box.text for box in text_boxes)
             )
+            detected_views = detect_forms_views(extraction, regions)
+            title_block_text = (
+                " ".join(
+                    box.text for box in boxes_inside(title_block_region, text_boxes)
+                )
+                if title_block_region is not None
+                else ""
+            )
+            technical_scopes = detect_technical_scopes(
+                sheet_type=classification.sheet_type,
+                classification_confidence=classification.confidence,
+                title_block_text=title_block_text,
+                views=detected_views,
+            )
+            views = assign_view_scopes(detected_views, technical_scopes)
 
             sheets.append(
                 {
                     "page_index": page_index,
                     "sheet_code": fields.sheet_code,
+                    "sheet_code_raw": fields.sheet_code_raw,
+                    "sheet_code_status": _sheet_code_status(fields),
                     "sheet_role": classification.sheet_type,
+                    "technical_scopes": [
+                        {
+                            "technical_scope": scope.technical_scope,
+                            "confidence": scope.confidence,
+                            "provenance": scope.provenance,
+                        }
+                        for scope in technical_scopes
+                    ],
+                    "view_detection_status": (
+                        "detected" if views else "no_views_detected"
+                    ),
                     "approval": "unreviewed",
                     "views": [
                         _view_entry(index + 1, view) for index, view in enumerate(views)
@@ -118,7 +158,7 @@ def draft_ground_truth(pdf_path: Path) -> dict:
         document.close()
 
     return {
-        "version": 3,
+        "version": 4,
         "status": STATUS_DRAFT,
         "source": {
             "generated_from": "pipeline",

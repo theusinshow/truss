@@ -31,7 +31,7 @@ def test_noise_is_attributed_to_the_rule_that_produced_it(tmp_path: Path) -> Non
     document = fitz.open(stream=make_forms_sheet_pdf_bytes(), filetype="pdf")
     page = document.load_page(0)
     # Um titulo que anuncia planta numa folha cujas views serao so detalhes.
-    page.add_redact_annot(fitz.Rect(150, 180, 900, 240))
+    page.add_redact_annot(fitz.Rect(150, 560, 900, 640))
     page.apply_redactions()
     path = tmp_path / "sem-planta.pdf"
     document.save(path)

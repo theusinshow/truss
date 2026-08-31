@@ -35,7 +35,7 @@ def test_draft_is_never_presented_as_human_verified(forms_pdf: Path) -> None:
     draft = draft_ground_truth(forms_pdf)
 
     assert draft["status"] == STATUS_DRAFT
-    assert draft["version"] == 3
+    assert draft["version"] == 4
     for sheet in draft["sheets"]:
         for view in sheet["views"]:
             assert view["human_confirmed"] is False
@@ -98,8 +98,8 @@ def test_written_draft_is_discovered_by_the_catalog(forms_pdf: Path, tmp_path: P
     assert yaml.safe_load(target.read_text(encoding="utf-8"))["status"] == STATUS_DRAFT
 
 
-def test_draft_skips_pages_where_no_view_was_detected(tmp_path: Path) -> None:
-    """Folha sem escala declarada nao vira linha de gabarito vazia."""
+def test_draft_keeps_pages_where_no_view_was_detected(tmp_path: Path) -> None:
+    """Toda página aparece no intake, mesmo quando a segmentação falha."""
     document = fitz.open()
     document.new_page(width=842, height=595).insert_text((72, 72), "SEM ESCALA AQUI")
     path = tmp_path / "vazio.pdf"
@@ -108,7 +108,12 @@ def test_draft_skips_pages_where_no_view_was_detected(tmp_path: Path) -> None:
 
     draft = draft_ground_truth(path)
 
-    assert draft["sheets"] == []
-    # A contagem de paginas descreve o documento, nao quantas folhas entraram no
-    # gabarito: um PDF sem view nenhuma ainda tem paginas.
+    assert len(draft["sheets"]) == 1
+    sheet = draft["sheets"][0]
+    assert sheet["page_index"] == 0
+    assert sheet["views"] == []
+    assert sheet["view_detection_status"] == "no_views_detected"
+    assert sheet["sheet_code"] is None
+    assert sheet["sheet_code_raw"] is None
+    assert sheet["sheet_code_status"] == "not_verifiable"
     assert draft["document"]["page_count"] == 1

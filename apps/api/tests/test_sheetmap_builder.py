@@ -15,6 +15,7 @@ from truss_api.sheetmap.builder import (
     orientation_for,
     paper_format_for,
 )
+from truss_api.sheetmap.technical_scopes import DetectedTechnicalScope
 from truss_api.sheetmap.views.models import (
     VIEW_KIND_DETAIL,
     VIEW_KIND_SECTION,
@@ -72,6 +73,7 @@ def test_build_persists_identity_type_and_geometry_per_sheet(
     sheet_map = sheetmap_repository.get_sheet_map(str(first_sheet["id"]), settings)
 
     assert sheet_map["sheet_code"] == "EST-0010-A"
+    assert sheet_map["sheet_code_raw"] == "EST-0010-A"
     assert sheet_map["sheet_type"] == "planta_locacao"
     assert (settings.data_dir / str(sheet_map["geometry_path"])).exists()
     assert any(r["region_kind"] == "carimbo" for r in sheet_map["regions"])
@@ -228,6 +230,51 @@ def test_snapshot_persists_views_keeping_raw_and_normalized_apart(
     assert stored["level"] is None, "nivel nao pode ser normalizado sem confirmacao humana"
 
 
+def test_snapshot_persists_multiple_scopes_and_view_scope(
+    settings: Settings, document: dict[str, object]
+) -> None:
+    sheet = document["sheets"][0]
+    view = DetectedView(
+        view_kind=VIEW_KIND_DETAIL,
+        identifier="1",
+        title=MeasuredValue(raw="ARMACAO POSITIVA DA LAJE"),
+        declared_scale=MeasuredValue(raw="ESCALA 1:20", normalized="1:20"),
+        level=MeasuredValue(raw=None),
+        bbox=(10.0, 20.0, 30.0, 40.0),
+        confidence=0.9,
+        provenance="anchor",
+        technical_scope="armaduras",
+    )
+
+    saved = sheetmap_repository.save_sheet_map(
+        sheet_id=str(sheet["id"]),
+        project_id=str(sheet["project_id"]),
+        revision_id=str(sheet["revision_id"]),
+        geometry_path="geometry/p/r/s.multiscope.json.gz",
+        sheet_code="EST-0010-A",
+        sheet_type="desconhecido",
+        paper_format="A1",
+        orientation="paisagem",
+        title_block={},
+        technical_scopes=[
+            DetectedTechnicalScope("formas", 0.92, "titulo_ou_carimbo"),
+            DetectedTechnicalScope("armaduras", 0.92, "titulo_ou_carimbo"),
+        ],
+        regions=[],
+        views=[view],
+        snapshot_hash="0000000000000005",
+        extractor_version="extract-v0.2",
+        document_hash="abc",
+        settings=settings,
+    )
+
+    assert [item["technical_scope"] for item in saved["technical_scopes"]] == [
+        "formas",
+        "armaduras",
+    ]
+    assert saved["views"][0]["technical_scope"] == "armaduras"
+
+
 def test_snapshot_persists_subviews_under_their_grouping_detail(
     settings: Settings, document: dict[str, object]
 ) -> None:
@@ -316,13 +363,17 @@ def test_forms_sheet_persists_its_detected_views_end_to_end(settings: Settings) 
     )
 
     built = build_sheet_map_for_document(str(document["id"]), settings)
-    views = built[0]["views"]
+    views = {view["title_raw"]: view for view in built[0]["views"]}
 
-    assert [view["title_raw"] for view in views] == [
+    assert set(views) == {
         "PLANTA DE FORMAS - TERREO",
         "CORTE A-A",
         "DETALHE 01 LAJE",
-    ]
-    assert [view["view_kind"] for view in views] == ["plan", "section", "detail"]
-    assert [view["declared_scale"] for view in views] == ["1:50", "1:50", "1:20"]
-    assert all(view["provenance"] for view in views)
+    }
+    assert views["PLANTA DE FORMAS - TERREO"]["view_kind"] == "plan"
+    assert views["CORTE A-A"]["view_kind"] == "section"
+    assert views["DETALHE 01 LAJE"]["view_kind"] == "detail"
+    assert views["PLANTA DE FORMAS - TERREO"]["declared_scale"] == "1:50"
+    assert views["CORTE A-A"]["declared_scale"] == "1:50"
+    assert views["DETALHE 01 LAJE"]["declared_scale"] == "1:20"
+    assert all(view["provenance"] for view in views.values())

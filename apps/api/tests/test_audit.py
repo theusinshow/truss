@@ -90,6 +90,7 @@ def test_deterministic_audit_creates_structured_findings(
     assert finding["origin"] == "ai"
     assert finding["source_layer"] == "deterministic"
     assert finding["rule_scope"] == "general"
+    assert finding["technical_scope"] == "formas"
 
 
 def test_deterministic_audit_uses_cache_for_same_sheet(
@@ -104,6 +105,28 @@ def test_deterministic_audit_uses_cache_for_same_sheet(
     assert first_response.status_code == 201
     assert second_response.status_code == 201
     assert second_response.json()["id"] == first_response.json()["id"]
+
+
+def test_audit_exposes_a_technical_scope_without_rule_pack(
+    client: TestClient,
+    settings: Settings,
+) -> None:
+    project = repository.create_project(ProjectCreate(name="Armatures"), settings)
+    revision = repository.create_revision(
+        str(project["id"]), RevisionCreate(notes="R"), settings
+    )
+    imported = client.post(
+        f"/projects/{project['id']}/revisions/{revision['id']}/documents",
+        files={"file": ("armaduras.pdf", make_structural_pdf_bytes(), "application/pdf")},
+    ).json()
+    sheet_id = str(imported["sheets"][2]["id"])
+
+    run = client.post(f"/sheets/{sheet_id}/audit-runs").json()
+
+    assert run["coverage"]["evaluated"] == 0
+    assert run["coverage"]["technical_scopes"] == ["armaduras"]
+    assert run["coverage"]["covered_scopes"] == []
+    assert run["coverage"]["uncovered_scopes"] == ["armaduras"]
 
 
 def test_finding_feedback_is_persisted(client: TestClient, settings: Settings) -> None:

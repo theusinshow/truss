@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 
-SHEET_MAP_PIPELINE = "sheetmap-v0.2"
+SHEET_MAP_PIPELINE = "sheetmap-v0.5"
 
 
 def _plain(value: Any) -> Any:
@@ -21,7 +21,9 @@ def snapshot_hash(
     *,
     sheet_type: str,
     sheet_code: str | None,
+    sheet_code_raw: str | None = None,
     title_block: dict[str, object],
+    technical_scopes: list[object],
     regions: list[object],
     views: list[object],
     extraction_hash: str,
@@ -32,7 +34,9 @@ def snapshot_hash(
             "extraction": extraction_hash,
             "sheet_type": sheet_type,
             "sheet_code": sheet_code,
+            "sheet_code_raw": sheet_code_raw,
             "title_block": _plain(title_block),
+            "technical_scopes": _plain(technical_scopes),
             "regions": _plain(regions),
             "views": _plain(views),
         },

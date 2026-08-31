@@ -19,7 +19,28 @@ def test_apply_migrations_creates_schema_and_is_idempotent(tmp_path: Path) -> No
     applied = apply_migrations(settings)
 
     assert "001" in applied
-    assert {"projects", "revisions", "documents", "sheets", "findings"} <= _table_names(settings)
+    assert {
+        "projects",
+        "revisions",
+        "documents",
+        "sheets",
+        "findings",
+        "sheet_map_scopes",
+    } <= _table_names(settings)
+    with transaction(settings) as connection:
+        view_columns = {
+            str(row["name"]) for row in connection.execute("PRAGMA table_info(sheet_views)")
+        }
+        finding_columns = {
+            str(row["name"]) for row in connection.execute("PRAGMA table_info(findings)")
+        }
+        sheet_map_columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(sheet_maps)")
+        }
+    assert "technical_scope" in view_columns
+    assert "technical_scope" in finding_columns
+    assert "sheet_code_raw" in sheet_map_columns
     assert apply_migrations(settings) == []
 
 

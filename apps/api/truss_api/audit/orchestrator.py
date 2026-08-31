@@ -3,7 +3,7 @@ from hashlib import sha256
 from truss_api.audit import repository
 from truss_api.core.settings import Settings
 from truss_api.rules.engine import evaluate
-from truss_api.rules.loader import load_packs
+from truss_api.rules.loader import load_packs, load_packs_for_scopes
 from truss_api.rules.models import (
     OUTCOME_FAIL,
     OUTCOME_NOT_APPLICABLE,
@@ -17,16 +17,6 @@ from truss_api.sheetmap.primitives import EXTRACTOR_VERSION
 
 
 AUDIT_PIPELINE_VERSION = "audit-v0.2"
-
-EMPTY_COVERAGE = {
-    "evaluated": 0,
-    "passed": 0,
-    "failed": 0,
-    "unknown": 0,
-    "not_applicable": 0,
-    "skipped": 0,
-}
-
 
 def audit_cache_key(
     *,
@@ -60,6 +50,7 @@ def dedupe_key_for(evaluation: RuleEvaluation, sheet_id: str) -> str:
     material = "|".join(
         [
             sheet_id,
+            evaluation.technical_scope,
             evaluation.scope,
             evaluation.rule_id,
             evaluation.target_kind,
@@ -91,13 +82,19 @@ def _finding_from_evaluation(
         "rule_id": evaluation.rule_id,
         "rule_version": evaluation.rule_version,
         "rule_scope": evaluation.scope,
+        "technical_scope": evaluation.technical_scope,
         "view_id": evaluation.target_id if evaluation.target_kind == "view" else None,
         "source_layer": "deterministic",
         "dedupe_key": dedupe_key_for(evaluation, str(sheet_context["sheet_id"])),
     }
 
 
-def _coverage(evaluations: list[RuleEvaluation]) -> dict[str, int]:
+def _coverage(
+    evaluations: list[RuleEvaluation],
+    technical_scopes: list[str],
+    packs: tuple,
+) -> dict[str, object]:
+    covered_scopes = sorted({pack.technical_scope for pack in packs})
     return {
         "evaluated": len(evaluations),
         "passed": sum(1 for e in evaluations if e.outcome == OUTCOME_PASS),
@@ -105,13 +102,23 @@ def _coverage(evaluations: list[RuleEvaluation]) -> dict[str, int]:
         "unknown": sum(1 for e in evaluations if e.outcome == OUTCOME_UNKNOWN),
         "not_applicable": sum(1 for e in evaluations if e.outcome == OUTCOME_NOT_APPLICABLE),
         "skipped": sum(1 for e in evaluations if e.outcome == OUTCOME_SKIPPED),
+        "technical_scopes": sorted(set(technical_scopes)),
+        "covered_scopes": covered_scopes,
+        "uncovered_scopes": sorted(set(technical_scopes) - set(covered_scopes)),
     }
 
 
 def run_deterministic_audit(sheet_id: str, settings: Settings) -> dict[str, object]:
     sheet_context = repository.get_sheet_context(sheet_id, settings)
     sheet_map = sheetmap_repository.get_sheet_map(sheet_id, settings)
-    packs = load_packs(str(sheet_map["sheet_type"]))
+    technical_scopes = [
+        str(item["technical_scope"])
+        for item in sheet_map.get("technical_scopes", [])
+        if item.get("technical_scope")
+    ]
+    packs = load_packs_for_scopes(technical_scopes)
+    if not packs:
+        packs = load_packs(str(sheet_map["sheet_type"]))
 
     if not packs:
         # Sem rule pack para o tipo, o Truss nao inventa conformidade nem erro.
@@ -122,7 +129,7 @@ def run_deterministic_audit(sheet_id: str, settings: Settings) -> dict[str, obje
             cache_key=None,
             sheet_map_id=str(sheet_map["id"]),
             rule_pack_version="",
-            coverage=dict(EMPTY_COVERAGE),
+            coverage=_coverage([], technical_scopes, ()),
             evaluations=[],
         )
 
@@ -157,6 +164,6 @@ def run_deterministic_audit(sheet_id: str, settings: Settings) -> dict[str, obje
         cache_key=cache_key,
         sheet_map_id=str(sheet_map["id"]),
         rule_pack_version="+".join(f"{pack.pack_id}@{pack.version}" for pack in packs),
-        coverage=_coverage(evaluations),
+        coverage=_coverage(evaluations, technical_scopes, packs),
         evaluations=evaluations,
     )

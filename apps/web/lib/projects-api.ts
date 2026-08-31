@@ -94,6 +94,7 @@ export type Finding = {
   rule_id?: string | null;
   rule_version?: string | null;
   rule_scope?: string | null;
+  technical_scope?: string | null;
   view_id?: string | null;
   source_layer?: string | null;
   dedupe_key?: string | null;
@@ -106,6 +107,9 @@ export type AuditCoverage = {
   unknown: number;
   not_applicable: number;
   skipped: number;
+  technical_scopes: string[];
+  covered_scopes: string[];
+  uncovered_scopes: string[];
 };
 
 /**
@@ -120,7 +124,10 @@ export function auditCoverageSummary(coverage: AuditCoverage | null | undefined)
   }
 
   if (coverage.evaluated === 0) {
-    return "Nenhuma regra se aplica a esta folha, entao nada foi verificado.";
+    const uncovered = coverage.uncovered_scopes ?? [];
+    return uncovered.length > 0
+      ? `Nenhuma regra se aplica aos escopos ${uncovered.map(technicalScopeLabel).join(" + ")}; nada foi verificado.`
+      : "Nenhuma regra se aplica a esta folha, entao nada foi verificado.";
   }
 
   const parts = [`${coverage.evaluated} verificacoes`, `${coverage.passed} conformes`];
@@ -131,6 +138,10 @@ export function auditCoverageSummary(coverage: AuditCoverage | null | undefined)
 
   if (coverage.not_applicable > 0) {
     parts.push(`${coverage.not_applicable} nao aplicavel(is)`);
+  }
+
+  if ((coverage.uncovered_scopes ?? []).length > 0) {
+    parts.push(`sem regras para ${(coverage.uncovered_scopes ?? []).map(technicalScopeLabel).join(" + ")}`);
   }
 
   return `${parts.join(" · ")}.`;
@@ -553,6 +564,13 @@ export type SheetView = {
   y1: number;
   confidence: number;
   provenance: string;
+  technical_scope: string | null;
+};
+
+export type SheetTechnicalScope = {
+  technical_scope: string;
+  confidence: number;
+  provenance: string;
 };
 
 export type SheetMap = {
@@ -564,11 +582,13 @@ export type SheetMap = {
   status: string;
   geometry_path: string;
   sheet_code: string | null;
+  sheet_code_raw: string | null;
   sheet_type: string;
   paper_format: string;
   orientation: string;
   title_block: Record<string, unknown>;
   built_at: string;
+  technical_scopes: SheetTechnicalScope[];
   regions: SheetRegion[];
   views: SheetView[];
 };
@@ -585,8 +605,28 @@ export function sheetTypeLabel(sheetType: string): string {
   return SHEET_TYPE_LABELS[sheetType] ?? "—";
 }
 
+const TECHNICAL_SCOPE_LABELS: Record<string, string> = {
+  locacao: "Locação",
+  fundacoes: "Fundações",
+  formas: "Formas",
+  armaduras: "Armaduras",
+  cobertura: "Cobertura"
+};
+
+function technicalScopeLabel(technicalScope: string): string {
+  return TECHNICAL_SCOPE_LABELS[technicalScope] ?? technicalScope;
+}
+
+export function sheetTechnicalScopesLabel(sheetMap: SheetMap): string {
+  const labels = sheetMap.technical_scopes
+    .map(({ technical_scope }) => technicalScopeLabel(technical_scope))
+    .filter((label, index, items) => items.indexOf(label) === index);
+
+  return labels.length > 0 ? labels.join(" + ") : sheetTypeLabel(sheetMap.sheet_type);
+}
+
 export function sheetIdentityLabel(sheet: Sheet, sheetMap: SheetMap | null): string {
-  return sheetMap?.sheet_code ?? sheet.label;
+  return sheetMap?.sheet_code ?? sheetMap?.sheet_code_raw ?? sheet.label;
 }
 
 export async function fetchSheetMap(

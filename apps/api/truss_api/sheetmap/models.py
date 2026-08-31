@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SheetRegion(BaseModel):
@@ -9,6 +9,12 @@ class SheetRegion(BaseModel):
     x1: float
     y1: float
     confidence: float
+
+
+class SheetTechnicalScope(BaseModel):
+    technical_scope: str
+    confidence: float
+    provenance: str
 
 
 class SheetView(BaseModel):
@@ -31,6 +37,7 @@ class SheetView(BaseModel):
     y1: float
     confidence: float
     provenance: str
+    technical_scope: str | None = None
 
 
 class SheetMap(BaseModel):
@@ -42,10 +49,12 @@ class SheetMap(BaseModel):
     status: str
     geometry_path: str
     sheet_code: str | None
+    sheet_code_raw: str | None = None
     sheet_type: str
     paper_format: str
     orientation: str
     title_block: dict
     built_at: str
+    technical_scopes: list[SheetTechnicalScope] = Field(default_factory=list)
     regions: list[SheetRegion]
     views: list[SheetView]

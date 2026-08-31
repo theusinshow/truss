@@ -124,6 +124,48 @@ def test_each_view_carries_title_scale_and_kind() -> None:
     assert views["DETALHE 01 LAJE"].view_kind == "detail"
 
 
+def test_view_bbox_treats_title_and_scale_as_a_caption_below_the_drawing() -> None:
+    views = {view.title.raw: view for view in _detect()}
+    plan = views["PLANTA DE FORMAS - TERREO"]
+
+    assert plan.bbox[1] < 100
+    assert 600 < plan.bbox[3] < 700
+
+
+def test_titles_on_the_same_row_split_views_horizontally() -> None:
+    views = {view.title.raw: view for view in _detect()}
+
+    assert views["CORTE A-A"].bbox[2] <= views["DETALHE 01 LAJE"].bbox[0]
+
+
+def test_caption_below_title_block_split_can_reach_the_upper_drawing_zone() -> None:
+    spans = [
+        _span("DETALHAMENTO VIGAS - TERREO", 120, 400, 15.8),
+        _span("ESCALA 1:50", 120, 420, 5.9),
+        _span("DETALHAMENTO VIGAS - COBERTURA", 120, 1580, 15.8),
+        _span("ESCALA 1:50", 120, 1600, 5.9),
+    ]
+    extraction = PageExtraction(
+        metadata=PageMetadata(
+            width_pt=2384.0,
+            height_pt=1684.0,
+            rotation=0,
+            mediabox=(0.0, 0.0, 2384.0, 1684.0),
+            cropbox=(0.0, 0.0, 2384.0, 1684.0),
+            rotation_matrix=(1.0, 0.0, 0.0, 1.0, 0.0, 0.0),
+        ),
+        spans=spans,
+    )
+    regions = [
+        DetectedRegion(REGION_DRAWING, 20, 20, 2360, 1500, 0.95),
+        DetectedRegion(REGION_DRAWING, 20, 1500, 1800, 1660, 0.95),
+    ]
+
+    views = {view.title.raw: view for view in detect_forms_views(extraction, regions)}
+
+    assert views["DETALHAMENTO VIGAS - COBERTURA"].bbox[1] < 500
+
+
 def test_plan_view_captures_the_declared_level_without_normalizing_it() -> None:
     plan = next(view for view in _detect() if view.view_kind == "plan")
 

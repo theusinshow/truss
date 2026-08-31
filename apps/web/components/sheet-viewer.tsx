@@ -60,7 +60,7 @@ import {
   sheetIdentityLabel,
   summarizeUsage,
   SheetMap,
-  sheetTypeLabel,
+  sheetTechnicalScopesLabel,
   streamChatWithSheet,
   updateFindingStatus
 } from "@/lib/projects-api";
@@ -1849,7 +1849,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
           </p>
           {sheetMap ? (
             <p className="mt-0.5 truncate font-mono text-[10.5px] uppercase tracking-[0.09em] text-truss-subtle">
-              {sheetTypeLabel(sheetMap.sheet_type)} &middot; {sheetMap.paper_format}
+              {sheetTechnicalScopesLabel(sheetMap)} &middot; {sheetMap.paper_format}
             </p>
           ) : null}
         </div>

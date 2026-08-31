@@ -26,7 +26,16 @@ FRAME_MAX_AREA_RATIO = 0.995
 TITLE_BLOCK_MIN_X_RATIO = 0.50
 TITLE_BLOCK_MIN_Y_RATIO = 0.70
 
+# Identidade canônica já usada pelo produto: disciplina + número + revisão.
+# Continua estrita porque este valor participa de contratos e snapshots.
 SHEET_CODE_PATTERN = re.compile(r"\b[A-Z]{2,5}-\d{3,5}-[A-Z0-9]{1,3}\b")
+
+# Texto bruto encontrado no carimbo. Alguns acervos antepõem contrato/sistema
+# (XXXXX-SES-ETE-EST-0210-A) e outros não trazem revisão
+# (SES-ETE-EST-0020). Esses valores são evidência, não código canônico.
+SHEET_CODE_RAW_PATTERN = re.compile(
+    r"\b(?:[A-Z0-9]{2,12}-)*EST-\d{3,5}(?:-[A-Z0-9]{1,3})?\b"
+)
 TITLE_BLOCK_ANCHORS = ("CPF", "REVISAO", "EMISSAO", "PROJETO ESTRUTURAL")
 
 
@@ -75,7 +84,7 @@ def extract_line_boxes(page: fitz.Page) -> list[TextBox]:
 
 def is_title_block_anchor(text: str) -> bool:
     normalized = normalize(text)
-    if SHEET_CODE_PATTERN.search(normalized):
+    if SHEET_CODE_RAW_PATTERN.search(normalized) or SHEET_CODE_PATTERN.search(normalized):
         return True
     return any(anchor in normalized for anchor in TITLE_BLOCK_ANCHORS)
 

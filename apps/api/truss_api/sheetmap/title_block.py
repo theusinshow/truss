@@ -1,7 +1,12 @@
 from dataclasses import dataclass
 
 from truss_api.core.text import normalize
-from truss_api.sheetmap.regions import SHEET_CODE_PATTERN, DetectedRegion, TextBox
+from truss_api.sheetmap.regions import (
+    SHEET_CODE_PATTERN,
+    SHEET_CODE_RAW_PATTERN,
+    DetectedRegion,
+    TextBox,
+)
 
 
 SHEET_CATEGORIES: tuple[str, ...] = (
@@ -26,6 +31,9 @@ class TitleBlockFields:
     revision_code: str | None
     category: str | None
     title: str | None
+    # Evidência literal normalizada do carimbo, mantida separada da identidade
+    # canônica para nunca inventar prefixo ou revisão.
+    sheet_code_raw: str | None = None
 
 
 def boxes_inside(region: DetectedRegion, text_boxes: list[TextBox]) -> list[TextBox]:
@@ -44,7 +52,7 @@ def _is_noise(line: str) -> bool:
         return True
     if any(constant in line for constant in CONSTANT_LINES):
         return True
-    if SHEET_CODE_PATTERN.search(line):
+    if SHEET_CODE_RAW_PATTERN.search(line) or SHEET_CODE_PATTERN.search(line):
         return True
     return "CPF" in line
 
@@ -57,12 +65,17 @@ def parse_title_block(
     lines = [normalize(box.text) for box in inside]
 
     sheet_code: str | None = None
+    sheet_code_raw: str | None = None
     revision_code: str | None = None
     for line in lines:
-        match = SHEET_CODE_PATTERN.search(line)
-        if match:
-            sheet_code = match.group(0)
+        raw_match = SHEET_CODE_RAW_PATTERN.search(line)
+        canonical_match = SHEET_CODE_PATTERN.search(line)
+        if raw_match or canonical_match:
+            sheet_code_raw = (raw_match or canonical_match).group(0)
+        if canonical_match:
+            sheet_code = canonical_match.group(0)
             revision_code = sheet_code.rsplit("-", 1)[-1]
+        if raw_match or canonical_match:
             break
 
     category_box = next(
@@ -95,4 +108,5 @@ def parse_title_block(
         revision_code=revision_code,
         category=category,
         title=title,
+        sheet_code_raw=sheet_code_raw,
     )

@@ -18,6 +18,7 @@ from truss_api.sheetmap.regions import (
     detect_regions,
     detect_title_block,
     drawing_zones,
+    is_title_block_anchor,
 )
 from truss_api.sheetmap.title_block import TitleBlockFields, parse_title_block
 
@@ -133,9 +134,35 @@ def test_parse_title_block_is_insensitive_to_line_order() -> None:
     fields = parse_title_block(region, boxes)
 
     assert fields.sheet_code == "EST-0060-A"
+    assert fields.sheet_code_raw == "EST-0060-A"
     assert fields.revision_code == "A"
     assert fields.category == "PLANTA DE LOCACAO"
     assert fields.title == "PLANTA DE LOCACAO DAS FUNDACOES"
+
+
+def test_parse_title_block_preserves_compound_raw_code_separately() -> None:
+    region, boxes = _region_and_boxes(
+        ["XXXXX-SES-ETE-EST-0210-A", "PLANTA DE ARMADURAS"]
+    )
+
+    fields = parse_title_block(region, boxes)
+
+    assert fields.sheet_code_raw == "XXXXX-SES-ETE-EST-0210-A"
+    assert fields.sheet_code == "EST-0210-A"
+    assert fields.revision_code == "A"
+
+
+def test_raw_code_without_revision_does_not_invent_canonical_identity() -> None:
+    region, boxes = _region_and_boxes(
+        ["SES-ETE-EST-0020", "PLANTA DE FORMAS"]
+    )
+
+    fields = parse_title_block(region, boxes)
+
+    assert fields.sheet_code_raw == "SES-ETE-EST-0020"
+    assert fields.sheet_code is None
+    assert fields.revision_code is None
+    assert is_title_block_anchor("SES-ETE-EST-0020") is True
 
 
 def test_classify_prefers_title_block_category_over_sheet_text() -> None:

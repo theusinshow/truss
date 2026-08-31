@@ -23,6 +23,7 @@ function view(overrides: Partial<SheetView> = {}): SheetView {
     y1: 220,
     confidence: 0.9,
     provenance: "deterministic/forms-view-v1",
+    technical_scope: "formas",
     ...overrides,
   };
 }
