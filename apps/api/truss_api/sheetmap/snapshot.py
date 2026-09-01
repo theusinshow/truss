@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 
-SHEET_MAP_PIPELINE = "sheetmap-v0.5"
+SHEET_MAP_PIPELINE = "sheetmap-v0.6"
 
 
 def _plain(value: Any) -> Any:
@@ -27,6 +27,7 @@ def snapshot_hash(
     regions: list[object],
     views: list[object],
     extraction_hash: str,
+    elements: list[object] | None = None,
 ) -> str:
     canonical = json.dumps(
         {
@@ -39,6 +40,7 @@ def snapshot_hash(
             "technical_scopes": _plain(technical_scopes),
             "regions": _plain(regions),
             "views": _plain(views),
+            "elements": _plain(elements or []),
         },
         sort_keys=True,
         separators=(",", ":"),

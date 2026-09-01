@@ -1,5 +1,13 @@
 [
   {
+    "rule_id": "cross_sheet.pillar_has_detail",
+    "rule_version": "1.0.0",
+    "rule_pack_id": "formas_geral",
+    "rule_scope": "general",
+    "target_kind": "element",
+    "outcome": "NOT_APPLICABLE"
+  },
+  {
     "rule_id": "forms.sheet.category_matches_content",
     "rule_version": "1.0.0",
     "rule_pack_id": "formas_geral",

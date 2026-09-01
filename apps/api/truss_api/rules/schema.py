@@ -16,7 +16,7 @@ REQUIRED_RULE_FIELDS = (
     "finding_type",
     "description",
 )
-VALID_TARGETS = frozenset({"sheet", "view"})
+VALID_TARGETS = frozenset({"sheet", "view", "element"})
 VALID_SEVERITIES = frozenset({"low", "medium", "high", "critical"})
 
 # Vocabulario ja usado por `findings.type`; um pack nao pode inventar um paralelo.

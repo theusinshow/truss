@@ -3,7 +3,7 @@
 # proprietario em 2026-08-28. Preferencia pessoal NAO entra aqui - vive em
 # formas_pessoal.v1.yml, para que uma preferencia nunca seja lida como norma.
 pack_id: formas_geral
-version: "1.0.0"
+version: "1.1.0"
 sheet_type: planta_formas
 scope: general
 rules:
@@ -74,3 +74,15 @@ rules:
     category: identification
     finding_type: attention
     description: Duas views compartilham o mesmo identificador ou titulo.
+
+  # F3: cruza ocorrencias de pilares nas formas com views reconhecidas de
+  # detalhamento de pilares em toda a mesma revisao. Sem alvo observavel, o
+  # resultado e UNKNOWN e nenhum finding e criado.
+  - rule_id: cross_sheet.pillar_has_detail
+    version: "1.0.0"
+    check: pillar_has_detail
+    target: element
+    severity: high
+    category: cross_sheet_consistency
+    finding_type: inconsistency
+    description: Pilar presente na forma nao localizado no detalhamento da revisao.

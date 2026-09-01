@@ -46,6 +46,7 @@ import {
   Conversation,
   DocumentDetail,
   fetchSheetMap,
+  findingElementLabel,
   fetchSheetUsage,
   Finding,
   FindingSeverity,
@@ -61,6 +62,7 @@ import {
   summarizeUsage,
   SheetMap,
   sheetTechnicalScopesLabel,
+  shouldShowHypothesisNotice,
   streamChatWithSheet,
   updateFindingStatus
 } from "@/lib/projects-api";
@@ -2033,7 +2035,11 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                         type="button"
                       >
                         <span className={`absolute -left-px -top-5 border px-1.5 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.08em] ${severity.ring} ${severity.tone}`}>
-                          {finding.isDraft ? "DRAFT" : severity.label}
+                          {finding.isDraft
+                            ? "DRAFT"
+                            : finding.element_code
+                              ? `${finding.element_code} · ${severity.label}`
+                              : severity.label}
                         </span>
                       </button>
                     );
@@ -2187,6 +2193,11 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                           {finding.isDraft ? <span className="ml-2 font-mono text-[10px] text-truss-warning">DRAFT</span> : null}
                         </span>
                         <span className="mt-2 flex flex-wrap items-center gap-2">
+                          {findingElementLabel(finding) ? (
+                            <span className="inline-flex h-6 items-center border border-truss-accent/45 bg-truss-accentSoft px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-text">
+                              {findingElementLabel(finding)}
+                            </span>
+                          ) : null}
                           <SeverityBadge severity={finding.severity} />
                           <StatusBadge status={finding.status} />
                           <span className="inline-flex h-6 items-center gap-1 border border-truss-line bg-truss-raised px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle">
@@ -2281,11 +2292,16 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                   </div>
                   <p className="mt-2 leading-6">{activeFinding.description}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
+                    {findingElementLabel(activeFinding) ? (
+                      <span className="inline-flex h-6 items-center border border-truss-accent/45 bg-truss-accentSoft px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-text">
+                        {findingElementLabel(activeFinding)}
+                      </span>
+                    ) : null}
                     <TypeBadge type={activeFinding.type} />
                     <SeverityBadge severity={activeFinding.severity} />
                     <ConfidenceBadge confidence={activeFinding.confidence} />
                   </div>
-                  {activeFinding.type !== "inconsistency" && activeFinding.status === "pending" ? (
+                  {shouldShowHypothesisNotice(activeFinding) ? (
                     <div className="mt-3 border border-truss-warning/35 bg-truss-warning/10 px-3 py-2 text-xs leading-5 text-truss-text">
                       Hipotese pendente de verificacao humana. Severidade mede impacto, nao certeza.
                     </div>
@@ -2293,6 +2309,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                   <div className="mt-3 grid gap-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle">
                     <span>Regiao / {formatBBox(activeFinding)}</span>
                     <span>Origem / {activeFinding.origin}</span>
+                    {activeFinding.registry_hash ? <span>Registry / {activeFinding.registry_hash}</span> : null}
                     {activeFinding.isDraft ? <span>Persistencia / draft local</span> : null}
                     {activeFinding.rejection_reason ? <span>Rejeicao / {activeFinding.rejection_reason}</span> : null}
                   </div>
@@ -2300,8 +2317,8 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                     <div className="mt-3 border border-truss-line bg-truss-panel/70 p-2">
                       <p className="truss-mono-label">Evidencias</p>
                       <ul className="mt-2 grid gap-1 text-xs leading-5 text-truss-muted">
-                        {activeFinding.evidence.slice(0, 3).map((evidence, index) => (
-                          <li key={`${activeFinding.id}-${index}`}>{evidence}</li>
+                        {activeFinding.evidence.slice(0, 5).map((evidence, index) => (
+                          <li className="break-words" key={`${activeFinding.id}-${index}`}>{evidence}</li>
                         ))}
                       </ul>
                     </div>

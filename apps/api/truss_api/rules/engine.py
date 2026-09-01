@@ -9,6 +9,7 @@ from truss_api.rules.models import (
     RuleEvaluation,
     RulePack,
 )
+from truss_api.sheetmap.elements.registry import pillar_detail_views
 
 
 # Abaixo disso a segmentacao nao sustenta uma afirmacao de ausencia.
@@ -59,6 +60,9 @@ def _result(
     bbox: BBox | None,
     confidence: float,
     finding_type: str | None = None,
+    view_id: str | None = None,
+    element_code: str | None = None,
+    registry_hash: str | None = None,
 ) -> RuleEvaluation:
     return RuleEvaluation(
         rule_id=rule.rule_id,
@@ -77,10 +81,17 @@ def _result(
         severity=rule.severity,
         category=rule.category,
         finding_type=finding_type or rule.finding_type,
+        view_id=view_id,
+        element_code=element_code,
+        registry_hash=registry_hash,
     )
 
 
-def evaluate(pack: RulePack, snapshot: dict) -> list[RuleEvaluation]:
+def evaluate(
+    pack: RulePack,
+    snapshot: dict,
+    registry: dict[str, object] | None = None,
+) -> list[RuleEvaluation]:
     views = _views_for_pack(pack, snapshot)
     results: list[RuleEvaluation] = []
 
@@ -89,8 +100,146 @@ def evaluate(pack: RulePack, snapshot: dict) -> list[RuleEvaluation]:
             results.append(_evaluate_sheet_rule(rule, pack, snapshot, views))
             continue
 
+        if rule.target == "element":
+            results.extend(_evaluate_element_rule(rule, pack, snapshot, registry))
+            continue
+
         for view in views:
             results.append(_evaluate_view_rule(rule, pack, view))
+
+    return results
+
+
+def _evaluate_element_rule(
+    rule: Rule,
+    pack: RulePack,
+    snapshot: dict,
+    registry: dict[str, object] | None,
+) -> list[RuleEvaluation]:
+    if rule.check != "pillar_has_detail":
+        return [
+            _result(
+                rule,
+                pack,
+                target_kind="element",
+                target_id=None,
+                outcome=OUTCOME_UNKNOWN,
+                reason=f"Check nao implementado: {rule.check}",
+                evidence=[],
+                bbox=_sheet_bbox(snapshot),
+                confidence=0.0,
+                finding_type="unverifiable",
+            )
+        ]
+
+    source = [
+        element
+        for element in snapshot.get("elements", [])
+        if element.get("element_kind") == "pillar"
+        and element.get("technical_scope") == pack.technical_scope
+        and element.get("view_id")
+    ]
+    by_code: dict[str, dict] = {}
+    for element in source:
+        by_code.setdefault(str(element["code"]), element)
+
+    if not by_code:
+        return [
+            _result(
+                rule,
+                pack,
+                target_kind="element",
+                target_id=None,
+                outcome=OUTCOME_NOT_APPLICABLE,
+                reason="Nenhum pilar associado a uma view de formas nesta folha.",
+                evidence=["pilares fonte: 0"],
+                bbox=_sheet_bbox(snapshot),
+                confidence=1.0,
+            )
+        ]
+
+    registry_hash = str((registry or {}).get("registry_hash") or "") or None
+    targets = pillar_detail_views(registry or {})
+    target_ids = {str(view["id"]) for view in targets}
+    target_map_ids = {
+        str(view["sheet_map_id"]) for view in targets if view.get("sheet_map_id")
+    }
+    target_occurrences = [
+        item
+        for item in (registry or {}).get("occurrences", [])
+        if item.get("element_kind") == "pillar"
+        and (
+            str(item.get("view_id") or "") in target_ids
+            or (
+                bool(item.get("sheet_map_id"))
+                and str(item["sheet_map_id"]) in target_map_ids
+            )
+        )
+        and float(item.get("confidence") or 0.0) >= MIN_VIEW_CONFIDENCE
+    ]
+    target_codes = {str(item["code"]) for item in target_occurrences}
+    target_sheets = sorted(
+        {
+            str(view.get("sheet_code") or view.get("sheet_code_raw") or f"pagina {int(view.get('page_index') or 0) + 1}")
+            for view in targets
+        }
+    )
+
+    results: list[RuleEvaluation] = []
+    for code, element in sorted(by_code.items()):
+        source_evidence = (
+            f"origem: {element.get('code_raw')} em sheet_map={snapshot.get('id')} "
+            f"view={element.get('view_id')}"
+        )
+        common = [
+            source_evidence,
+            f"alvos pesquisados: {target_sheets or ['nenhum']}",
+            f"codigos nos alvos: {sorted(target_codes)}",
+            f"registry_hash: {registry_hash or 'ausente'}",
+        ]
+
+        if not targets:
+            outcome = OUTCOME_UNKNOWN
+            reason = "Nenhum detalhamento de pilares confiavel foi reconhecido nesta revisao."
+            finding_type = "unverifiable"
+            confidence = 0.35
+        elif not target_codes:
+            outcome = OUTCOME_UNKNOWN
+            reason = "O detalhamento de pilares foi reconhecido, mas seus codigos nao puderam ser extraidos."
+            finding_type = "unverifiable"
+            confidence = 0.4
+        elif code in target_codes:
+            outcome = OUTCOME_PASS
+            reason = ""
+            finding_type = None
+            confidence = min(float(element.get("confidence") or 0.0), 0.9)
+        else:
+            outcome = OUTCOME_FAIL
+            reason = (
+                f"{code} foi lido na forma, mas nao foi localizado nos detalhamentos "
+                "de pilares desta revisao."
+            )
+            finding_type = None
+            target_confidence = min(float(view.get("confidence") or 0.0) for view in targets)
+            confidence = min(float(element.get("confidence") or 0.0), target_confidence) * 0.85
+
+        results.append(
+            _result(
+                rule,
+                pack,
+                target_kind="element",
+                target_id=str(element.get("id") or ""),
+                outcome=outcome,
+                reason=reason,
+                evidence=common,
+                bbox=_bbox(element),
+                confidence=confidence,
+                finding_type=finding_type,
+                view_id=str(element.get("view_id") or "") or None,
+                element_code=code,
+                registry_hash=registry_hash,
+            )
+        )
 
     return results
 

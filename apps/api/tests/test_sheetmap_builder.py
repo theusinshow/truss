@@ -15,6 +15,7 @@ from truss_api.sheetmap.builder import (
     orientation_for,
     paper_format_for,
 )
+from truss_api.sheetmap.elements.models import DetectedElement
 from truss_api.sheetmap.technical_scopes import DetectedTechnicalScope
 from truss_api.sheetmap.views.models import (
     VIEW_KIND_DETAIL,
@@ -228,6 +229,60 @@ def test_snapshot_persists_views_keeping_raw_and_normalized_apart(
     assert stored["declared_scale"] == "1:50"
     assert stored["level_raw"] == "-650"
     assert stored["level"] is None, "nivel nao pode ser normalizado sem confirmacao humana"
+
+
+def test_snapshot_persists_element_occurrence_linked_to_its_view(
+    settings: Settings, document: dict[str, object]
+) -> None:
+    sheet = document["sheets"][0]
+    view = DetectedView(
+        view_kind=VIEW_KIND_DETAIL,
+        identifier=None,
+        title=MeasuredValue(raw="DETALHAMENTO PILARES"),
+        declared_scale=MeasuredValue(raw="ESCALA 1:20", normalized="1:20"),
+        level=MeasuredValue(raw=None),
+        bbox=(0.0, 0.0, 100.0, 100.0),
+        confidence=0.9,
+        provenance="test",
+        technical_scope="armaduras",
+    )
+    element = DetectedElement(
+        element_kind="pillar",
+        code_raw="P 12",
+        code="P12",
+        bbox=(10.0, 20.0, 30.0, 40.0),
+        confidence=0.95,
+        provenance="native-text/pillar-code-v1",
+        attributes={"source_text": "P 12", "association_status": "view_matched"},
+        view_index=0,
+        technical_scope="armaduras",
+    )
+
+    saved = sheetmap_repository.save_sheet_map(
+        sheet_id=str(sheet["id"]),
+        project_id=str(sheet["project_id"]),
+        revision_id=str(sheet["revision_id"]),
+        geometry_path="geometry/p/r/s.elements.json.gz",
+        sheet_code="EST-0010-A",
+        sheet_type="planta_armaduras",
+        paper_format="A1",
+        orientation="paisagem",
+        title_block={},
+        regions=[],
+        views=[view],
+        elements=[element],
+        snapshot_hash="0000000000000006",
+        extractor_version="extract-v0.2",
+        document_hash="abc",
+        settings=settings,
+    )
+
+    stored = saved["elements"][0]
+    assert stored["code_raw"] == "P 12"
+    assert stored["code"] == "P12"
+    assert stored["view_id"] == saved["views"][0]["id"]
+    assert stored["technical_scope"] == "armaduras"
+    assert stored["attributes"]["association_status"] == "view_matched"
 
 
 def test_snapshot_persists_multiple_scopes_and_view_scope(

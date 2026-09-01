@@ -78,6 +78,7 @@ def create_audit_run(
     rule_pack_version: str = "",
     coverage: dict[str, object] | None = None,
     evaluations: list[object] | None = None,
+    registry_hash: str | None = None,
 ) -> dict[str, object]:
     now = _now()
     audit_run_id = str(uuid4())
@@ -100,8 +101,9 @@ def create_audit_run(
                 sheet_map_id,
                 rule_pack_version,
                 coverage_json
+                ,registry_hash
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 audit_run_id,
@@ -110,7 +112,7 @@ def create_audit_run(
                 sheet_context["project_id"],
                 sheet_context["revision_id"],
                 "aggressive",
-                "deterministic-v0.2",
+                "deterministic-v0.3",
                 "completed",
                 f"{len(findings)} achados gerados por regras deterministicas.",
                 now,
@@ -118,6 +120,7 @@ def create_audit_run(
                 sheet_map_id,
                 rule_pack_version,
                 json.dumps(coverage or {}),
+                registry_hash,
             ),
         )
 
@@ -154,8 +157,9 @@ def create_audit_run(
                     created_at, updated_at,
                     rule_id, rule_version, rule_scope, technical_scope, sheet_map_id, view_id,
                     source_layer, dedupe_key
+                    ,element_code, registry_hash
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid4()),
@@ -187,6 +191,8 @@ def create_audit_run(
                     finding.get("view_id"),
                     finding.get("source_layer"),
                     dedupe_key,
+                    finding.get("element_code"),
+                    finding.get("registry_hash"),
                 ),
             )
 
@@ -263,6 +269,7 @@ def get_audit_run(audit_run_id: str, settings: Settings) -> dict[str, object]:
                 started_at,
                 completed_at,
                 coverage_json
+                ,registry_hash
             FROM audit_runs
             WHERE id = ?
             """,

@@ -98,7 +98,17 @@ export type Finding = {
   view_id?: string | null;
   source_layer?: string | null;
   dedupe_key?: string | null;
+  element_code?: string | null;
+  registry_hash?: string | null;
 };
+
+export function findingElementLabel(finding: Finding): string | null {
+  return finding.element_code ? `Elemento ${finding.element_code}` : null;
+}
+
+export function shouldShowHypothesisNotice(finding: Finding): boolean {
+  return finding.origin === "ai" && finding.status === "pending";
+}
 
 export type AuditCoverage = {
   evaluated: number;
@@ -160,6 +170,7 @@ export type AuditRun = {
   started_at: string;
   completed_at: string;
   coverage: AuditCoverage;
+  registry_hash: string | null;
   findings: Finding[];
 };
 
@@ -573,6 +584,22 @@ export type SheetTechnicalScope = {
   provenance: string;
 };
 
+export type SheetElement = {
+  id: string;
+  view_id: string | null;
+  technical_scope: string | null;
+  element_kind: string;
+  code_raw: string;
+  code: string;
+  attributes: Record<string, unknown>;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  confidence: number;
+  provenance: string;
+};
+
 export type SheetMap = {
   id: string;
   sheet_id: string;
@@ -591,6 +618,7 @@ export type SheetMap = {
   technical_scopes: SheetTechnicalScope[];
   regions: SheetRegion[];
   views: SheetView[];
+  elements?: SheetElement[];
 };
 
 const SHEET_TYPE_LABELS: Record<string, string> = {

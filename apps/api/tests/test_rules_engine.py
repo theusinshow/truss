@@ -120,7 +120,7 @@ def test_invalid_pack_is_rejected_by_schema() -> None:
 def test_complete_sheet_produces_only_pass() -> None:
     evaluations = evaluate(load_pack("planta_formas", SCOPE_GENERAL), _snapshot([_view()]))
 
-    assert {e.outcome for e in evaluations} == {OUTCOME_PASS}
+    assert {e.outcome for e in evaluations} == {OUTCOME_PASS, OUTCOME_NOT_APPLICABLE}
 
 
 def test_technical_view_without_numeric_scale_fails_with_evidence() -> None:

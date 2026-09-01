@@ -26,6 +26,7 @@ def test_apply_migrations_creates_schema_and_is_idempotent(tmp_path: Path) -> No
         "sheets",
         "findings",
         "sheet_map_scopes",
+        "sheet_elements",
     } <= _table_names(settings)
     with transaction(settings) as connection:
         view_columns = {
@@ -38,9 +39,15 @@ def test_apply_migrations_creates_schema_and_is_idempotent(tmp_path: Path) -> No
             str(row["name"])
             for row in connection.execute("PRAGMA table_info(sheet_maps)")
         }
+        audit_run_columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(audit_runs)")
+        }
     assert "technical_scope" in view_columns
     assert "technical_scope" in finding_columns
     assert "sheet_code_raw" in sheet_map_columns
+    assert {"element_code", "registry_hash"} <= finding_columns
+    assert "registry_hash" in audit_run_columns
     assert apply_migrations(settings) == []
 
 

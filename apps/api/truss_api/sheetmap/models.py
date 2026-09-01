@@ -40,6 +40,22 @@ class SheetView(BaseModel):
     technical_scope: str | None = None
 
 
+class SheetElement(BaseModel):
+    id: str
+    view_id: str | None = None
+    technical_scope: str | None = None
+    element_kind: str
+    code_raw: str
+    code: str
+    attributes: dict[str, object] = Field(default_factory=dict)
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    confidence: float
+    provenance: str
+
+
 class SheetMap(BaseModel):
     id: str
     sheet_id: str
@@ -58,3 +74,4 @@ class SheetMap(BaseModel):
     technical_scopes: list[SheetTechnicalScope] = Field(default_factory=list)
     regions: list[SheetRegion]
     views: list[SheetView]
+    elements: list[SheetElement] = Field(default_factory=list)

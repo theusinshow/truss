@@ -11,7 +11,12 @@ from truss_api.db.schema import initialize_database
 from truss_api.main import app
 from truss_api.projects import repository
 from truss_api.projects.models import ProjectCreate, RevisionCreate
-from tests.factories import make_structural_pdf_bytes
+from tests.factories import (
+    make_cross_sheet_pillar_pdf_bytes,
+    make_pillar_details_pdf_bytes,
+    make_pillar_forms_pdf_bytes,
+    make_structural_pdf_bytes,
+)
 
 
 @pytest.fixture()
@@ -78,7 +83,7 @@ def test_deterministic_audit_creates_structured_findings(
     assert response.status_code == 201
     audit_run = response.json()
     assert audit_run["status"] == "completed"
-    assert audit_run["pipeline_version"] == "deterministic-v0.2"
+    assert audit_run["pipeline_version"] == "deterministic-v0.3"
     assert audit_run["coverage"]["evaluated"] > 0
 
     finding = next(
@@ -172,3 +177,64 @@ def test_manual_finding_is_persisted_with_human_origin(
 
     findings = client.get(f"/sheets/{sheet_id}/findings").json()
     assert any(finding["id"] == payload["id"] for finding in findings)
+
+
+def test_cross_sheet_audit_localizes_pillar_missing_from_details(
+    client: TestClient, settings: Settings
+) -> None:
+    project = client.post("/projects", json={"name": "Pillars"}).json()
+    revision = client.post(
+        f"/projects/{project['id']}/revisions", json={"notes": "R01"}
+    ).json()
+    imported = client.post(
+        f"/projects/{project['id']}/revisions/{revision['id']}/documents",
+        files={
+            "file": (
+                "pilares.pdf",
+                make_cross_sheet_pillar_pdf_bytes(detail_codes=("P1",)),
+                "application/pdf",
+            )
+        },
+    ).json()
+
+    run = client.post(f"/sheets/{imported['sheets'][0]['id']}/audit-runs").json()
+    findings = [
+        item for item in run["findings"] if item["rule_id"] == "cross_sheet.pillar_has_detail"
+    ]
+
+    assert len(findings) == 1
+    assert findings[0]["element_code"] == "P2"
+    assert findings[0]["view_id"]
+    assert findings[0]["registry_hash"] == run["registry_hash"]
+    assert findings[0]["bbox"]["x0"] < findings[0]["bbox"]["x1"]
+    assert any("alvos pesquisados" in evidence for evidence in findings[0]["evidence"])
+
+
+def test_adding_target_document_invalidates_source_audit_cache(
+    client: TestClient, settings: Settings
+) -> None:
+    project = client.post("/projects", json={"name": "Cache registry"}).json()
+    revision = client.post(
+        f"/projects/{project['id']}/revisions", json={"notes": "R01"}
+    ).json()
+    source = client.post(
+        f"/projects/{project['id']}/revisions/{revision['id']}/documents",
+        files={"file": ("formas.pdf", make_pillar_forms_pdf_bytes(("P1",)), "application/pdf")},
+    ).json()
+    sheet_id = source["sheets"][0]["id"]
+    first = client.post(f"/sheets/{sheet_id}/audit-runs").json()
+
+    target_response = client.post(
+        f"/projects/{project['id']}/revisions/{revision['id']}/documents",
+        files={"file": ("detalhes.pdf", make_pillar_details_pdf_bytes(("P1",)), "application/pdf")},
+    )
+    assert target_response.status_code == 201
+    second = client.post(f"/sheets/{sheet_id}/audit-runs").json()
+
+    assert second["id"] != first["id"]
+    assert second["registry_hash"] != first["registry_hash"]
+    assert not [
+        item
+        for item in second["findings"]
+        if item["rule_id"] == "cross_sheet.pillar_has_detail"
+    ]

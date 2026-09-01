@@ -109,6 +109,22 @@ A identidade da prancha separa evidencia de interpretacao: `sheet_code_raw` pres
 no carimbo e `sheet_code` so contem a forma canonica verificavel. O intake de calibracao representa
 todas as paginas, inclusive quando nenhuma view foi segmentada.
 
+## F3 - Elementos e cruzamento entre folhas
+
+O primeiro slice de F3 extrai ocorrencias de pilares (`P1`, `P 12`, `P-12A`) do texto nativo,
+preservando codigo bruto, forma canonica, bbox em pontos PDF, confianca e proveniencia. As
+ocorrencias pertencem ao snapshot imutavel do Sheet Map; o registry da revisao e derivado por
+consulta e nunca duplicado em uma tabela materializada.
+
+A regra cross-sheet procura pilares presentes em views de formas e nao localizados em folhas com
+detalhamento explicito de pilares. Sem alvo observavel, sem codigos extraiveis ou com origem
+ambigua, o resultado e `UNKNOWN`/`NOT_APPLICABLE`, nao um erro inventado. O cache inclui o
+fingerprint do registry, portanto anexar ou reprocessar outra folha invalida resultados dependentes.
+
+Medido em 13 PDFs aprovados (259 paginas): 2.558 ocorrencias, 190 comparacoes conformes e zero
+candidatos a finding. A fixture defeituosa independente gera exatamente um finding localizado para
+`P2`. Vigas, lajes e continuidade entre niveis permanecem fora deste slice.
+
 ## M10/M6 - Provider local, chat, memoria e custo
 
 A aplicacao possui uma primeira abstracao de AI Provider:

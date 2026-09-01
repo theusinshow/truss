@@ -14,9 +14,10 @@ from truss_api.rules.models import (
 )
 from truss_api.sheetmap import repository as sheetmap_repository
 from truss_api.sheetmap.primitives import EXTRACTOR_VERSION
+from truss_api.sheetmap.elements.registry import build_revision_registry
 
 
-AUDIT_PIPELINE_VERSION = "audit-v0.2"
+AUDIT_PIPELINE_VERSION = "audit-v0.3"
 
 def audit_cache_key(
     *,
@@ -26,6 +27,7 @@ def audit_cache_key(
     snapshot_hash: str,
     rule_pack_id: str,
     rule_pack_version: str,
+    registry_hash: str = "",
 ) -> str:
     material = "|".join(
         [
@@ -35,6 +37,7 @@ def audit_cache_key(
             snapshot_hash,
             rule_pack_id,
             rule_pack_version,
+            registry_hash,
         ]
     )
     return f"audit:{sha256(material.encode('utf-8')).hexdigest()[:24]}"
@@ -54,7 +57,7 @@ def dedupe_key_for(evaluation: RuleEvaluation, sheet_id: str) -> str:
             evaluation.scope,
             evaluation.rule_id,
             evaluation.target_kind,
-            evaluation.target_id or "",
+            evaluation.element_code or evaluation.target_id or "",
         ]
     )
     return sha256(material.encode("utf-8")).hexdigest()[:24]
@@ -83,7 +86,11 @@ def _finding_from_evaluation(
         "rule_version": evaluation.rule_version,
         "rule_scope": evaluation.scope,
         "technical_scope": evaluation.technical_scope,
-        "view_id": evaluation.target_id if evaluation.target_kind == "view" else None,
+        "view_id": evaluation.view_id or (
+            evaluation.target_id if evaluation.target_kind == "view" else None
+        ),
+        "element_code": evaluation.element_code,
+        "registry_hash": evaluation.registry_hash,
         "source_layer": "deterministic",
         "dedupe_key": dedupe_key_for(evaluation, str(sheet_context["sheet_id"])),
     }
@@ -131,7 +138,16 @@ def run_deterministic_audit(sheet_id: str, settings: Settings) -> dict[str, obje
             rule_pack_version="",
             coverage=_coverage([], technical_scopes, ()),
             evaluations=[],
+            registry_hash=None,
         )
+
+    needs_registry = any(rule.target == "element" for pack in packs for rule in pack.rules)
+    registry = (
+        build_revision_registry(str(sheet_context["revision_id"]), settings)
+        if needs_registry
+        else None
+    )
+    registry_hash = str((registry or {}).get("registry_hash") or "")
 
     cache_key = audit_cache_key(
         document_hash=str(sheet_map.get("document_hash") or ""),
@@ -140,6 +156,7 @@ def run_deterministic_audit(sheet_id: str, settings: Settings) -> dict[str, obje
         snapshot_hash=str(sheet_map.get("snapshot_hash") or ""),
         rule_pack_id="+".join(pack.pack_id for pack in packs),
         rule_pack_version="+".join(pack.version for pack in packs),
+        registry_hash=registry_hash,
     )
     cached = repository.get_cached_audit_run(cache_key, settings)
     if cached is not None:
@@ -149,7 +166,7 @@ def run_deterministic_audit(sheet_id: str, settings: Settings) -> dict[str, obje
     # a sua exigencia sem que ela seja apresentada como norma.
     evaluations: list[RuleEvaluation] = []
     for pack in packs:
-        evaluations.extend(evaluate(pack, sheet_map))
+        evaluations.extend(evaluate(pack, sheet_map, registry))
 
     findings = [
         _finding_from_evaluation(evaluation, sheet_context)
@@ -166,4 +183,5 @@ def run_deterministic_audit(sheet_id: str, settings: Settings) -> dict[str, obje
         rule_pack_version="+".join(f"{pack.pack_id}@{pack.version}" for pack in packs),
         coverage=_coverage(evaluations, technical_scopes, packs),
         evaluations=evaluations,
+        registry_hash=registry_hash or None,
     )

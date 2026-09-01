@@ -140,6 +140,7 @@ def test_cache_key_changes_when_the_rule_pack_changes() -> None:
 
     assert audit_cache_key(**base) != audit_cache_key(**{**base, "rule_pack_version": "1.0.1"})
     assert audit_cache_key(**base) != audit_cache_key(**{**base, "snapshot_hash": "other"})
+    assert audit_cache_key(**base) != audit_cache_key(**{**base, "registry_hash": "other"})
     assert audit_cache_key(**base) == audit_cache_key(**base)
 
 

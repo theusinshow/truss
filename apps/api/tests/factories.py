@@ -61,3 +61,80 @@ def make_forms_sheet_pdf_bytes() -> bytes:
     document.save(buffer)
     document.close()
     return buffer.getvalue()
+
+
+def _add_pillar_sheet(
+    document: fitz.Document,
+    *,
+    sheet_code: str,
+    title: str,
+    category: str,
+    codes: tuple[str, ...],
+) -> None:
+    page = document.new_page(width=2384, height=1684)
+    page.draw_rect(fitz.Rect(71, 29, 2356, 1656), color=(0, 0, 0), width=2)
+    page.draw_rect(fitz.Rect(200, 100, 1500, 560), color=(0, 0, 0), width=1)
+    for index, code in enumerate(codes):
+        page.insert_text((320 + index * 180, 300), code, fontsize=12)
+
+    page.insert_text((200, 600), f"1 {title}", fontsize=16)
+    page.insert_text((200, 620), "ESCALA 1:50", fontsize=7)
+    page.insert_text((1750, 1500), sheet_code, fontsize=11)
+    page.insert_text((1750, 1520), "CPF: 951.770.276-00", fontsize=11)
+    page.insert_text((1750, 1560), "PROJETO ESTRUTURAL", fontsize=11)
+    page.insert_text((1750, 1590), category, fontsize=11)
+    page.insert_text((1750, 1610), title, fontsize=11)
+
+
+def make_pillar_forms_pdf_bytes(codes: tuple[str, ...] = ("P1", "P2")) -> bytes:
+    document = fitz.open()
+    _add_pillar_sheet(
+        document,
+        sheet_code="EST-0010-A",
+        title="PLANTA DE FORMAS - TERREO",
+        category="PLANTA DE FORMAS",
+        codes=codes,
+    )
+    buffer = BytesIO()
+    document.save(buffer)
+    document.close()
+    return buffer.getvalue()
+
+
+def make_pillar_details_pdf_bytes(codes: tuple[str, ...] = ("P1",)) -> bytes:
+    document = fitz.open()
+    _add_pillar_sheet(
+        document,
+        sheet_code="EST-0020-A",
+        title="DETALHAMENTO PILARES",
+        category="PLANTA DE ARMADURAS",
+        codes=codes,
+    )
+    buffer = BytesIO()
+    document.save(buffer)
+    document.close()
+    return buffer.getvalue()
+
+
+def make_cross_sheet_pillar_pdf_bytes(
+    detail_codes: tuple[str, ...] = ("P1",),
+) -> bytes:
+    document = fitz.open()
+    _add_pillar_sheet(
+        document,
+        sheet_code="EST-0010-A",
+        title="PLANTA DE FORMAS - TERREO",
+        category="PLANTA DE FORMAS",
+        codes=("P1", "P2"),
+    )
+    _add_pillar_sheet(
+        document,
+        sheet_code="EST-0020-A",
+        title="DETALHAMENTO PILARES",
+        category="PLANTA DE ARMADURAS",
+        codes=detail_codes,
+    )
+    buffer = BytesIO()
+    document.save(buffer)
+    document.close()
+    return buffer.getvalue()

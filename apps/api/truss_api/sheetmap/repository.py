@@ -6,6 +6,7 @@ from uuid import uuid4
 from truss_api.core.settings import Settings
 from truss_api.db.connection import transaction
 from truss_api.sheetmap.regions import DetectedRegion
+from truss_api.sheetmap.elements.models import DetectedElement
 from truss_api.sheetmap.snapshot import SHEET_MAP_PIPELINE, pipeline_version_for
 from truss_api.sheetmap.technical_scopes import DetectedTechnicalScope, scope_for_sheet_type
 from truss_api.sheetmap.views.models import DetectedView
@@ -26,7 +27,7 @@ def _insert_view(
     sheet_map_id: str,
     parent_view_id: str | None,
     built_at: str,
-) -> None:
+) -> str:
     view_id = str(uuid4())
 
     connection.execute(
@@ -72,6 +73,8 @@ def _insert_view(
             built_at=built_at,
         )
 
+    return view_id
+
 
 def save_sheet_map(
     *,
@@ -88,6 +91,7 @@ def save_sheet_map(
     technical_scopes: list[DetectedTechnicalScope] | None = None,
     regions: list[DetectedRegion],
     views: list[DetectedView],
+    elements: list[DetectedElement] | None = None,
     snapshot_hash: str,
     extractor_version: str,
     document_hash: str,
@@ -187,13 +191,47 @@ def save_sheet_map(
                 ),
             )
 
+        view_ids: list[str] = []
         for view in views:
-            _insert_view(
+            view_ids.append(_insert_view(
                 connection,
                 view,
                 sheet_map_id=sheet_map_id,
                 parent_view_id=None,
                 built_at=built_at,
+            ))
+
+        for element in elements or []:
+            view_id = (
+                view_ids[element.view_index]
+                if element.view_index is not None and 0 <= element.view_index < len(view_ids)
+                else None
+            )
+            connection.execute(
+                """
+                INSERT INTO sheet_elements (
+                    id, sheet_map_id, view_id, technical_scope, element_kind,
+                    code_raw, code, attributes_json, x0, y0, x1, y1,
+                    confidence, provenance, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(uuid4()),
+                    sheet_map_id,
+                    view_id,
+                    element.technical_scope,
+                    element.element_kind,
+                    element.code_raw,
+                    element.code,
+                    json.dumps(element.attributes, ensure_ascii=False),
+                    element.bbox[0],
+                    element.bbox[1],
+                    element.bbox[2],
+                    element.bbox[3],
+                    element.confidence,
+                    element.provenance,
+                    built_at,
+                ),
             )
 
     return get_sheet_map_by_id(sheet_map_id, settings)
@@ -255,6 +293,18 @@ def _load(connection: sqlite3.Connection, row: sqlite3.Row) -> dict[str, object]
             (str(row["id"]),),
         ).fetchall()
     ]
+    sheet_map["elements"] = []
+    for item in connection.execute(
+        """
+        SELECT id, view_id, technical_scope, element_kind, code_raw, code,
+               attributes_json, x0, y0, x1, y1, confidence, provenance
+        FROM sheet_elements WHERE sheet_map_id = ? ORDER BY y0, x0, code
+        """,
+        (str(row["id"]),),
+    ).fetchall():
+        element = dict(item)
+        element["attributes"] = json.loads(str(element.pop("attributes_json") or "{}"))
+        sheet_map["elements"].append(element)
     return sheet_map
 
 

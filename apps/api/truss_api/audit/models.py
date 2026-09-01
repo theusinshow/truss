@@ -47,6 +47,8 @@ class Finding(BaseModel):
     view_id: str | None = None
     source_layer: str | None = None
     dedupe_key: str | None = None
+    element_code: str | None = None
+    registry_hash: str | None = None
 
 
 class AuditCoverage(BaseModel):
@@ -76,6 +78,7 @@ class AuditRun(BaseModel):
     started_at: datetime
     completed_at: datetime
     coverage: AuditCoverage = AuditCoverage()
+    registry_hash: str | None = None
     findings: list[Finding]
 
 

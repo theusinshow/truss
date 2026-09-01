@@ -1,5 +1,34 @@
 # Decisions
 
+## 2026-08-31 - F3 registry is derived, revision-aware and honest about absence
+
+The first F3 slice persists pillar-code occurrences as the fourth Sheet Map level. Each occurrence
+keeps raw and canonical code, PDF-point bbox, confidence, provenance, optional view and technical
+scope. `sheet_elements` belongs to an immutable `sheet_map`; there is no duplicated registry table.
+The revision registry is a query over one current snapshot per sheet.
+
+Cross-sheet audit cache keys include a registry fingerprint. Adding or rebuilding any relevant
+sheet therefore invalidates a source-sheet result even when the source PDF itself did not change.
+Findings keep `element_code`, source view/bbox, searched target sheets and `registry_hash`.
+
+Absence is only a failure when an explicit pillar-detail view exists and at least one reliable
+target code was extracted. Missing target, empty extraction and ambiguous source scope return
+`UNKNOWN` or `NOT_APPLICABLE`. The title of a view is stronger evidence than the sheet-wide scope:
+the base project labels four explicit `DETALHAMENTO FUNDACOES E PILARES DE ARRANQUE` views as
+`locacao` because the title block contains `REVISAO LOCACAO PILARES`. Trusting that noisy global
+classification produced 26 false candidates. Using the explicit view title and occurrences from
+the same target sheet reduced the approved-project floor to zero without allowlists or suppression.
+
+Measured over 13 approved PDFs / 259 pages: 2,558 pillar occurrences, 190 PASS, 37 UNKNOWN,
+85 NOT_APPLICABLE and 0 FAIL. Seven PDFs do not expose pillar identifiers in usable native-text
+encoding and are explicitly not applicable. The independent defective fixture still produces one
+localized P2 failure. Full results live in
+`calibration/human-review/f3-elements-measurement-2026-08-31.md`.
+
+The viewer presents the element code in technical mono text and shows the hypothesis notice for
+every pending automatic finding, including inconsistencies. Severity continues to measure impact,
+not certainty.
+
 ## 2026-08-31 - View titles are lower captions, not upper boundaries
 
 The first visual review batch covered six real sheets and 17 detected views. All 17 original

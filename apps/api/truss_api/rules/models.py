@@ -63,3 +63,6 @@ class RuleEvaluation:
     severity: str
     category: str
     finding_type: str
+    view_id: str | None = None
+    element_code: str | None = None
+    registry_hash: str | None = None
