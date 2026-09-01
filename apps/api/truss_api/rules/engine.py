@@ -121,6 +121,9 @@ def _evaluate_element_rule(
     if rule.check == "pillar_lifecycle_continuity":
         return _evaluate_pillar_lifecycle_rule(rule, pack, snapshot, registry)
 
+    if rule.check == "pillar_section_transition":
+        return _evaluate_pillar_section_rule(rule, pack, snapshot, registry)
+
     if rule.check != "pillar_has_detail":
         return [
             _result(
@@ -441,6 +444,229 @@ def _evaluate_pillar_lifecycle_rule(
                 registry_hash=registry_hash,
                 dedupe_discriminator=(
                     f"{state}|{(source_level or {}).get('level_raw') or 'unknown'}"
+                ),
+            )
+        )
+
+    return results
+
+
+def _section_unit(entry: dict) -> str | None:
+    value = entry.get("section_unit_raw")
+    return str(value).lower() if value is not None else None
+
+
+def _section_end(entry: dict | None, level: dict | None, view_id: str | None) -> str:
+    return (
+        f"folha={(level or {}).get('sheet_code') or 'ausente'} "
+        f"view={view_id or 'ausente'} "
+        f"nivel={(level or {}).get('level_raw') or 'ausente'} "
+        f"secao={(entry or {}).get('section_raw') or 'ausente'} "
+        f"assinatura={(entry or {}).get('section_signature') or 'ausente'} "
+        f"ordem={(entry or {}).get('section_ordered_signature') or 'ausente'} "
+        f"bbox={(entry or {}).get('section_bbox_pt') or 'ausente'} "
+        f"status={(entry or {}).get('status') or 'ausente'}"
+    )
+
+
+def _evaluate_pillar_section_rule(
+    rule: Rule,
+    pack: RulePack,
+    snapshot: dict,
+    registry: dict[str, object] | None,
+) -> list[RuleEvaluation]:
+    """Compara duas secoes efetivamente observadas do mesmo codigo.
+
+    O sentido e sempre do nivel inferior para o superior do par seguro da F3.2,
+    para que a mesma transicao nao seja relatada nas duas pontas. Mudanca de
+    secao e ponto de atencao; nada aqui afirma erro estrutural.
+    """
+    associated = [
+        element
+        for element in snapshot.get("elements", [])
+        if element.get("element_kind") == "pillar"
+        and element.get("technical_scope") == pack.technical_scope
+        and element.get("view_id")
+        and str((element.get("attributes") or {}).get("section_association_status") or "")
+        in {"matched", "ambiguous"}
+    ]
+    if not associated:
+        return [
+            _result(
+                rule,
+                pack,
+                target_kind="element",
+                target_id=None,
+                outcome=OUTCOME_NOT_APPLICABLE,
+                reason="Nenhuma secao de pilar foi associada nesta folha.",
+                evidence=["secoes associadas: 0"],
+                bbox=_sheet_bbox(snapshot),
+                confidence=1.0,
+            )
+        ]
+
+    registry = registry or {}
+    registry_hash = str(registry.get("registry_hash") or "") or None
+    levels = {str(item["view_id"]): item for item in registry.get("form_levels", [])}
+    next_pair = {
+        str(item["lower_view_id"]): item
+        for item in registry.get("form_level_pairs", [])
+    }
+    sections = {
+        (str(item.get("view_id") or ""), str(item.get("code") or "")): item
+        for item in registry.get("pillar_sections", [])
+    }
+
+    grouped: dict[tuple[str, str], list[dict]] = {}
+    for element in associated:
+        key = (str(element.get("code") or ""), str(element.get("view_id") or ""))
+        grouped.setdefault(key, []).append(element)
+
+    results: list[RuleEvaluation] = []
+    for (code, source_view_id), elements in sorted(grouped.items()):
+        source = elements[0]
+        pair = next_pair.get(source_view_id)
+        target_view_id = str(pair["upper_view_id"]) if pair is not None else None
+        source_level = levels.get(source_view_id)
+        target_level = levels.get(target_view_id or "")
+        source_entry = sections.get((source_view_id, code))
+        target_entry = sections.get((target_view_id or "", code))
+
+        evidence = [
+            f"codigo: {code}",
+            f"origem: {_section_end(source_entry, source_level, source_view_id)}",
+            f"alvo: {_section_end(target_entry, target_level, target_view_id)}",
+            f"pareamento: {(pair or {}).get('provenance') or 'ausente'}",
+            (
+                "proveniencia: "
+                f"{(source_entry or {}).get('section_provenance') or 'ausente'} | "
+                f"{(target_entry or {}).get('section_provenance') or 'ausente'}"
+            ),
+            f"registry_hash: {registry_hash or 'ausente'}",
+        ]
+
+        if pair is None or target_level is None or source_level is None:
+            results.append(
+                _result(
+                    rule,
+                    pack,
+                    target_kind="element",
+                    target_id=str(source.get("id") or ""),
+                    outcome=OUTCOME_NOT_APPLICABLE,
+                    reason="",
+                    evidence=evidence,
+                    bbox=_bbox(source),
+                    confidence=1.0,
+                    view_id=source_view_id,
+                    element_code=code,
+                    registry_hash=registry_hash,
+                    dedupe_discriminator=(
+                        f"{(source_level or {}).get('level_raw') or 'unknown'}|sem-par"
+                    ),
+                )
+            )
+            continue
+
+        source_raw_level = str(source_level["level_raw"])
+        target_raw_level = str(target_level["level_raw"])
+        discriminator_levels = f"{source_raw_level}->{target_raw_level}"
+
+        def _unknown(reason: str, confidence: float, marker: str) -> RuleEvaluation:
+            return _result(
+                rule,
+                pack,
+                target_kind="element",
+                target_id=str(source.get("id") or ""),
+                outcome=OUTCOME_UNKNOWN,
+                reason=reason,
+                evidence=evidence,
+                bbox=_bbox(source),
+                confidence=confidence,
+                finding_type="unverifiable",
+                view_id=source_view_id,
+                element_code=code,
+                registry_hash=registry_hash,
+                dedupe_discriminator=f"{discriminator_levels}|{marker}",
+            )
+
+        source_resolved = (source_entry or {}).get("status") == "resolved"
+        target_resolved = (target_entry or {}).get("status") == "resolved"
+        if not source_resolved or not target_resolved:
+            if not source_resolved and not target_resolved:
+                end = "ambas as pontas"
+            elif not source_resolved:
+                end = "origem"
+            else:
+                end = "alvo"
+            results.append(
+                _unknown(
+                    f"A secao de {code} nao e univoca na {end} da transicao "
+                    f"{source_raw_level} -> {target_raw_level}.",
+                    0.35,
+                    "secao-nao-univoca",
+                )
+            )
+            continue
+
+        source_unit = _section_unit(source_entry)
+        target_unit = _section_unit(target_entry)
+        if source_unit != target_unit:
+            evidence.append(
+                f"unidade: origem={source_unit or 'ausente'} | alvo={target_unit or 'ausente'}"
+            )
+            results.append(
+                _unknown(
+                    f"As secoes de {code} declaram unidades incompativeis entre os niveis "
+                    f"{source_raw_level} e {target_raw_level}.",
+                    0.35,
+                    "unidade-incompativel",
+                )
+            )
+            continue
+
+        evidence.append(f"unidade: {source_unit or 'ausente'}")
+
+        source_signature = list(source_entry.get("section_signature") or [])
+        target_signature = list(target_entry.get("section_signature") or [])
+        source_printed = str(source_entry.get("section_raw") or "")
+        target_printed = str(target_entry.get("section_raw") or "")
+        evidence.append(f"assinaturas: {source_signature} -> {target_signature}")
+        if source_entry.get("section_ordered_signature") != target_entry.get(
+            "section_ordered_signature"
+        ):
+            evidence.append(
+                f"ordem impressa: {source_printed} -> {target_printed}; "
+                "orientacao nao verificada neste slice"
+            )
+
+        changed = source_signature != target_signature
+        confidence = min(
+            float(source_entry.get("section_confidence") or 0.0),
+            float(target_entry.get("section_confidence") or 0.0),
+            float(pair.get("confidence") or 0.0),
+        )
+        results.append(
+            _result(
+                rule,
+                pack,
+                target_kind="element",
+                target_id=str(source.get("id") or ""),
+                outcome=OUTCOME_FAIL if changed else OUTCOME_PASS,
+                reason=(
+                    f"{code} foi observado com secao {source_printed} no nivel "
+                    f"{source_raw_level} e {target_printed} no nivel {target_raw_level}. "
+                    "Verifique a transicao de secao indicada no projeto."
+                )
+                if changed
+                else "",
+                evidence=evidence,
+                bbox=_bbox(source),
+                confidence=confidence,
+                view_id=source_view_id,
+                element_code=code,
+                registry_hash=registry_hash,
+                dedupe_discriminator=(
+                    f"{discriminator_levels}|{source_signature}->{target_signature}"
                 ),
             )
         )

@@ -1,7 +1,7 @@
 # F3.3 - Secoes explicitas de pilares entre niveis
 
 Data: 2026-09-01  
-Status: aprovado e em implementacao; Task 1 concluida
+Status: aprovado e em implementacao; Tasks 1 a 5 concluidas
 Escopo: terceiro slice de F3, limitado a secoes textuais `a x b` associadas a pilares observados
 
 ## Resultado pretendido

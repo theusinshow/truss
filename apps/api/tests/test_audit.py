@@ -20,6 +20,7 @@ from tests.factories import (
     make_pillar_continuity_pdf_bytes,
     make_pillar_details_pdf_bytes,
     make_pillar_forms_pdf_bytes,
+    make_pillar_section_transition_pdf_bytes,
     make_structural_pdf_bytes,
 )
 
@@ -365,6 +366,150 @@ def test_new_target_level_snapshot_invalidates_cache_without_erasing_history(
             SELECT COUNT(*) FROM findings
             WHERE sheet_id = ?
               AND rule_id = 'cross_sheet.pillar_lifecycle_continuity'
+            """,
+            (str(source["id"]),),
+        ).fetchone()[0]
+    assert historical == 1
+
+
+def test_section_change_between_levels_is_a_localized_attention_point(
+    client: TestClient, settings: Settings
+) -> None:
+    project = client.post("/projects", json={"name": "Pillar sections"}).json()
+    revision = client.post(
+        f"/projects/{project['id']}/revisions", json={"notes": "R01"}
+    ).json()
+    imported = client.post(
+        f"/projects/{project['id']}/revisions/{revision['id']}/documents",
+        files={
+            "file": (
+                "secoes.pdf",
+                make_pillar_section_transition_pdf_bytes(),
+                "application/pdf",
+            )
+        },
+    ).json()
+
+    run = client.post(f"/sheets/{imported['sheets'][0]['id']}/audit-runs").json()
+    findings = [
+        item
+        for item in run["findings"]
+        if item["rule_id"] == "cross_sheet.pillar_section_transition"
+    ]
+
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding["element_code"] == "P1"
+    assert finding["type"] == "attention"
+    assert finding["severity"] == "medium"
+    assert finding["view_id"]
+    assert finding["registry_hash"] == run["registry_hash"]
+    assert finding["bbox"]["x0"] < finding["bbox"]["x1"]
+    assert "20x40" in finding["description"] and "20x20" in finding["description"]
+    assert any(item.startswith("origem: ") for item in finding["evidence"])
+    assert any(item.startswith("alvo: ") for item in finding["evidence"])
+    assert any(item == "unidade: cm" for item in finding["evidence"])
+
+
+def test_new_target_section_invalidates_cache_without_erasing_history(
+    client: TestClient, settings: Settings
+) -> None:
+    project = client.post("/projects", json={"name": "Section cache"}).json()
+    revision = client.post(
+        f"/projects/{project['id']}/revisions", json={"notes": "R01"}
+    ).json()
+    imported = client.post(
+        f"/projects/{project['id']}/revisions/{revision['id']}/documents",
+        files={
+            "file": (
+                "secoes-cache.pdf",
+                make_pillar_section_transition_pdf_bytes(),
+                "application/pdf",
+            )
+        },
+    ).json()
+    source, target = imported["sheets"]
+    first = client.post(f"/sheets/{source['id']}/audit-runs").json()
+    assert [
+        item
+        for item in first["findings"]
+        if item["rule_id"] == "cross_sheet.pillar_section_transition"
+    ]
+
+    cached = client.post(f"/sheets/{source['id']}/audit-runs").json()
+    assert cached["id"] == first["id"]
+
+    target_view = DetectedView(
+        view_kind="plan",
+        identifier="1",
+        title=MeasuredValue(raw="PLANTA DE FORMAS - 1 PAVIMENTO (NIVEL 200)"),
+        declared_scale=MeasuredValue(raw="ESCALA 1:50", normalized="1:50"),
+        level=MeasuredValue(raw="200"),
+        bbox=(200.0, 100.0, 1500.0, 620.0),
+        confidence=0.9,
+        provenance="test/section-target-v2",
+        technical_scope="formas",
+    )
+    target_elements = [
+        DetectedElement(
+            element_kind="pillar",
+            code_raw="P1",
+            code="P1",
+            bbox=(320.0, 280.0, 350.0, 310.0),
+            confidence=0.95,
+            provenance="test",
+            attributes={
+                "association_status": "view_matched",
+                "section_association_status": "matched",
+                "section_raw": "20x40 cm",
+                "section_a_raw": "20",
+                "section_b_raw": "40",
+                "section_signature": [20, 40],
+                "section_ordered_signature": [20, 40],
+                "section_unit_raw": "cm",
+                "section_provenance": "native-text/pillar-section-v1:adjacent-label",
+                "section_confidence": 0.9,
+                "section_bbox_pt": [320.0, 311.0, 350.0, 320.0],
+                "section_evidence_count": 1,
+            },
+            view_index=0,
+            technical_scope="formas",
+        )
+    ]
+    sheetmap_repository.save_sheet_map(
+        sheet_id=str(target["id"]),
+        project_id=str(target["project_id"]),
+        revision_id=str(target["revision_id"]),
+        geometry_path="geometry/test/section-target-v2.json.gz",
+        sheet_code=str(target["label"]),
+        sheet_type="planta_formas",
+        paper_format="A1",
+        orientation="paisagem",
+        title_block={"classification_confidence": 0.95},
+        regions=[],
+        views=[target_view],
+        elements=target_elements,
+        snapshot_hash="section-target-v2",
+        extractor_version="extract-v0.2",
+        document_hash="section-document-v2",
+        settings=settings,
+    )
+
+    second = client.post(f"/sheets/{source['id']}/audit-runs").json()
+
+    assert second["id"] != first["id"]
+    assert second["registry_hash"] != first["registry_hash"]
+    assert not [
+        item
+        for item in second["findings"]
+        if item["rule_id"] == "cross_sheet.pillar_section_transition"
+    ]
+    with transaction(settings) as connection:
+        historical = connection.execute(
+            """
+            SELECT COUNT(*) FROM findings
+            WHERE sheet_id = ?
+              AND rule_id = 'cross_sheet.pillar_section_transition'
             """,
             (str(source["id"]),),
         ).fetchone()[0]

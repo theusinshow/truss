@@ -3,7 +3,7 @@
 # proprietario em 2026-08-28. Preferencia pessoal NAO entra aqui - vive em
 # formas_pessoal.v1.yml, para que uma preferencia nunca seja lida como norma.
 pack_id: formas_geral
-version: "1.2.0"
+version: "1.3.0"
 sheet_type: planta_formas
 scope: general
 rules:
@@ -97,3 +97,16 @@ rules:
     category: cross_sheet_consistency
     finding_type: inconsistency
     description: Estado declarado do pilar contradiz sua presenca no nivel adjacente.
+
+  # F3.3: compara duas secoes `a x b` efetivamente observadas para o mesmo
+  # codigo em niveis pareados. Mudanca de secao e ponto de atencao para revisao
+  # humana, nunca erro estrutural confirmado. Ausencia, ambiguidade ou unidade
+  # incompativel em qualquer ponta retorna UNKNOWN.
+  - rule_id: cross_sheet.pillar_section_transition
+    version: "1.0.0"
+    check: pillar_section_transition
+    target: element
+    severity: medium
+    category: cross_sheet_consistency
+    finding_type: attention
+    description: Secao observada do pilar muda entre dois niveis pareados.

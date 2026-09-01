@@ -121,6 +121,40 @@ def make_pillar_section_pdf_bytes() -> bytes:
     return buffer.getvalue()
 
 
+def make_pillar_section_transition_pdf_bytes(
+    *,
+    lower_sections: tuple[str, ...] = ("20x40 cm", "20x30 cm", "20x30 cm", "20x30 cm"),
+    upper_sections: tuple[str, ...] = ("20x20 cm", "20x30 cm", "20x30 cm", "20x30 cm"),
+) -> bytes:
+    """Dois niveis pareaveis com os mesmos codigos e secoes explicitas.
+
+    Quatro pilares sustentam o pareamento entre folhas da F3.2. P1 reduz de
+    `20x40` para `20x20` entre os niveis; os demais permanecem `20x30`.
+    """
+    codes = ("P1", "P2", "P3", "P4")
+    document = fitz.open()
+    _add_pillar_sheet(
+        document,
+        sheet_code="EST-0100-A",
+        title="PLANTA DE FORMAS - TERREO (NIVEL 100)",
+        category="PLANTA DE FORMAS",
+        codes=codes,
+        sections=lower_sections,
+    )
+    _add_pillar_sheet(
+        document,
+        sheet_code="EST-0200-A",
+        title="PLANTA DE FORMAS - 1 PAVIMENTO (NIVEL 200)",
+        category="PLANTA DE FORMAS",
+        codes=codes,
+        sections=upper_sections,
+    )
+    buffer = BytesIO()
+    document.save(buffer)
+    document.close()
+    return buffer.getvalue()
+
+
 def make_pillar_details_pdf_bytes(codes: tuple[str, ...] = ("P1",)) -> bytes:
     document = fitz.open()
     _add_pillar_sheet(
