@@ -1,7 +1,7 @@
 # F3.3 - Secoes explicitas de pilares entre niveis
 
 Data: 2026-09-01  
-Status: proposta aguardando aprovacao  
+Status: aprovado e em implementacao; Task 1 concluida
 Escopo: terceiro slice de F3, limitado a secoes textuais `a x b` associadas a pilares observados
 
 ## Resultado pretendido
@@ -261,6 +261,11 @@ Nenhum candidato aprovado/rejeitado sera usado como allowlist ou supressao autom
 - implementar F4, F5 ou F6.
 
 ## Gate de aprovacao
+
+Gate aprovado pelo proprietario em 2026-09-01. O gabarito espacial foi concluido antes de qualquer
+alteracao no Sheet Map e esta registrado em
+`calibration/human-review/f3-pillar-sections-ground-truth.yml` e
+`calibration/human-review/f3-pillar-sections-review.md`.
 
 A implementacao depende da aprovacao explicita destas restricoes:
 

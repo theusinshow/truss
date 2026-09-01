@@ -25,3 +25,4 @@ data/knowledge-inbox/*
 data/db/*.bak
 !data/**/.gitkeep
 data/db/*.pre-*
+.tmp/

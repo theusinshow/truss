@@ -1,0 +1,120 @@
+version: 1
+date: 2026-09-01
+status: approved-for-f3.3
+coordinate_space: pdf-points
+
+documents:
+  base: Projeto Estrutural_Juliano Corbellini_R05.pdf
+  valcir: Proj_est_valcir_R01.pdf
+  r02: Proj_Estrutural_R02.pdf
+  rancho: Proj_Estrutural_RanchoQueimado_geral_madeira.pdf
+  guarita: Projeto_Estrutural_Guarita Country Club_MMD_R01.pdf
+
+contract:
+  token: standalone-a-x-b-with-optional-cm
+  value_range_inclusive: [8, 300]
+  max_bbox_gap_pt: 2.0
+  nearest_pillar_margin_pt: 0.5
+  require_same_page: true
+  require_same_view: true
+  reject_embedded_text: true
+  missing_unit: null
+  compare_signature_as_unordered_pair: true
+  multiple_distinct_signatures: ambiguous
+
+positive_associations:
+  - {id: pos-01, document: base, page: 1, pillar: P1, section: 40x40 cm, gap_pt: 0.613}
+  - {id: pos-02, document: base, page: 1, pillar: P2, section: 40x40 cm, gap_pt: 0.493}
+  - {id: pos-03, document: base, page: 1, pillar: P3, section: 40x40 cm, gap_pt: 0.613}
+  - {id: pos-04, document: base, page: 1, pillar: P4, section: 40x40 cm, gap_pt: 0.493}
+  - {id: pos-05, document: valcir, page: 2, pillar: P1(NASCE), section: 19x40, gap_pt: 1.087}
+  - {id: pos-06, document: valcir, page: 2, pillar: P2(NASCE), section: 19x40, gap_pt: 1.087}
+  - {id: pos-07, document: valcir, page: 2, pillar: P3(NASCE), section: 19x40, gap_pt: 1.087}
+  - {id: pos-08, document: valcir, page: 2, pillar: P6, section: 20x40, gap_pt: 1.587}
+  - {id: pos-09, document: r02, page: 3, pillar: P1, section: 19x19, gap_pt: 1.367}
+  - {id: pos-10, document: r02, page: 3, pillar: P12, section: 20x30, gap_pt: 1.367}
+  - {id: pos-11, document: r02, page: 3, pillar: P3, section: 19x19, gap_pt: 1.487}
+  - {id: pos-12, document: r02, page: 3, pillar: P8, section: 20x30, gap_pt: 1.487}
+  - {id: pos-13, document: rancho, page: 5, pillar: P11, section: 19x50, gap_pt: 1.427}
+  - {id: pos-14, document: rancho, page: 5, pillar: P13, section: 19x30, gap_pt: 1.547}
+  - {id: pos-15, document: rancho, page: 5, pillar: P20, section: 19x30, gap_pt: 1.487}
+  - {id: pos-16, document: rancho, page: 5, pillar: P24, section: 19x60, gap_pt: 1.367}
+  - {id: pos-17, document: guarita, page: 1, pillar: P1, section: 20x60 cm, gap_pt: 0.513}
+  - {id: pos-18, document: guarita, page: 1, pillar: P2, section: 14x30 cm, gap_pt: 0.513}
+  - {id: pos-19, document: guarita, page: 1, pillar: P3, section: 14x26 cm, gap_pt: 0.613}
+  - {id: pos-20, document: guarita, page: 1, pillar: P4, section: 14x26 cm, gap_pt: 0.512}
+
+# Estes rotulos parecem conter uma secao valida, mas possuem texto residual.
+# Sao falsos negativos conscientes do extrator conservador, nao elementos estrangeiros.
+unsupported_residual_labels:
+  - {id: unsupported-01, document: base, page: 6, pillar: P8, candidate: "20x50 e=-0.07", gap_pt: 1.547}
+  - {id: unsupported-02, document: base, page: 6, pillar: P9, candidate: "20x40 e=-0.50", gap_pt: 1.427}
+  - {id: unsupported-03, document: base, page: 7, pillar: P35(NASCE), candidate: "27x58 e=-0.07", gap_pt: 0.801}
+
+negative_candidates:
+  - {id: neg-01, document: base, page: 7, pillar: P29, candidate: "V326 20x100 e=+0.60", kind: beam, gap_pt: 7.281}
+  - {id: neg-02, document: rancho, page: 5, pillar: P17(MORRE), candidate: "V14 19x30", kind: beam, gap_pt: 0.107}
+  - {id: neg-03, document: rancho, page: 6, pillar: P42, candidate: "V20 14x30", kind: beam, gap_pt: 6.321}
+  - {id: neg-04, document: rancho, page: 6, pillar: P48, candidate: "V27 19x30", kind: beam, gap_pt: 6.201}
+  - {id: neg-05, document: rancho, page: 6, pillar: P49, candidate: "V36 19x30", kind: beam, gap_pt: 5.901}
+  - {id: neg-06, document: guarita, page: 1, pillar: P4, candidate: "V13 14x30 e=+0.30", kind: beam, gap_pt: 9.645}
+  - {id: neg-07, document: guarita, page: 1, pillar: P15, candidate: "V14 14x30 e=+0.30", kind: beam, gap_pt: 1.120}
+  - {id: neg-08, document: base, page: 7, pillar: P37(NASCE), candidate: "V313 20x50", kind: beam, gap_pt: 2.267}
+  - {id: neg-09, document: base, page: 9, pillar: P39, candidate: "V600 14x30", kind: beam, gap_pt: 4.946}
+  - {id: neg-10, document: base, page: 9, pillar: P40, candidate: "V600 14x30", kind: beam, gap_pt: 5.114}
+  - {id: neg-11, document: base, page: 9, pillar: P39, candidate: "V604 14x40", kind: beam, gap_pt: 6.866}
+  - {id: neg-12, document: base, page: 9, pillar: P41, candidate: "V605 14x40", kind: beam, gap_pt: 8.493}
+  - {id: neg-13, document: rancho, page: 7, pillar: P34, candidate: "V6 19x30", kind: beam, gap_pt: 3.801}
+  - {id: neg-14, document: rancho, page: 28, pillar: P17(MORRE), candidate: "V14 19x30", kind: beam, gap_pt: 0.107}
+  - {id: neg-15, document: rancho, page: 29, pillar: P42, candidate: "V20 14x30", kind: beam, gap_pt: 6.321}
+  - {id: neg-16, document: rancho, page: 29, pillar: P48, candidate: "V27 19x30", kind: beam, gap_pt: 6.141}
+  - {id: neg-17, document: rancho, page: 29, pillar: P49, candidate: "V36 19x30", kind: beam, gap_pt: 5.901}
+  - {id: neg-18, document: rancho, page: 30, pillar: P6(MORRE), candidate: "TERÇA 8x16", kind: timber, gap_pt: 0.000}
+  - {id: neg-19, document: rancho, page: 30, pillar: P20(MORRE), candidate: "TERÇA 8x16", kind: timber, gap_pt: 0.000}
+  - {id: neg-20, document: rancho, page: 30, pillar: P21(MORRE), candidate: "CAIBRO 8x16", kind: timber, gap_pt: 0.000}
+  - {id: neg-21, document: rancho, page: 30, pillar: P22(MORRE), candidate: "TERÇA 8x16", kind: timber, gap_pt: 0.000}
+
+multiple_dimension_cases:
+  - {id: multi-01, document: base, page: 7, pillar: P29, expected: resolved, section: 20x40, rejected: ["V326 20x100 e=+0.60"]}
+  - {id: multi-02, document: base, page: 7, pillar: P35(NASCE), expected: resolved, section: 27x57, rejected: ["27x58 e=-0.07"]}
+  - {id: multi-03, document: base, page: 7, pillar: P37(NASCE), expected: resolved, section: 14x30, rejected: ["V313 20x50"]}
+  - {id: multi-04, document: base, page: 9, pillar: P39, expected: resolved, section: 14x35, rejected: ["V600 14x30"]}
+  - {id: multi-05, document: base, page: 9, pillar: P40, expected: resolved, section: 14x35, rejected: ["V600 14x30"]}
+  - {id: multi-06, document: base, page: 9, pillar: P39, expected: resolved, section: 14x35, rejected: ["V604 14x40"]}
+  - {id: multi-07, document: base, page: 9, pillar: P41, expected: resolved, section: 14x40, rejected: ["V605 14x40"]}
+  - {id: multi-08, document: rancho, page: 5, pillar: P17(MORRE), expected: resolved, section: 19x30, rejected: ["V14 19x30"]}
+  - {id: multi-09, document: rancho, page: 6, pillar: P30, expected: ambiguous, candidates: [19x30, 19x40]}
+  - {id: multi-10, document: rancho, page: 7, pillar: P34, expected: resolved, section: 19x40, rejected: ["V6 19x30", "V7 19x30"]}
+  - {id: multi-11, document: rancho, page: 28, pillar: P17(MORRE), expected: resolved, section: 19x30, rejected: ["V14 19x30"]}
+  - {id: multi-12, document: rancho, page: 29, pillar: P30, expected: ambiguous, candidates: [19x30, 19x40]}
+  - {id: multi-13, document: rancho, page: 30, pillar: P6(MORRE), expected: resolved, section: 14x30, rejected: ["TERÇA 8x16"]}
+  - {id: multi-14, document: rancho, page: 30, pillar: P20(MORRE), expected: resolved, section: 19x30, rejected: ["TERÇA 8x16"]}
+  - {id: multi-15, document: rancho, page: 30, pillar: P21(MORRE), expected: resolved, section: 19x30, rejected: ["CAIBRO 8x16"]}
+  - {id: multi-16, document: rancho, page: 30, pillar: P22(MORRE), expected: resolved, section: 19x30, rejected: ["TERÇA 8x16", "CAIBRO 8x16"]}
+  - {id: multi-17, document: rancho, page: 30, pillar: P23(MORRE), expected: resolved, section: 19x30, rejected: ["CAIBRO 8x16"]}
+  - {id: multi-18, document: rancho, page: 30, pillar: P24(MORRE), expected: resolved, section: 19x60, rejected: ["CAIBRO 8x16"]}
+  - {id: multi-19, document: rancho, page: 30, pillar: P30, expected: ambiguous, candidates: [19x30, 19x40]}
+  - {id: multi-20, document: rancho, page: 30, pillar: P39(MORRE), expected: resolved, section: 14x30, rejected: ["CAIBRO 8x16"]}
+  - {id: multi-21, document: rancho, page: 30, pillar: P40(MORRE), expected: resolved, section: 19x30, rejected: ["TERÇA 8x16"]}
+  - {id: multi-22, document: guarita, page: 1, pillar: P4, expected: resolved, section: 14x26, rejected: ["V13 14x30 e=+0.30"]}
+  - {id: multi-23, document: guarita, page: 1, pillar: P15, expected: resolved, section: 14x25, rejected: ["V14 14x30 e=+0.30"]}
+
+confirmed_observed_changes:
+  - {id: change-01, document: base, pillar: P27, levels: [680, 780], sections: [20x40, 20x20], pages: [8, 9]}
+  - {id: change-02, document: base, pillar: P16, levels: ["-04", 338], sections: [20x40, 14x30], pages: [7, 8]}
+  - {id: change-03, document: base, pillar: P19, levels: ["-04", 338], sections: [20x40, 14x40], pages: [7, 8]}
+  - {id: change-04, document: base, pillar: P25, levels: ["-04", 338], sections: [20x60, 14x60], pages: [7, 8]}
+  - {id: change-05, document: base, pillar: P28, levels: ["-04", 338], sections: [20x35, 14x30], pages: [7, 8]}
+  - {id: change-06, document: base, pillar: P29, levels: ["-04", 338], sections: [20x40, 14x40], pages: [7, 8]}
+  - {id: change-07, document: base, pillar: P34, levels: ["-04", 338], sections: [20x40, 14x40], pages: [7, 8]}
+  - {id: change-08, document: r02, pillar: P10, levels: ["-0.05", 2.75], sections: [20x30, 14x30], pages: [3, 3]}
+  - {id: change-09, document: r02, pillar: P11, levels: ["-0.05", 2.75], sections: [20x30, 14x30], pages: [3, 3]}
+  - {id: change-10, document: r02, pillar: P12, levels: ["-0.05", 2.75], sections: [20x30, 14x30], pages: [3, 3]}
+  - {id: change-11, document: r02, pillar: P13, levels: ["-0.05", 2.75], sections: [20x30, 14x30], pages: [3, 3]}
+  - {id: change-12, document: r02, pillar: P14, levels: ["-0.05", 2.75], sections: [20x30, 14x30], pages: [3, 3]}
+  - {id: change-13, document: r02, pillar: P2, levels: ["-0.05", 2.75], sections: [20x30, 14x30], pages: [3, 3]}
+  - {id: change-14, document: r02, pillar: P5, levels: ["-0.05", 2.75], sections: [20x30, 14x30], pages: [3, 3]}
+  - {id: change-15, document: r02, pillar: P6, levels: ["-0.05", 2.75], sections: [20x30, 14x30], pages: [3, 3]}
+  - {id: change-16, document: r02, pillar: P7, levels: ["-0.05", 2.75], sections: [20x30, 14x30], pages: [3, 3]}
+  - {id: change-17, document: r02, pillar: P8, levels: ["-0.05", 2.75], sections: [20x30, 14x30], pages: [3, 3]}
+  - {id: change-18, document: r02, pillar: P9, levels: ["-0.05", 2.75], sections: [20x30, 14x30], pages: [3, 3]}
