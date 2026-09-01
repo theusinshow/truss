@@ -52,7 +52,7 @@ def test_import_builds_sheet_map_and_endpoint_serves_it(client: TestClient) -> N
     # As views chegam vazias ate a Task 7, mas o contrato ja as expoe: sem o
     # campo no response_model o pydantic descartaria silenciosamente o snapshot.
     assert payload["views"] == []
-    assert payload["pipeline_version"].startswith("sheetmap-v0.6+")
+    assert payload["pipeline_version"].startswith("sheetmap-v0.7+")
     assert payload["sheet_code_raw"] == payload["sheet_code"]
     assert payload["elements"] == []
 

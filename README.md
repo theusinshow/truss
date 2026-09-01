@@ -123,7 +123,15 @@ fingerprint do registry, portanto anexar ou reprocessar outra folha invalida res
 
 Medido em 13 PDFs aprovados (259 paginas): 2.558 ocorrencias, 190 comparacoes conformes e zero
 candidatos a finding. A fixture defeituosa independente gera exatamente um finding localizado para
-`P2`. Vigas, lajes e continuidade entre niveis permanecem fora deste slice.
+`P2`.
+
+O segundo slice de F3 reconhece somente estados de ciclo de vida explicitamente associados ao
+codigo (`MORRE`, `NASCE` e `PASSA`) e deriva pares de niveis sem inventar unidade de engenharia.
+Pares entre folhas exigem paginas consecutivas, ao menos tres codigos compartilhados e overlap de
+0,50; um pilar sem estado nunca e presumido como `PASSA`. Medido no mesmo corpus: 78 marcacoes,
+41 associadas com seguranca, 30 niveis, 10 pares, 20 `PASS`, 25 `UNKNOWN`, zero `FAIL` e zero
+candidatos a finding. Vigas, lajes e continuidade sem declaracao explicita permanecem fora deste
+slice.
 
 ## M10/M6 - Provider local, chat, memoria e custo
 

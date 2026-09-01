@@ -4,6 +4,7 @@ import json
 from truss_api.core.settings import Settings
 from truss_api.core.text import normalize
 from truss_api.db.connection import transaction
+from truss_api.sheetmap.elements.levels import build_form_level_registry
 from truss_api.sheetmap.snapshot import SHEET_MAP_PIPELINE
 
 
@@ -70,7 +71,8 @@ def build_revision_registry(revision_id: str, settings: Settings) -> dict[str, o
                 for row in connection.execute(
                     """
                     SELECT id, parent_view_id, view_kind, view_role, title_raw,
-                           technical_scope, confidence, x0, y0, x1, y1
+                           level_raw, level, technical_scope, confidence,
+                           provenance, x0, y0, x1, y1
                     FROM sheet_views WHERE sheet_map_id = ? ORDER BY y0, x0, id
                     """,
                     (sheet_map_id,),
@@ -81,6 +83,7 @@ def build_revision_registry(revision_id: str, settings: Settings) -> dict[str, o
                     {
                         "sheet_map_id": sheet_map_id,
                         "sheet_id": str(sheet_map["sheet_id"]),
+                        "document_id": str(sheet_map["document_id"]),
                         "sheet_code": sheet_map.get("sheet_code"),
                         "sheet_code_raw": sheet_map.get("sheet_code_raw"),
                         "page_index": sheet_map["page_index"],
@@ -108,6 +111,7 @@ def build_revision_registry(revision_id: str, settings: Settings) -> dict[str, o
                     {
                         "sheet_map_id": sheet_map_id,
                         "sheet_id": str(sheet_map["sheet_id"]),
+                        "document_id": str(sheet_map["document_id"]),
                         "sheet_code": sheet_map.get("sheet_code"),
                         "sheet_code_raw": sheet_map.get("sheet_code_raw"),
                         "page_index": sheet_map["page_index"],
@@ -127,13 +131,15 @@ def build_revision_registry(revision_id: str, settings: Settings) -> dict[str, o
 
     fingerprint_material = "\n".join(sorted(fingerprint_parts))
     registry_hash = sha256(fingerprint_material.encode("utf-8")).hexdigest()[:24]
-    return {
+    registry = {
         "revision_id": revision_id,
         "registry_hash": registry_hash,
         "sheet_maps": current_maps,
         "views": views,
         "occurrences": occurrences,
     }
+    registry.update(build_form_level_registry(registry))
+    return registry
 
 
 def pillar_detail_views(registry: dict[str, object]) -> list[dict[str, object]]:

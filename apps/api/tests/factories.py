@@ -138,3 +138,29 @@ def make_cross_sheet_pillar_pdf_bytes(
     document.save(buffer)
     document.close()
     return buffer.getvalue()
+
+
+def make_pillar_continuity_pdf_bytes(
+    *,
+    lifecycle_code: str = "P1(MORRE)",
+    upper_codes: tuple[str, ...] = ("P1", "P2", "P3", "P4"),
+) -> bytes:
+    document = fitz.open()
+    _add_pillar_sheet(
+        document,
+        sheet_code="EST-0100-A",
+        title="PLANTA DE FORMAS - TERREO (NIVEL 100)",
+        category="PLANTA DE FORMAS",
+        codes=(lifecycle_code, "P2", "P3", "P4"),
+    )
+    _add_pillar_sheet(
+        document,
+        sheet_code="EST-0200-A",
+        title="PLANTA DE FORMAS - 1 PAVIMENTO (NIVEL 200)",
+        category="PLANTA DE FORMAS",
+        codes=upper_codes,
+    )
+    buffer = BytesIO()
+    document.save(buffer)
+    document.close()
+    return buffer.getvalue()

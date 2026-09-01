@@ -47,6 +47,8 @@ import {
   DocumentDetail,
   fetchSheetMap,
   findingElementLabel,
+  findingLevelTransition,
+  findingLifecycleState,
   fetchSheetUsage,
   Finding,
   FindingSeverity,
@@ -2007,6 +2009,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                 ? filteredFindings.map((finding) => {
                     const severity = severityMeta[finding.severity];
                     const isActive = selectedIds.has(finding.id);
+                    const lifecycleState = findingLifecycleState(finding);
 
                     return (
                       <button
@@ -2038,7 +2041,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                           {finding.isDraft
                             ? "DRAFT"
                             : finding.element_code
-                              ? `${finding.element_code} · ${severity.label}`
+                              ? `${finding.element_code}${lifecycleState ? `/${lifecycleState.toUpperCase()}` : ""} · ${severity.label}`
                               : severity.label}
                         </span>
                       </button>
@@ -2300,6 +2303,11 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                     <TypeBadge type={activeFinding.type} />
                     <SeverityBadge severity={activeFinding.severity} />
                     <ConfidenceBadge confidence={activeFinding.confidence} />
+                    {findingLevelTransition(activeFinding) ? (
+                      <span className="inline-flex h-6 items-center border border-truss-line bg-truss-raised px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle">
+                        Nivel {findingLevelTransition(activeFinding)?.source} → {findingLevelTransition(activeFinding)?.target}
+                      </span>
+                    ) : null}
                   </div>
                   {shouldShowHypothesisNotice(activeFinding) ? (
                     <div className="mt-3 border border-truss-warning/35 bg-truss-warning/10 px-3 py-2 text-xs leading-5 text-truss-text">
@@ -2317,7 +2325,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                     <div className="mt-3 border border-truss-line bg-truss-panel/70 p-2">
                       <p className="truss-mono-label">Evidencias</p>
                       <ul className="mt-2 grid gap-1 text-xs leading-5 text-truss-muted">
-                        {activeFinding.evidence.slice(0, 5).map((evidence, index) => (
+                        {activeFinding.evidence.slice(0, 7).map((evidence, index) => (
                           <li className="break-words" key={`${activeFinding.id}-${index}`}>{evidence}</li>
                         ))}
                       </ul>

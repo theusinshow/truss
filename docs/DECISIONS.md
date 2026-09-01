@@ -1,5 +1,33 @@
 # Decisions
 
+## 2026-09-01 - F3.2 verifies only explicit pillar lifecycle across safely paired levels
+
+Pillar occurrences may now carry `morre`, `nasce` or `passa` when the marker belongs to the same
+line as the code. The raw expression, provenance and confidence remain in `attributes_json`; no
+central data table or public persistence contract changed. Legends and markers on another line do
+not assign state, and an unmarked pillar is never inferred to be `PASSA`.
+
+Level order is derived only as a relative numeric ordinal. Raw labels remain intact and no unit is
+claimed. Same-sheet forms views may pair by coherent numeric order. Cross-sheet pairs are limited
+to consecutive page boundaries within one document and require at least three shared pillar codes
+with overlap coefficient at or above 0.50. Duplicate or incompatible levels stay ambiguous; the
+registry never globally sorts the revision.
+
+The deterministic rule evaluates only explicit declarations. An observable contradiction produces
+a pending `HIGH` inconsistency localized on the source declaration. Missing pair, ambiguous scope
+or uncovered target produces `UNKNOWN`; a sheet without lifecycle evidence is
+`NOT_APPLICABLE`. Snapshot and audit versions are `sheetmap-v0.7` and `audit-v0.4`, and cache keys
+retain the revision-registry fingerprint.
+
+Measured over 13 approved PDFs / 259 pages: 78 explicit states, 41 safely associated with forms
+views, 30 numeric form levels, 10 safe pairs, 20 PASS, 25 UNKNOWN, 92 NOT_APPLICABLE, 0 FAIL and
+no candidate findings. The synthetic matrix still exercises all six PASS/FAIL semantics. Full
+results live in
+`calibration/human-review/f3-pillar-continuity-measurement-2026-09-01.md`.
+
+The viewer presents code/state and the raw origin-to-target level transition while continuing to
+label every pending automatic result as a hypothesis. The source PDF bbox remains the focus.
+
 ## 2026-08-31 - F3 registry is derived, revision-aware and honest about absence
 
 The first F3 slice persists pillar-code occurrences as the fourth Sheet Map level. Each occurrence

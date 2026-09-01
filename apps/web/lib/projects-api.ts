@@ -102,8 +102,46 @@ export type Finding = {
   registry_hash?: string | null;
 };
 
+export type PillarLifecycleState = "morre" | "nasce" | "passa";
+
+export function findingLifecycleState(finding: Finding): PillarLifecycleState | null {
+  const rawState = finding.evidence
+    .find((item) => item.startsWith("estado: "))
+    ?.slice("estado: ".length)
+    .trim()
+    .toLowerCase();
+
+  return rawState === "morre" || rawState === "nasce" || rawState === "passa"
+    ? rawState
+    : null;
+}
+
+export function findingLevelTransition(
+  finding: Finding
+): { source: string; target: string } | null {
+  const source = finding.evidence
+    .find((item) => item.startsWith("nivel origem: "))
+    ?.slice("nivel origem: ".length)
+    .trim();
+  const targetEvidence = finding.evidence.find((item) => item.startsWith("alvo: "));
+  const target = targetEvidence?.match(/(?:^|\s)nivel=([^\s]+)/)?.[1];
+
+  if (!source || source === "ausente" || !target || target === "ausente") {
+    return null;
+  }
+
+  return { source, target };
+}
+
 export function findingElementLabel(finding: Finding): string | null {
-  return finding.element_code ? `Elemento ${finding.element_code}` : null;
+  if (!finding.element_code) {
+    return null;
+  }
+
+  const lifecycleState = findingLifecycleState(finding);
+  return lifecycleState
+    ? `Elemento ${finding.element_code} / ${lifecycleState.toUpperCase()}`
+    : `Elemento ${finding.element_code}`;
 }
 
 export function shouldShowHypothesisNotice(finding: Finding): boolean {

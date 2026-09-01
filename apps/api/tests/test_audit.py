@@ -7,12 +7,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from truss_api.core.settings import Settings, get_settings
+from truss_api.db.connection import transaction
 from truss_api.db.schema import initialize_database
 from truss_api.main import app
 from truss_api.projects import repository
 from truss_api.projects.models import ProjectCreate, RevisionCreate
+from truss_api.sheetmap import repository as sheetmap_repository
+from truss_api.sheetmap.elements.models import DetectedElement
+from truss_api.sheetmap.views.models import DetectedView, MeasuredValue
 from tests.factories import (
     make_cross_sheet_pillar_pdf_bytes,
+    make_pillar_continuity_pdf_bytes,
     make_pillar_details_pdf_bytes,
     make_pillar_forms_pdf_bytes,
     make_structural_pdf_bytes,
@@ -83,7 +88,7 @@ def test_deterministic_audit_creates_structured_findings(
     assert response.status_code == 201
     audit_run = response.json()
     assert audit_run["status"] == "completed"
-    assert audit_run["pipeline_version"] == "deterministic-v0.3"
+    assert audit_run["pipeline_version"] == "deterministic-v0.4"
     assert audit_run["coverage"]["evaluated"] > 0
 
     finding = next(
@@ -238,3 +243,129 @@ def test_adding_target_document_invalidates_source_audit_cache(
         for item in second["findings"]
         if item["rule_id"] == "cross_sheet.pillar_has_detail"
     ]
+
+
+def test_cross_level_audit_localizes_explicit_pillar_contradiction(
+    client: TestClient, settings: Settings
+) -> None:
+    project = client.post("/projects", json={"name": "Pillar continuity"}).json()
+    revision = client.post(
+        f"/projects/{project['id']}/revisions", json={"notes": "R01"}
+    ).json()
+    imported = client.post(
+        f"/projects/{project['id']}/revisions/{revision['id']}/documents",
+        files={
+            "file": (
+                "continuidade.pdf",
+                make_pillar_continuity_pdf_bytes(),
+                "application/pdf",
+            )
+        },
+    ).json()
+
+    run = client.post(f"/sheets/{imported['sheets'][0]['id']}/audit-runs").json()
+    findings = [
+        item
+        for item in run["findings"]
+        if item["rule_id"] == "cross_sheet.pillar_lifecycle_continuity"
+    ]
+
+    assert len(findings) == 1
+    assert findings[0]["element_code"] == "P1"
+    assert findings[0]["view_id"]
+    assert findings[0]["registry_hash"] == run["registry_hash"]
+    assert "marcado como MORRE" in findings[0]["description"]
+    assert "estado: morre" in findings[0]["evidence"]
+    assert any("nivel origem: 100" == item for item in findings[0]["evidence"])
+    assert any("nivel=200" in item for item in findings[0]["evidence"])
+
+
+def test_new_target_level_snapshot_invalidates_cache_without_erasing_history(
+    client: TestClient, settings: Settings
+) -> None:
+    project = client.post("/projects", json={"name": "Continuity cache"}).json()
+    revision = client.post(
+        f"/projects/{project['id']}/revisions", json={"notes": "R01"}
+    ).json()
+    imported = client.post(
+        f"/projects/{project['id']}/revisions/{revision['id']}/documents",
+        files={
+            "file": (
+                "continuity-cache.pdf",
+                make_pillar_continuity_pdf_bytes(),
+                "application/pdf",
+            )
+        },
+    ).json()
+    source, target = imported["sheets"]
+    first = client.post(f"/sheets/{source['id']}/audit-runs").json()
+    first_lifecycle = [
+        item
+        for item in first["findings"]
+        if item["rule_id"] == "cross_sheet.pillar_lifecycle_continuity"
+    ]
+    assert len(first_lifecycle) == 1
+
+    target_view = DetectedView(
+        view_kind="plan",
+        identifier="1",
+        title=MeasuredValue(raw="PLANTA DE FORMAS - 1 PAVIMENTO (NIVEL 200)"),
+        declared_scale=MeasuredValue(raw="ESCALA 1:50", normalized="1:50"),
+        level=MeasuredValue(raw="200"),
+        bbox=(200.0, 100.0, 1500.0, 620.0),
+        confidence=0.9,
+        provenance="test/continuity-target-v2",
+        technical_scope="formas",
+    )
+    target_elements = [
+        DetectedElement(
+            element_kind="pillar",
+            code_raw=code,
+            code=code,
+            bbox=(320.0 + index * 180, 280.0, 350.0 + index * 180, 310.0),
+            confidence=0.95,
+            provenance="test",
+            attributes={"association_status": "view_matched"},
+            view_index=0,
+            technical_scope="formas",
+        )
+        for index, code in enumerate(("P2", "P3", "P4"))
+    ]
+    sheetmap_repository.save_sheet_map(
+        sheet_id=str(target["id"]),
+        project_id=str(target["project_id"]),
+        revision_id=str(target["revision_id"]),
+        geometry_path="geometry/test/continuity-target-v2.json.gz",
+        sheet_code=str(target["label"]),
+        sheet_type="planta_formas",
+        paper_format="A1",
+        orientation="paisagem",
+        title_block={"classification_confidence": 0.95},
+        regions=[],
+        views=[target_view],
+        elements=target_elements,
+        snapshot_hash="continuity-target-v2",
+        extractor_version="extract-v0.2",
+        document_hash="continuity-document-v2",
+        settings=settings,
+    )
+
+    second = client.post(f"/sheets/{source['id']}/audit-runs").json()
+
+    assert second["id"] != first["id"]
+    assert second["registry_hash"] != first["registry_hash"]
+    assert not [
+        item
+        for item in second["findings"]
+        if item["rule_id"] == "cross_sheet.pillar_lifecycle_continuity"
+    ]
+    with transaction(settings) as connection:
+        historical = connection.execute(
+            """
+            SELECT COUNT(*) FROM findings
+            WHERE sheet_id = ?
+              AND rule_id = 'cross_sheet.pillar_lifecycle_continuity'
+            """,
+            (str(source["id"]),),
+        ).fetchone()[0]
+    assert historical == 1

@@ -1,0 +1,73 @@
+version: 1
+status: agent_verified_from_owner_confirmed_views
+source:
+  filename: Projeto Estrutural_Juliano Corbellini_R05.pdf
+  sha256: 147b730c0189a78e9e83a7301b717612db0550d7fa6a8fbdb7a2924ef77fae4c
+  human_policy: calibration/human-review/forms-policy-decisions-v1.md
+  reviewed_at: 2026-08-31
+
+contract:
+  level_order: numeric_relative_only
+  engineering_unit_inferred: false
+  unmarked_pillar_means_passa: false
+  cross_line_marker_is_associated: false
+  global_revision_sort_is_allowed: false
+
+levels:
+  - {sheet_code: EST-0060-B, page: 6, title: FUNDAÇÃO INFERIOR, level_raw: '-650', codes: [P1, P2, P3, P4]}
+  - {sheet_code: EST-0060-B, page: 6, title: INTERMEDIÁRIA FUNDO PISCINA, level_raw: '-350', codes: [P4]}
+  - {sheet_code: EST-0060-B, page: 6, title: FUNDO PISCINA, level_raw: '-167', codes: []}
+  - {sheet_code: EST-0070-B, page: 7, title: TÉRREO, level_raw: '-04', code_count: 28}
+  - {sheet_code: EST-0080-B, page: 8, title: 1° PAVIMENTO, level_raw: '338', code_count: 16}
+  - {sheet_code: EST-0080-B, page: 8, title: COBERTURA, level_raw: '680', code_count: 16}
+  - {sheet_code: EST-0090-B, page: 9, title: INTERMEDIÁRIA RESERVATÓRIO, level_raw: '780', codes: [P27, P39, P40, P41]}
+  - {sheet_code: EST-0090-B, page: 9, title: TOPO RESERVATÓRIO, level_raw: '940', codes: [P27, P39, P40, P41]}
+
+safe_pairs:
+  - lower: {sheet_code: EST-0060-B, level_raw: '-650'}
+    upper: {sheet_code: EST-0060-B, level_raw: '-350'}
+    expected_provenance: same-sheet-level-order-v1
+  - lower: {sheet_code: EST-0060-B, level_raw: '-350'}
+    upper: {sheet_code: EST-0060-B, level_raw: '-167'}
+    expected_provenance: same-sheet-level-order-v1
+    target_coverage: empty
+  - lower: {sheet_code: EST-0070-B, level_raw: '-04'}
+    upper: {sheet_code: EST-0080-B, level_raw: '338'}
+    expected_provenance: adjacent-sheet-code-overlap-v1
+    shared_codes: [P15, P16, P19, P24, P25, P28, P29, P34, P35, P36, P38]
+  - lower: {sheet_code: EST-0080-B, level_raw: '338'}
+    upper: {sheet_code: EST-0080-B, level_raw: '680'}
+    expected_provenance: same-sheet-level-order-v1
+  - lower: {sheet_code: EST-0080-B, level_raw: '680'}
+    upper: {sheet_code: EST-0090-B, level_raw: '780'}
+    expected_provenance: adjacent-sheet-code-overlap-v1
+    shared_codes: [P27, P39, P40, P41]
+  - lower: {sheet_code: EST-0090-B, level_raw: '780'}
+    upper: {sheet_code: EST-0090-B, level_raw: '940'}
+    expected_provenance: same-sheet-level-order-v1
+
+blocked_pairs:
+  - lower: {sheet_code: EST-0060-B, level_raw: '-167'}
+    upper: {sheet_code: EST-0070-B, level_raw: '-04'}
+    reason: lower_view_has_no_reliably_associated_pillar_codes
+  - document_pattern: multiple_independent_structures_in_one_pdf
+    example: Proj_EEE_São_josé_Almeida.pdf
+    reason: levels_from_different_structures_must_not_be_globally_sorted
+
+lifecycle_evidence:
+  raw_inline_or_cross_line:
+    morre: 37
+    nasce: 7
+    passa: 0
+  safely_associated_same_line:
+    morre: 19
+    nasce: 3
+    passa: 0
+  deliberately_unassociated_cross_line:
+    morre: 18
+    nasce: 4
+  expected_rule_outcomes:
+    PASS: 18
+    UNKNOWN: 1
+    FAIL: 0
+

@@ -3,7 +3,7 @@
 # proprietario em 2026-08-28. Preferencia pessoal NAO entra aqui - vive em
 # formas_pessoal.v1.yml, para que uma preferencia nunca seja lida como norma.
 pack_id: formas_geral
-version: "1.1.0"
+version: "1.2.0"
 sheet_type: planta_formas
 scope: general
 rules:
@@ -86,3 +86,14 @@ rules:
     category: cross_sheet_consistency
     finding_type: inconsistency
     description: Pilar presente na forma nao localizado no detalhamento da revisao.
+
+  # F3.2: somente estados explicitamente associados ao codigo. Pilar sem
+  # etiqueta nunca e presumido como PASSA. Nivel alvo ambiguo retorna UNKNOWN.
+  - rule_id: cross_sheet.pillar_lifecycle_continuity
+    version: "1.0.0"
+    check: pillar_lifecycle_continuity
+    target: element
+    severity: high
+    category: cross_sheet_consistency
+    finding_type: inconsistency
+    description: Estado declarado do pilar contradiz sua presenca no nivel adjacente.

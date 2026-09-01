@@ -112,7 +112,7 @@ def create_audit_run(
                 sheet_context["project_id"],
                 sheet_context["revision_id"],
                 "aggressive",
-                "deterministic-v0.3",
+                "deterministic-v0.4",
                 "completed",
                 f"{len(findings)} achados gerados por regras deterministicas.",
                 now,

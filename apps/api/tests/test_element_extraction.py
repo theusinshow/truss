@@ -39,7 +39,7 @@ def test_extracts_pillar_codes_preserving_raw_text_and_pdf_bbox() -> None:
     ]
     assert all(item.element_kind == ELEMENT_KIND_PILLAR for item in elements)
     assert all(item.bbox == (10.0, 20.0, 40.0, 32.0) for item in elements)
-    assert all(item.provenance == "native-text/pillar-code-v1" for item in elements)
+    assert all(item.provenance == "native-text/pillar-code-v2" for item in elements)
 
 
 def test_equivalence_preserves_both_codes_and_source_expression() -> None:
@@ -72,6 +72,45 @@ def test_joins_adjacent_fragments_on_the_same_line() -> None:
     assert element.bbox == (10.0, 50.0, 30.0, 62.0)
 
 
+def test_extracts_explicit_lifecycle_without_classifying_unmarked_pillars() -> None:
+    elements = extract_pillars([_span("P5(MORRE) P1 (NASCE) P12(PASSA) P8")])
+
+    by_code = {element.code: element for element in elements}
+    assert by_code["P5"].attributes["lifecycle_state"] == "morre"
+    assert by_code["P5"].attributes["lifecycle_raw"] == "(MORRE)"
+    assert by_code["P5"].attributes["lifecycle_provenance"] == "inline"
+    assert by_code["P1"].attributes["lifecycle_state"] == "nasce"
+    assert by_code["P12"].attributes["lifecycle_state"] == "passa"
+    assert "lifecycle_state" not in by_code["P8"].attributes
+
+
+def test_associates_marker_from_adjacent_span_and_prefers_rich_candidate() -> None:
+    spans = [
+        _span("P5", (10.0, 50.0, 24.0, 62.0)),
+        _span("(MORRE)", (26.0, 50.0, 68.0, 62.0)),
+    ]
+
+    [element] = extract_pillars(spans)
+
+    assert element.code == "P5"
+    assert element.bbox == (10.0, 50.0, 68.0, 62.0)
+    assert element.attributes["lifecycle_state"] == "morre"
+    assert element.attributes["lifecycle_provenance"] == "adjacent-span"
+
+
+def test_never_associates_lifecycle_legend_or_cross_line_marker() -> None:
+    spans = [
+        _span("P5", (10.0, 50.0, 24.0, 62.0)),
+        _span("(MORRE)", (26.0, 80.0, 68.0, 92.0)),
+        _span("Pilar que passa", (100.0, 50.0, 180.0, 62.0)),
+    ]
+
+    [element] = extract_pillars(spans)
+
+    assert element.code == "P5"
+    assert "lifecycle_state" not in element.attributes
+
+
 def test_association_uses_unique_containing_view() -> None:
     [element] = extract_pillars([_span("P12")])
 
@@ -101,4 +140,3 @@ def test_overlapping_views_remain_ambiguous_on_a_mixed_sheet() -> None:
     assert associated.view_index is None
     assert associated.technical_scope is None
     assert associated.attributes["association_status"] == "ambiguous_views"
-

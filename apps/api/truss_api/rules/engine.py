@@ -63,6 +63,7 @@ def _result(
     view_id: str | None = None,
     element_code: str | None = None,
     registry_hash: str | None = None,
+    dedupe_discriminator: str | None = None,
 ) -> RuleEvaluation:
     return RuleEvaluation(
         rule_id=rule.rule_id,
@@ -84,6 +85,7 @@ def _result(
         view_id=view_id,
         element_code=element_code,
         registry_hash=registry_hash,
+        dedupe_discriminator=dedupe_discriminator,
     )
 
 
@@ -116,6 +118,9 @@ def _evaluate_element_rule(
     snapshot: dict,
     registry: dict[str, object] | None,
 ) -> list[RuleEvaluation]:
+    if rule.check == "pillar_lifecycle_continuity":
+        return _evaluate_pillar_lifecycle_rule(rule, pack, snapshot, registry)
+
     if rule.check != "pillar_has_detail":
         return [
             _result(
@@ -238,6 +243,205 @@ def _evaluate_element_rule(
                 view_id=str(element.get("view_id") or "") or None,
                 element_code=code,
                 registry_hash=registry_hash,
+            )
+        )
+
+    return results
+
+
+def _evaluate_pillar_lifecycle_rule(
+    rule: Rule,
+    pack: RulePack,
+    snapshot: dict,
+    registry: dict[str, object] | None,
+) -> list[RuleEvaluation]:
+    explicit = [
+        element
+        for element in snapshot.get("elements", [])
+        if element.get("element_kind") == "pillar"
+        and element.get("technical_scope") == pack.technical_scope
+        and str((element.get("attributes") or {}).get("lifecycle_state") or "")
+        in {"morre", "nasce", "passa"}
+    ]
+    if not explicit:
+        return [
+            _result(
+                rule,
+                pack,
+                target_kind="element",
+                target_id=None,
+                outcome=OUTCOME_NOT_APPLICABLE,
+                reason="Nenhum pilar com lifecycle explicito foi localizado nesta folha.",
+                evidence=["estados explicitos: 0"],
+                bbox=_sheet_bbox(snapshot),
+                confidence=1.0,
+            )
+        ]
+
+    registry = registry or {}
+    registry_hash = str(registry.get("registry_hash") or "") or None
+    levels = {
+        str(item["view_id"]): item for item in registry.get("form_levels", [])
+    }
+    next_pair = {
+        str(item["lower_view_id"]): item
+        for item in registry.get("form_level_pairs", [])
+    }
+    previous_pair = {
+        str(item["upper_view_id"]): item
+        for item in registry.get("form_level_pairs", [])
+    }
+    occurrences_by_view: dict[str, list[dict]] = {}
+    for occurrence in registry.get("occurrences", []):
+        view_id = str(occurrence.get("view_id") or "")
+        if (
+            view_id
+            and occurrence.get("element_kind") == "pillar"
+            and occurrence.get("technical_scope") == pack.technical_scope
+            and float(occurrence.get("confidence") or 0.0) >= MIN_VIEW_CONFIDENCE
+        ):
+            occurrences_by_view.setdefault(view_id, []).append(occurrence)
+
+    grouped: dict[tuple[str, str], list[dict]] = {}
+    for element in explicit:
+        key = (str(element.get("code") or ""), str(element.get("view_id") or ""))
+        grouped.setdefault(key, []).append(element)
+
+    results: list[RuleEvaluation] = []
+    for (code, source_view_id), elements in sorted(grouped.items()):
+        source = elements[0]
+        attributes = source.get("attributes") or {}
+        states = {
+            str((item.get("attributes") or {}).get("lifecycle_state") or "")
+            for item in elements
+        }
+        source_level = levels.get(source_view_id)
+        state = next(iter(states)) if len(states) == 1 else "ambiguous"
+        pair = (
+            previous_pair.get(source_view_id)
+            if state == "nasce"
+            else next_pair.get(source_view_id)
+        )
+        target_view_id = None
+        if pair is not None:
+            target_view_id = str(
+                pair["lower_view_id"] if state == "nasce" else pair["upper_view_id"]
+            )
+        target_level = levels.get(target_view_id or "")
+        target_occurrences = occurrences_by_view.get(target_view_id or "", [])
+        target_codes = {str(item["code"]) for item in target_occurrences}
+        matching_target = [
+            item for item in target_occurrences if str(item.get("code") or "") == code
+        ]
+
+        source_raw = str(attributes.get("source_text") or source.get("code_raw") or code)
+        common = [
+            f"estado: {state}",
+            f"origem: {source_raw} em sheet_map={snapshot.get('id')} view={source_view_id or 'ambigua'}",
+            f"nivel origem: {(source_level or {}).get('level_raw') or 'ausente'}",
+            (
+                "alvo: "
+                f"folha={(target_level or {}).get('sheet_code') or (target_level or {}).get('sheet_code_raw') or 'ausente'} "
+                f"view={target_view_id or 'ausente'} "
+                f"nivel={(target_level or {}).get('level_raw') or 'ausente'}"
+            ),
+            f"pareamento: {(pair or {}).get('provenance') or 'ausente'}",
+            f"codigos no alvo: {sorted(target_codes)}",
+            f"registry_hash: {registry_hash or 'ausente'}",
+        ]
+        if matching_target:
+            common.append(
+                "ocorrencias alvo: "
+                + str(
+                    [
+                        {
+                            "sheet_id": item.get("sheet_id"),
+                            "view_id": item.get("view_id"),
+                            "bbox": [
+                                item.get("x0"),
+                                item.get("y0"),
+                                item.get("x1"),
+                                item.get("y1"),
+                            ],
+                        }
+                        for item in matching_target
+                    ]
+                )
+            )
+
+        if state == "ambiguous":
+            outcome = OUTCOME_UNKNOWN
+            reason = f"{code} possui estados de lifecycle conflitantes na mesma view."
+            finding_type = "unverifiable"
+            confidence = 0.3
+        elif not source_view_id or source_level is None:
+            outcome = OUTCOME_UNKNOWN
+            reason = f"O nivel de origem de {code} nao pode ser associado com seguranca."
+            finding_type = "unverifiable"
+            confidence = 0.35
+        elif pair is None or target_level is None:
+            outcome = OUTCOME_UNKNOWN
+            direction = "anterior" if state == "nasce" else "seguinte"
+            reason = f"Nenhum nivel {direction} confiavel foi pareado para {code}."
+            finding_type = "unverifiable"
+            confidence = 0.4
+        elif not target_codes:
+            outcome = OUTCOME_UNKNOWN
+            reason = (
+                "O nivel alvo foi reconhecido, mas seus pilares nao puderam "
+                "ser extraidos por view."
+            )
+            finding_type = "unverifiable"
+            confidence = 0.4
+        else:
+            present = code in target_codes
+            contradiction = present if state in {"morre", "nasce"} else not present
+            outcome = OUTCOME_FAIL if contradiction else OUTCOME_PASS
+            finding_type = None
+            source_raw_level = str(source_level["level_raw"])
+            target_raw_level = str(target_level["level_raw"])
+            if not contradiction:
+                reason = ""
+            elif state == "morre":
+                reason = (
+                    f"{code} esta marcado como MORRE no nivel {source_raw_level}, mas tambem "
+                    f"foi localizado no proximo nivel observado, {target_raw_level}."
+                )
+            elif state == "nasce":
+                reason = (
+                    f"{code} esta marcado como NASCE no nivel {source_raw_level}, mas tambem "
+                    f"foi localizado no nivel anterior observado, {target_raw_level}."
+                )
+            else:
+                reason = (
+                    f"{code} esta marcado como PASSA no nivel {source_raw_level}, mas nao foi "
+                    f"localizado no proximo nivel observado, {target_raw_level}."
+                )
+            state_confidence = float(attributes.get("lifecycle_confidence") or 0.0)
+            confidence = min(
+                float(source.get("confidence") or 0.0),
+                state_confidence,
+                float(pair.get("confidence") or 0.0),
+            ) * (0.9 if contradiction else 1.0)
+
+        results.append(
+            _result(
+                rule,
+                pack,
+                target_kind="element",
+                target_id=str(source.get("id") or ""),
+                outcome=outcome,
+                reason=reason,
+                evidence=common,
+                bbox=_bbox(source),
+                confidence=confidence,
+                finding_type=finding_type,
+                view_id=source_view_id or None,
+                element_code=code,
+                registry_hash=registry_hash,
+                dedupe_discriminator=(
+                    f"{state}|{(source_level or {}).get('level_raw') or 'unknown'}"
+                ),
             )
         )
 

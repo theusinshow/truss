@@ -1,7 +1,7 @@
 # F3.2 - Continuidade explicita de pilares entre niveis
 
 Data: 2026-08-31  
-Status: proposto, aguardando aprovacao  
+Status: concluido e validado em 2026-09-01
 Escopo: segundo slice de F3, limitado a estados explicitos de pilares em plantas de formas
 
 ## Resultado pretendido
@@ -329,20 +329,20 @@ viewer antes de alterar regra, extrator ou gabarito.
 
 ## Criterios de aceite
 
-- [ ] estados inline preservam texto bruto, codigo, bbox, confianca e proveniencia;
-- [ ] legenda global nao e associada silenciosamente a um pilar;
-- [ ] pilar sem estado explicito nunca e tratado como `PASSA`;
-- [ ] `level_raw` permanece intacto e nenhuma unidade e inventada;
-- [ ] registry nao mistura documentos, revisoes, snapshots historicos ou estruturas ambiguas;
-- [ ] `MORRE`, `NASCE` e `PASSA` explicitos cobrem os seis outcomes sinteticos esperados;
-- [ ] ausencia no alvo so produz `FAIL` quando o alvo esta observavel;
-- [ ] falta de nivel, par ambiguo ou alvo vazio produz `UNKNOWN`;
-- [ ] findings possuem codigo, estado, nivel origem/alvo, views, bboxes e `registry_hash`;
-- [ ] alterar o nivel alvo invalida o cache sem apagar feedback historico;
-- [ ] viewer comunica contradicao como hipotese e focaliza a origem;
-- [ ] gabarito e medicao real ficam versionados e separados da memoria explicita;
-- [ ] lint, typecheck, testes web e testes API integralmente verdes;
-- [ ] fluxo sintetico principal e pelo menos um par real sao verificados manualmente no viewer.
+- [x] estados inline preservam texto bruto, codigo, bbox, confianca e proveniencia;
+- [x] legenda global nao e associada silenciosamente a um pilar;
+- [x] pilar sem estado explicito nunca e tratado como `PASSA`;
+- [x] `level_raw` permanece intacto e nenhuma unidade e inventada;
+- [x] registry nao mistura documentos, revisoes, snapshots historicos ou estruturas ambiguas;
+- [x] `MORRE`, `NASCE` e `PASSA` explicitos cobrem os seis outcomes sinteticos esperados;
+- [x] ausencia no alvo so produz `FAIL` quando o alvo esta observavel;
+- [x] falta de nivel, par ambiguo ou alvo vazio produz `UNKNOWN`;
+- [x] findings possuem codigo, estado, nivel origem/alvo, views, bboxes e `registry_hash`;
+- [x] alterar o nivel alvo invalida o cache sem apagar feedback historico;
+- [x] viewer comunica contradicao como hipotese e focaliza a origem;
+- [x] gabarito e medicao real ficam versionados e separados da memoria explicita;
+- [x] lint, typecheck, testes web e testes API integralmente verdes;
+- [x] fluxo sintetico principal e pelo menos um par real sao verificados manualmente no viewer.
 
 ## Fora do escopo
 

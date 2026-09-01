@@ -66,3 +66,6 @@ class RuleEvaluation:
     view_id: str | None = None
     element_code: str | None = None
     registry_hash: str | None = None
+    # Contexto estavel adicional para regras que podem avaliar o mesmo codigo
+    # em mais de um nivel da mesma folha. Participa apenas do dedupe.
+    dedupe_discriminator: str | None = None

@@ -17,7 +17,7 @@ from truss_api.sheetmap.primitives import EXTRACTOR_VERSION
 from truss_api.sheetmap.elements.registry import build_revision_registry
 
 
-AUDIT_PIPELINE_VERSION = "audit-v0.3"
+AUDIT_PIPELINE_VERSION = "audit-v0.4"
 
 def audit_cache_key(
     *,
@@ -58,6 +58,7 @@ def dedupe_key_for(evaluation: RuleEvaluation, sheet_id: str) -> str:
             evaluation.rule_id,
             evaluation.target_kind,
             evaluation.element_code or evaluation.target_id or "",
+            evaluation.dedupe_discriminator or "",
         ]
     )
     return sha256(material.encode("utf-8")).hexdigest()[:24]
