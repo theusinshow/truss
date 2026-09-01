@@ -70,12 +70,16 @@ def _add_pillar_sheet(
     title: str,
     category: str,
     codes: tuple[str, ...],
+    sections: tuple[str, ...] | None = None,
 ) -> None:
     page = document.new_page(width=2384, height=1684)
     page.draw_rect(fitz.Rect(71, 29, 2356, 1656), color=(0, 0, 0), width=2)
     page.draw_rect(fitz.Rect(200, 100, 1500, 560), color=(0, 0, 0), width=1)
     for index, code in enumerate(codes):
-        page.insert_text((320 + index * 180, 300), code, fontsize=12)
+        x = 320 + index * 180
+        page.insert_text((x, 300), code, fontsize=12)
+        if sections is not None:
+            page.insert_text((x, 309), sections[index], fontsize=8)
 
     page.insert_text((200, 600), f"1 {title}", fontsize=16)
     page.insert_text((200, 620), "ESCALA 1:50", fontsize=7)
@@ -94,6 +98,22 @@ def make_pillar_forms_pdf_bytes(codes: tuple[str, ...] = ("P1", "P2")) -> bytes:
         title="PLANTA DE FORMAS - TERREO",
         category="PLANTA DE FORMAS",
         codes=codes,
+    )
+    buffer = BytesIO()
+    document.save(buffer)
+    document.close()
+    return buffer.getvalue()
+
+
+def make_pillar_section_pdf_bytes() -> bytes:
+    document = fitz.open()
+    _add_pillar_sheet(
+        document,
+        sheet_code="EST-0010-A",
+        title="PLANTA DE FORMAS - TERREO",
+        category="PLANTA DE FORMAS",
+        codes=("P1", "P2"),
+        sections=("40x20 cm", "V300 20x60"),
     )
     buffer = BytesIO()
     document.save(buffer)

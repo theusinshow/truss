@@ -9,6 +9,7 @@ from truss_api.sheetmap.artifacts import artifact_hash, write_extraction
 from truss_api.sheetmap.classifier import classify_sheet_type
 from truss_api.sheetmap.elements.association import associate_elements
 from truss_api.sheetmap.elements.pillars import extract_pillars
+from truss_api.sheetmap.elements.sections import associate_pillar_sections
 from truss_api.sheetmap.geometry import geometry_from_extraction, write_page_geometry
 from truss_api.sheetmap.primitives import EXTRACTOR_VERSION, extract_page
 from truss_api.sheetmap.regions import (
@@ -154,10 +155,16 @@ def build_sheet_map_for_document(
                 detected_views,
                 technical_scopes,
             )
-            elements = associate_elements(
-                extract_pillars(extraction.spans),
+            elements = associate_pillar_sections(
+                extraction.spans,
+                associate_elements(
+                    extract_pillars(extraction.spans),
+                    views,
+                    sheet_scopes=tuple(
+                        scope.technical_scope for scope in technical_scopes
+                    ),
+                ),
                 views,
-                sheet_scopes=tuple(scope.technical_scope for scope in technical_scopes),
             )
             content_hash = snapshot_hash(
                 sheet_type=classification.sheet_type,

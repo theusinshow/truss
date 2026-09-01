@@ -25,7 +25,11 @@ from truss_api.sheetmap.views.models import (
     DetectedView,
     MeasuredValue,
 )
-from tests.factories import make_forms_sheet_pdf_bytes, make_structural_pdf_bytes
+from tests.factories import (
+    make_forms_sheet_pdf_bytes,
+    make_pillar_section_pdf_bytes,
+    make_structural_pdf_bytes,
+)
 
 
 @pytest.fixture()
@@ -432,3 +436,32 @@ def test_forms_sheet_persists_its_detected_views_end_to_end(settings: Settings) 
     assert views["CORTE A-A"]["declared_scale"] == "1:50"
     assert views["DETALHE 01 LAJE"]["declared_scale"] == "1:20"
     assert all(view["provenance"] for view in views.values())
+
+
+def test_builder_persists_safe_pillar_section_attributes(settings: Settings) -> None:
+    project = projects_repository.create_project(ProjectCreate(name="S"), settings)
+    revision = projects_repository.create_revision(
+        str(project["id"]), RevisionCreate(notes="R"), settings
+    )
+    prepared = prepare_pdf_storage(
+        content=make_pillar_section_pdf_bytes(),
+        filename="sections.pdf",
+        project_id=str(project["id"]),
+        revision_id=str(revision["id"]),
+        settings=settings,
+    )
+    document = documents_repository.create_document_from_prepared_pdf(
+        project_id=str(project["id"]),
+        revision_id=str(revision["id"]),
+        prepared_pdf=prepared,
+        settings=settings,
+    )
+
+    [built] = build_sheet_map_for_document(str(document["id"]), settings)
+    by_code = {item["code"]: item for item in built["elements"]}
+
+    assert by_code["P1"]["attributes"]["section_signature"] == [20, 40]
+    assert by_code["P1"]["attributes"]["section_ordered_signature"] == [40, 20]
+    assert by_code["P1"]["attributes"]["section_unit_raw"] == "cm"
+    assert by_code["P1"]["attributes"]["section_bbox_pt"]
+    assert "section_association_status" not in by_code["P2"]["attributes"]
