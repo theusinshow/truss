@@ -49,6 +49,8 @@ import {
   findingElementLabel,
   findingLevelTransition,
   findingLifecycleState,
+  findingSectionTransition,
+  findingSheetTransition,
   fetchSheetUsage,
   Finding,
   FindingSeverity,
@@ -500,6 +502,46 @@ function CanvasRulers({
         })}
       </div>
     </>
+  );
+}
+
+const EVIDENCE_PREVIEW = 7;
+
+/**
+ * Evidencia bruta e o que sustenta a hipotese, entao ela nunca some: o painel
+ * mostra as primeiras linhas e abre o restante sob demanda. Sem animacao, o
+ * bloco ja respeita `prefers-reduced-motion` do design system. O chamador passa
+ * `key={finding.id}` para que trocar de achado volte ao estado recolhido.
+ */
+function FindingEvidence({ finding }: { finding: Finding }) {
+  const [expanded, setExpanded] = useState(false);
+  const hidden = finding.evidence.length - EVIDENCE_PREVIEW;
+  const visible = expanded ? finding.evidence : finding.evidence.slice(0, EVIDENCE_PREVIEW);
+
+  if (finding.evidence.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-3 border border-truss-line bg-truss-panel/70 p-2">
+      <p className="truss-mono-label">Evidencias</p>
+      <ul className="mt-2 grid gap-1 text-xs leading-5 text-truss-muted" id={`evidence-${finding.id}`}>
+        {visible.map((evidence, index) => (
+          <li className="break-words" key={`${finding.id}-${index}`}>{evidence}</li>
+        ))}
+      </ul>
+      {hidden > 0 ? (
+        <button
+          aria-controls={`evidence-${finding.id}`}
+          aria-expanded={expanded}
+          className="mt-2 border border-truss-line bg-truss-raised px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle hover:border-truss-accent/45 hover:text-truss-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-truss-accent"
+          onClick={() => setExpanded((value) => !value)}
+          type="button"
+        >
+          {expanded ? "Recolher evidencia" : `Ver evidencia completa (+${hidden})`}
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -2308,6 +2350,16 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                         Nivel {findingLevelTransition(activeFinding)?.source} → {findingLevelTransition(activeFinding)?.target}
                       </span>
                     ) : null}
+                    {findingSheetTransition(activeFinding) ? (
+                      <span className="inline-flex h-6 items-center border border-truss-line bg-truss-raised px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle">
+                        Folha {findingSheetTransition(activeFinding)?.source} → {findingSheetTransition(activeFinding)?.target}
+                      </span>
+                    ) : null}
+                    {findingSectionTransition(activeFinding) ? (
+                      <span className="inline-flex h-6 items-center border border-truss-line bg-truss-raised px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle">
+                        Unidade {findingSectionTransition(activeFinding)?.unit ?? "nao declarada"}
+                      </span>
+                    ) : null}
                   </div>
                   {shouldShowHypothesisNotice(activeFinding) ? (
                     <div className="mt-3 border border-truss-warning/35 bg-truss-warning/10 px-3 py-2 text-xs leading-5 text-truss-text">
@@ -2321,16 +2373,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                     {activeFinding.isDraft ? <span>Persistencia / draft local</span> : null}
                     {activeFinding.rejection_reason ? <span>Rejeicao / {activeFinding.rejection_reason}</span> : null}
                   </div>
-                  {activeFinding.evidence.length > 0 ? (
-                    <div className="mt-3 border border-truss-line bg-truss-panel/70 p-2">
-                      <p className="truss-mono-label">Evidencias</p>
-                      <ul className="mt-2 grid gap-1 text-xs leading-5 text-truss-muted">
-                        {activeFinding.evidence.slice(0, 7).map((evidence, index) => (
-                          <li className="break-words" key={`${activeFinding.id}-${index}`}>{evidence}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                  <FindingEvidence finding={activeFinding} key={activeFinding.id} />
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button className="truss-icon-button" onClick={() => moveFinding(-1)} title="Achado anterior" type="button">
                       <ChevronLeft aria-hidden="true" className="truss-icon h-4 w-4" />

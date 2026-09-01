@@ -5,6 +5,8 @@ import {
   findingElementLabel,
   findingLevelTransition,
   findingLifecycleState,
+  findingSectionTransition,
+  findingSheetTransition,
   shouldShowHypothesisNotice
 } from "@/lib/projects-api";
 
@@ -64,6 +66,53 @@ describe("apresentacao de findings F3", () => {
     expect(findingLifecycleState(malformed)).toBeNull();
     expect(findingElementLabel(malformed)).toBe("Elemento P2");
     expect(findingLevelTransition(malformed)).toBeNull();
+  });
+
+  it("expoe a transicao de secao e as folhas das duas pontas", () => {
+    const sectionFinding = finding({
+      type: "attention",
+      severity: "medium",
+      element_code: "P27",
+      evidence: [
+        "codigo: P27",
+        "nivel origem: 680",
+        "origem: folha=EST-0100-A view=view-lower nivel=680 secao=20x40 cm",
+        "alvo: folha=EST-0200-A view=view-upper nivel=780 secao=20x20 cm",
+        "unidade: cm",
+        "secoes: 20x40 cm -> 20x20 cm"
+      ]
+    });
+
+    expect(findingSectionTransition(sectionFinding)).toEqual({
+      source: "20x40 cm",
+      target: "20x20 cm",
+      unit: "cm"
+    });
+    expect(findingSheetTransition(sectionFinding)).toEqual({
+      source: "EST-0100-A",
+      target: "EST-0200-A"
+    });
+    expect(findingLevelTransition(sectionFinding)).toEqual({ source: "680", target: "780" });
+    expect(findingElementLabel(sectionFinding)).toBe("Elemento P27 / 20x40 cm -> 20x20 cm");
+  });
+
+  it("nunca completa a unidade ausente por convencao", () => {
+    const withoutUnit = finding({
+      element_code: "P27",
+      evidence: ["unidade: ausente", "secoes: 20x40 -> 20x20"]
+    });
+
+    expect(findingSectionTransition(withoutUnit)?.unit).toBeNull();
+  });
+
+  it("ignora evidencia de secao ausente ou malformada", () => {
+    const malformed = finding({
+      evidence: ["secoes: 20x40", "origem: folha=ausente", "alvo: folha=ausente"]
+    });
+
+    expect(findingSectionTransition(malformed)).toBeNull();
+    expect(findingSheetTransition(malformed)).toBeNull();
+    expect(findingElementLabel(malformed)).toBe("Elemento P2");
   });
 
   it("mantem inconsistencia automatica pendente como hipotese", () => {

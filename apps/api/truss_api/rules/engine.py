@@ -534,6 +534,7 @@ def _evaluate_pillar_section_rule(
 
         evidence = [
             f"codigo: {code}",
+            f"nivel origem: {(source_level or {}).get('level_raw') or 'ausente'}",
             f"origem: {_section_end(source_entry, source_level, source_view_id)}",
             f"alvo: {_section_end(target_entry, target_level, target_view_id)}",
             f"pareamento: {(pair or {}).get('provenance') or 'ausente'}",
@@ -630,6 +631,7 @@ def _evaluate_pillar_section_rule(
         target_signature = list(target_entry.get("section_signature") or [])
         source_printed = str(source_entry.get("section_raw") or "")
         target_printed = str(target_entry.get("section_raw") or "")
+        evidence.append(f"secoes: {source_printed} -> {target_printed}")
         evidence.append(f"assinaturas: {source_signature} -> {target_signature}")
         if source_entry.get("section_ordered_signature") != target_entry.get(
             "section_ordered_signature"

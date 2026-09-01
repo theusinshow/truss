@@ -133,14 +133,66 @@ export function findingLevelTransition(
   return { source, target };
 }
 
+/**
+ * A F3.3 compara duas secoes observadas do mesmo pilar. A leitura util e a
+ * transicao inteira, com a unidade declarada ou explicitamente ausente: um
+ * `20x40` sem unidade nunca deve ser lido como centimetro por convencao.
+ */
+export function findingSectionTransition(
+  finding: Finding
+): { source: string; target: string; unit: string | null } | null {
+  const transition = finding.evidence
+    .find((item) => item.startsWith("secoes: "))
+    ?.slice("secoes: ".length)
+    .split(" -> ")
+    .map((item) => item.trim());
+
+  if (!transition || transition.length !== 2 || !transition[0] || !transition[1]) {
+    return null;
+  }
+
+  const unit = finding.evidence
+    .find((item) => item.startsWith("unidade: "))
+    ?.slice("unidade: ".length)
+    .trim();
+
+  return {
+    source: transition[0],
+    target: transition[1],
+    unit: !unit || unit === "ausente" || unit.includes("|") ? null : unit
+  };
+}
+
+export function findingSheetTransition(
+  finding: Finding
+): { source: string; target: string } | null {
+  const source = finding.evidence
+    .find((item) => item.startsWith("origem: "))
+    ?.match(/(?:^|\s)folha=([^\s]+)/)?.[1];
+  const target = finding.evidence
+    .find((item) => item.startsWith("alvo: "))
+    ?.match(/(?:^|\s)folha=([^\s]+)/)?.[1];
+
+  if (!source || source === "ausente" || !target || target === "ausente") {
+    return null;
+  }
+
+  return { source, target };
+}
+
 export function findingElementLabel(finding: Finding): string | null {
   if (!finding.element_code) {
     return null;
   }
 
   const lifecycleState = findingLifecycleState(finding);
-  return lifecycleState
-    ? `Elemento ${finding.element_code} / ${lifecycleState.toUpperCase()}`
+  if (lifecycleState) {
+    return `Elemento ${finding.element_code} / ${lifecycleState.toUpperCase()}`;
+  }
+
+  const section = findingSectionTransition(finding);
+  return section
+    ? `Elemento ${finding.element_code} / ${section.source} -> ${section.target}`
     : `Elemento ${finding.element_code}`;
 }
 
