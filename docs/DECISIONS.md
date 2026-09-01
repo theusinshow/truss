@@ -1,5 +1,22 @@
 # Decisions
 
+## 2026-09-01 - F5.1 learns only through explicit, revocable rule preferences
+
+A rejected finding remains feedback about one occurrence. It never changes audit behavior by
+itself. When an automatic rejected finding has a stable `rule_id` and classified sheet type, the
+viewer may propose a separate `suppress` preference. The owner must approve it explicitly.
+
+The first learning slice supports only `scope: sheet_type`. An active row is keyed by
+`(sheet_type, rule_id, action)` and applies to all local sheets of that type. Manual findings,
+untraceable rules and unclassified sheets cannot generalize. Project/global scope, severity
+downgrade and automatic thresholds remain outside this slice.
+
+Suppression is derived when findings are read. Audit runs and findings remain unchanged and fully
+auditable; the viewer hides suppressed findings by default and exposes a `Silenciados` filter.
+Revocation sets `revoked_at` instead of deleting the preference, restoring normal display while
+preserving the decision history. Cached audit runs are annotated at read time, so a new preference
+does not require rewriting immutable results or invalidating deterministic analysis cache.
+
 ## 2026-09-01 - F4.1 uses deterministic crops as the only multimodal input
 
 F4 begins with a narrow legibility slice. Native spans generate candidates for text below 5.5 pt

@@ -155,6 +155,115 @@ def test_finding_feedback_is_persisted(client: TestClient, settings: Settings) -
     payload = response.json()
     assert payload["status"] == "rejected"
     assert payload["rejection_reason"] == "Nao se aplica a este padrao."
+    assert payload["suppressed"] is False
+
+
+def test_rejected_finding_only_suppresses_after_explicit_preference(
+    client: TestClient,
+    settings: Settings,
+) -> None:
+    sheet_id = create_imported_sheet(client, settings)
+    audit_run = client.post(f"/sheets/{sheet_id}/audit-runs").json()
+    finding = next(
+        item
+        for item in audit_run["findings"]
+        if item["rule_id"] == "forms.sheet.has_main_view"
+    )
+
+    rejected = client.patch(
+        f"/findings/{finding['id']}",
+        json={
+            "status": "rejected",
+            "rejection_reason": "Esta familia de folhas nao possui vista principal.",
+        },
+    ).json()
+    assert rejected["suppressed"] is False
+
+    created = client.post(
+        f"/findings/{finding['id']}/rule-preferences",
+        json={"reason": rejected["rejection_reason"]},
+    )
+    assert created.status_code == 201
+    preference = created.json()
+    assert preference["active"] is True
+    assert preference["scope"] == "sheet_type"
+    assert preference["action"] == "suppress"
+    assert preference["rule_id"] == finding["rule_id"]
+
+    listed = client.get(f"/sheets/{sheet_id}/findings").json()
+    suppressed = next(item for item in listed if item["id"] == finding["id"])
+    assert suppressed["suppressed"] is True
+    assert suppressed["suppression_preference_id"] == preference["id"]
+
+    cached_run = client.post(f"/sheets/{sheet_id}/audit-runs").json()
+    cached_finding = next(item for item in cached_run["findings"] if item["id"] == finding["id"])
+    assert cached_run["id"] == audit_run["id"]
+    assert cached_finding["suppressed"] is True
+
+    other_sheet_id = create_imported_sheet(client, settings)
+    other_run = client.post(f"/sheets/{other_sheet_id}/audit-runs").json()
+    same_rule = next(
+        item
+        for item in other_run["findings"]
+        if item["rule_id"] == "forms.sheet.has_main_view"
+    )
+    assert same_rule["suppressed"] is True
+    assert same_rule["suppression_preference_id"] == preference["id"]
+
+    revoked = client.delete(f"/rule-preferences/{preference['id']}")
+    assert revoked.status_code == 200
+    assert revoked.json()["active"] is False
+    assert revoked.json()["revoked_at"] is not None
+
+    restored = client.get(f"/sheets/{sheet_id}/findings").json()
+    restored_finding = next(item for item in restored if item["id"] == finding["id"])
+    assert restored_finding["suppressed"] is False
+    assert client.get("/rule-preferences").json() == []
+    history = client.get("/rule-preferences?include_revoked=true").json()
+    assert [item["id"] for item in history] == [preference["id"]]
+
+
+def test_preference_rejects_pending_or_manual_findings(
+    client: TestClient,
+    settings: Settings,
+) -> None:
+    sheet_id = create_imported_sheet(client, settings)
+    run = client.post(f"/sheets/{sheet_id}/audit-runs").json()
+    automatic = next(item for item in run["findings"] if item["rule_id"])
+
+    pending = client.post(
+        f"/findings/{automatic['id']}/rule-preferences",
+        json={"reason": "Ainda nao foi rejeitado."},
+    )
+    assert pending.status_code == 409
+
+    manual = client.post(
+        f"/sheets/{sheet_id}/findings",
+        json={
+            "category": "composition",
+            "type": "attention",
+            "description": "Marcacao humana.",
+            "severity": "medium",
+            "confidence": 1,
+            "bbox": {"x0": 10, "y0": 20, "x1": 120, "y1": 160},
+            "evidence": [],
+        },
+    ).json()
+    client.patch(
+        f"/findings/{manual['id']}",
+        json={"status": "rejected", "rejection_reason": "Nao generalizar."},
+    )
+    response = client.post(
+        f"/findings/{manual['id']}/rule-preferences",
+        json={"reason": "Nao generalizar."},
+    )
+    assert response.status_code == 409
+
+    missing = client.post(
+        "/findings/missing/rule-preferences",
+        json={"reason": "Achado inexistente."},
+    )
+    assert missing.status_code == 404
 
 
 def test_manual_finding_is_persisted_with_human_origin(

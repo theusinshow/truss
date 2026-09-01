@@ -1,0 +1,82 @@
+# Roadmap do Truss Agent
+
+Atualizado em: 2026-09-01
+
+Este documento e o mapa de continuidade do produto. Cada fase deve receber plano proprio,
+implementacao, testes automatizados e verificacao manual antes da fase seguinte. Registrar uma
+fase aqui nao autoriza mudanca arquitetural nem o avanco de varios milestones em conjunto.
+
+## Estado atual
+
+| Fase | Estado | Evidencia principal | Pendencia para encerrar o programa da fase |
+|---|---|---|---|
+| F1 - Sheet Map base | implementada | migrations, geometria vetorial, regioes, carimbo e classificacao | preservar a calibracao no acervo real |
+| F2 - Vistas e checklist | implementada | vistas com escala e regras deterministicas localizadas | ampliar ground truth positivo para medir precisao e cobertura |
+| F3 - Cruzamento entre folhas | concluida e validada | registry por revisao, continuidade e secoes de pilares | nenhuma no escopo aprovado |
+| F4 - Visao por crops | concluida e validada | triagem multimodal, cache por conteudo e teto de custo | nenhuma no escopo aprovado |
+| F5 - Aprendizado explicito | em andamento | F5.1: supressao explicita, visivel e revogavel por tipo de prancha | completar propostas por evidencia e calibracao pelo acervo |
+| F6 - Solidez diaria | nao iniciada | - | lote real de 85 folhas do inicio ao fim sem falha |
+
+## Sequencia de continuidade
+
+### F5.2 - Central de preferencias e propostas
+
+Objetivo: tornar todas as decisoes aprendidas inspecionaveis sem transformar o produto em um
+painel administrativo generico.
+
+- listar preferencias ativas e revogadas com regra, tipo de prancha, motivo e achado de origem;
+- permitir filtrar, localizar a evidencia no PDF e revogar a decisao;
+- acumular confirmacoes, rejeicoes e achados manuais por chaves estaveis;
+- somente propor uma decisao ao atingir evidencia definida; nunca ativar automaticamente;
+- testar persistencia, escopo, duplicidade, revogacao e regressao do viewer.
+
+Criterio de aceite: o proprietario consegue explicar, localizar e desfazer qualquer comportamento
+aprendido, e nenhuma preferencia nasce sem aprovacao explicita.
+
+### F5.3 - Calibracao deterministica pelo acervo aprovado
+
+Objetivo: usar projetos aprovados para medir e propor melhorias do checklist sem fine-tuning.
+
+- definir o contrato de acervo aprovado e sua separacao de memoria explicita e dataset;
+- reconstruir Sheet Maps com pipeline versionado e medir frequencias por tipo de prancha;
+- produzir propostas de item de checklist, com amostras e contraexemplos;
+- revisar e aprovar cada proposta antes de alterar regras versionadas;
+- exportar os sinais de feedback em formato auditavel e portavel;
+- medir queda de falso-positivo entre revisoes sem esconder findings brutos.
+
+Criterio de aceite: um apontamento rejeitado e aprovado como preferencia nao volta por padrao, e
+as metricas demonstram reducao de falso-positivo sem perda silenciosa de cobertura.
+
+### F6.1 - Recuperacao e operacao segura
+
+Objetivo: proteger o uso local cotidiano.
+
+- backup e restauracao verificavel do SQLite e dos arquivos locais;
+- reconstituicao dos documentos arquiteturais ainda ausentes;
+- diagnostico claro para PDF corrompido, falha de render, disco e migracao;
+- retomada idempotente de processamento interrompido;
+- teste de recuperacao sem sobrescrever revisoes ou PDFs anteriores.
+
+### F6.2 - Lote e observabilidade local
+
+Objetivo: processar uma revisao real grande com progresso e falhas isoladas.
+
+- fila local de folhas com estados, progresso e cancelamento seguro;
+- limites de concorrencia, custo e chamadas por revisao;
+- retry apenas para operacoes seguras e cacheadas;
+- resumo final com folhas concluidas, ignoradas e com erro;
+- passada completa no corpus de 85 folhas.
+
+Criterio de aceite da F6: uma revisao de 85 folhas percorre importacao, Sheet Map, auditoria,
+feedback e reabertura sem perda de dados nem falha nao explicada.
+
+## Depois da V0.1
+
+F7 permanece apenas candidata: comparacao grafica entre revisoes imutaveis. Ela exige analise,
+proposta e aprovacao explicita antes de entrar em planejamento. SaaS, multiusuario, autenticacao,
+cobranca, 3D decorativo e fine-tuning continuam fora do escopo.
+
+## Proximo passo
+
+Depois do fechamento da F5.1, elaborar e submeter o plano detalhado da F5.2 ao proprietario. Nao
+implementar a F5.2 antes dessa aprovacao.

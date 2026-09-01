@@ -49,6 +49,9 @@ class Finding(BaseModel):
     dedupe_key: str | None = None
     element_code: str | None = None
     registry_hash: str | None = None
+    suppressed: bool = False
+    suppression_preference_id: str | None = None
+    suppression_sheet_type: str | None = None
 
 
 class AuditCoverage(BaseModel):

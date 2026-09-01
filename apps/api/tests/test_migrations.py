@@ -27,6 +27,7 @@ def test_apply_migrations_creates_schema_and_is_idempotent(tmp_path: Path) -> No
         "findings",
         "sheet_map_scopes",
         "sheet_elements",
+        "rule_preferences",
     } <= _table_names(settings)
     with transaction(settings) as connection:
         view_columns = {

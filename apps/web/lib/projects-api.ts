@@ -100,6 +100,22 @@ export type Finding = {
   dedupe_key?: string | null;
   element_code?: string | null;
   registry_hash?: string | null;
+  suppressed?: boolean;
+  suppression_preference_id?: string | null;
+  suppression_sheet_type?: string | null;
+};
+
+export type RulePreference = {
+  id: string;
+  scope: "sheet_type";
+  sheet_type: string;
+  rule_id: string;
+  action: "suppress";
+  reason: string;
+  source_finding_id: string;
+  created_at: string;
+  revoked_at: string | null;
+  active: boolean;
 };
 
 export type PillarLifecycleState = "morre" | "nasce" | "passa";
@@ -202,6 +218,15 @@ export function shouldShowHypothesisNotice(finding: Finding): boolean {
 
 export function findingSourceLabel(finding: Finding): string | null {
   return finding.source_layer === "vision" ? "VISAO / CROP" : null;
+}
+
+export function canProposeRulePreference(finding: Finding): boolean {
+  return (
+    finding.origin === "ai" &&
+    finding.status === "rejected" &&
+    Boolean(finding.rule_id) &&
+    !finding.suppressed
+  );
 }
 
 export type AuditCoverage = {
@@ -484,6 +509,26 @@ export function updateFindingStatus(
       status,
       rejection_reason: rejectionReason
     })
+  });
+}
+
+export function createRulePreferenceForFinding(
+  apiBaseUrl: string,
+  findingId: string,
+  reason: string
+): Promise<RulePreference> {
+  return request<RulePreference>(apiBaseUrl, `/findings/${findingId}/rule-preferences`, {
+    method: "POST",
+    body: JSON.stringify({ reason })
+  });
+}
+
+export function revokeRulePreference(
+  apiBaseUrl: string,
+  preferenceId: string
+): Promise<RulePreference> {
+  return request<RulePreference>(apiBaseUrl, `/rule-preferences/${preferenceId}`, {
+    method: "DELETE"
   });
 }
 

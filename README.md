@@ -5,6 +5,7 @@ Aplicativo pessoal de revisao grafica de projetos estruturais.
 O Truss Agent nasce como um laboratorio de uso diario para revisao de pranchas estruturais em PDF, com foco inicial em formas, locacao, cortes, detalhamentos, legibilidade, cotas, titulos, escalas, tabelas e coerencia grafica. O objetivo e funcionar como um segundo desenhista tecnico: ele analisa, marca regioes suspeitas, permite confirmar ou rejeitar achados, faz perguntas para aprender padroes e mantem historico por projeto e revisao.
 
 Este repositorio deve ser implementado de forma incremental, seguindo `AGENTS.md` e os documentos em `docs/`.
+O estado das fases e a sequencia aprovada de continuidade ficam em [`docs/14-ROADMAP.md`](docs/14-ROADMAP.md).
 
 ## Principio central
 
@@ -207,6 +208,17 @@ simular visao.
 O smoke test autorizado com provider real avaliou 3 crops por USD 0.019245 estimados e o replay
 identico nao gerou nova chamada. A medicao completa fica em
 `calibration/human-review/f4-visual-legibility-measurement-2026-09-01.md`.
+
+## F5.1 - Preferencias explicitas de regras
+
+O primeiro aprendizado do Truss e deliberadamente humano e reversivel. Rejeitar um finding nao
+altera nenhuma regra. Quando o achado automatico possui `rule_id` e tipo de prancha verificavel, o
+viewer oferece uma segunda acao: silenciar aquela regra em todas as folhas locais do mesmo tipo.
+
+A aprovacao cria uma linha em `rule_preferences`; findings e audit runs permanecem intactos. Os
+resultados afetados aparecem no filtro `Silenciados`, preservando bbox, evidencia e justificativa.
+Reativar a regra grava a revogacao e faz os findings voltarem ao fluxo normal. Achados manuais,
+regras sem rastreabilidade e folhas nao classificadas nunca geram preferencia.
 
 ## Requisitos locais
 

@@ -7,6 +7,7 @@ from truss_api.audit.models import FindingStatusUpdate, ManualFindingCreate
 from truss_api.core.settings import Settings
 from truss_api.db.connection import transaction
 from truss_api.documents.repository import SheetNotFoundError
+from truss_api.preferences.repository import annotate_findings_with_preferences
 
 
 class FindingNotFoundError(Exception):
@@ -291,7 +292,11 @@ def get_audit_run(audit_run_id: str, settings: Settings) -> dict[str, object]:
 
     data = dict(audit_run)
     data["coverage"] = json.loads(str(data.pop("coverage_json") or "{}"))
-    data["findings"] = [_finding_from_row(row) for row in rows]
+    data["findings"] = annotate_findings_with_preferences(
+        [_finding_from_row(row) for row in rows],
+        str(data["sheet_id"]),
+        settings,
+    )
     return data
 
 
@@ -312,7 +317,11 @@ def list_findings_for_sheet(sheet_id: str, settings: Settings) -> list[dict[str,
             (sheet_id,),
         ).fetchall()
 
-    return [_finding_from_row(row) for row in rows]
+    return annotate_findings_with_preferences(
+        [_finding_from_row(row) for row in rows],
+        sheet_id,
+        settings,
+    )
 
 
 def update_finding_status(
@@ -343,7 +352,11 @@ def update_finding_status(
 
         row = connection.execute("SELECT * FROM findings WHERE id = ?", (finding_id,)).fetchone()
 
-    return _finding_from_row(row)
+    return annotate_findings_with_preferences(
+        [_finding_from_row(row)],
+        str(row["sheet_id"]),
+        settings,
+    )[0]
 
 
 def create_manual_finding(
@@ -410,4 +423,8 @@ def create_manual_finding(
 
         row = connection.execute("SELECT * FROM findings WHERE id = ?", (finding_id,)).fetchone()
 
-    return _finding_from_row(row)
+    return annotate_findings_with_preferences(
+        [_finding_from_row(row)],
+        sheet_id,
+        settings,
+    )[0]

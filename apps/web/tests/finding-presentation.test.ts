@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canProposeRulePreference,
   Finding,
   findingElementLabel,
   findingLevelTransition,
@@ -125,5 +126,19 @@ describe("apresentacao de findings F3", () => {
   it("distingue findings produzidos por crop visual", () => {
     expect(findingSourceLabel(finding({ source_layer: "vision" }))).toBe("VISAO / CROP");
     expect(findingSourceLabel(finding({ source_layer: "deterministic" }))).toBeNull();
+  });
+
+  it("so propoe preferencia para achado automatico rejeitado e rastreavel", () => {
+    const eligible = finding({
+      status: "rejected",
+      rejection_reason: "Nao se aplica.",
+      rule_id: "forms.sheet.has_main_view"
+    });
+
+    expect(canProposeRulePreference(eligible)).toBe(true);
+    expect(canProposeRulePreference(finding({ ...eligible, status: "pending" }))).toBe(false);
+    expect(canProposeRulePreference(finding({ ...eligible, origin: "human" }))).toBe(false);
+    expect(canProposeRulePreference(finding({ ...eligible, rule_id: null }))).toBe(false);
+    expect(canProposeRulePreference(finding({ ...eligible, suppressed: true }))).toBe(false);
   });
 });

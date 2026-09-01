@@ -42,8 +42,10 @@ import {
 import {
   AuditCoverage,
   auditCoverageSummary,
+  canProposeRulePreference,
   createMessageFeedback,
   createManualFinding,
+  createRulePreferenceForFinding,
   Conversation,
   DocumentDetail,
   fetchSheetMap,
@@ -64,8 +66,10 @@ import {
   PersistedChatMessage,
   runSheetAudit,
   runSheetVisionAudit,
+  revokeRulePreference,
   Sheet,
   sheetIdentityLabel,
+  sheetTypeLabel,
   summarizeUsage,
   SheetMap,
   sheetTechnicalScopesLabel,
@@ -171,6 +175,10 @@ function findingSummary(findings: Finding[]) {
   const suffix = findings.length > 4 ? `\n+ ${findings.length - 4} achado(s) adicional(is).` : "";
 
   return `Revisei a prancha ativa e marquei ${findings.length} achado(s) no canvas.\n${preview}${suffix}`;
+}
+
+function firstUnsuppressedFinding(findings: Finding[]): Finding | null {
+  return findings.find((finding) => !finding.suppressed) ?? null;
 }
 
 function chatTurnsFromPersistedMessages(messages: PersistedChatMessage[]): ChatTurn[] {
@@ -572,6 +580,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   const [activeFindingId, setActiveFindingId] = useState("");
   const [showFindings, setShowFindings] = useState(true);
   const [showViews, setShowViews] = useState(true);
+  const [showSuppressed, setShowSuppressed] = useState(false);
   const [auditCoverage, setAuditCoverage] = useState<AuditCoverage | null>(null);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [showMinimap, setShowMinimap] = useState(true);
@@ -605,6 +614,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   const [rejectPanelOpen, setRejectPanelOpen] = useState(false);
   const [rejectFindingId, setRejectFindingId] = useState("");
   const [isSavingFeedback, setIsSavingFeedback] = useState(false);
+  const [isSavingPreference, setIsSavingPreference] = useState(false);
   const [historyState, setHistoryState] = useState({ canRedo: false, canUndo: false });
   const [canvasSizeState, setCanvasSizeState] = useState({ height: 1, width: 1 });
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -632,8 +642,10 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
         y1: activeSheet.height_pt
       }
     : null;
+  const suppressedCount = findings.filter((finding) => finding.suppressed).length;
   const filteredFindings = findings.filter(
     (finding) =>
+      (showSuppressed || !finding.suppressed) &&
       (statusFilter === "all" || finding.status === statusFilter) &&
       (severityFilter === "all" || finding.severity === severityFilter)
   );
@@ -1300,11 +1312,13 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
 
     try {
       const auditRun = await runSheetAudit(apiBaseUrl, activeSheet.id);
+      const firstFinding = firstUnsuppressedFinding(auditRun.findings);
       findingsRef.current = auditRun.findings;
       setFindings(auditRun.findings);
       setAuditCoverage(auditRun.coverage ?? null);
-      setSelectedIds(new Set(auditRun.findings[0] ? [auditRun.findings[0].id] : []));
-      setActiveFindingId(auditRun.findings[0]?.id ?? "");
+      setSelectedIds(new Set(firstFinding ? [firstFinding.id] : []));
+      setActiveFindingId(firstFinding?.id ?? "");
+      setShowSuppressed(false);
       setShowFindings(true);
       appendTurn({
         role: "truss",
@@ -1335,12 +1349,13 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
       const merged = new Map(findingsRef.current.map((finding) => [finding.id, finding]));
       auditRun.findings.forEach((finding) => merged.set(finding.id, finding));
       const nextFindings = Array.from(merged.values());
+      const firstFinding = firstUnsuppressedFinding(auditRun.findings);
       findingsRef.current = nextFindings;
       setFindings(nextFindings);
       setVisionCoverage(auditRun.coverage ?? null);
-      if (auditRun.findings[0]) {
-        setSelectedIds(new Set([auditRun.findings[0].id]));
-        setActiveFindingId(auditRun.findings[0].id);
+      if (firstFinding) {
+        setSelectedIds(new Set([firstFinding.id]));
+        setActiveFindingId(firstFinding.id);
       }
       setShowFindings(true);
       appendTurn({
@@ -1463,6 +1478,73 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
       appendTurn({ role: "truss", tone: "error", text: message });
     } finally {
       setIsSavingFeedback(false);
+    }
+  }
+
+  async function applyRulePreference(finding: Finding) {
+    if (!finding.rejection_reason || !finding.rule_id) {
+      return;
+    }
+
+    setIsSavingPreference(true);
+    setError(null);
+    try {
+      await createRulePreferenceForFinding(
+        apiBaseUrl,
+        finding.id,
+        finding.rejection_reason
+      );
+      const refreshed = await listSheetFindings(apiBaseUrl, finding.sheet_id);
+      findingsRef.current = refreshed;
+      setFindings(refreshed);
+      setShowSuppressed(true);
+      setActiveFindingId(finding.id);
+      setSelectedIds(new Set([finding.id]));
+      appendTurn({
+        role: "truss",
+        tone: "success",
+        text: `Preferencia aprovada: ${finding.rule_id} fica silenciada neste tipo de prancha.`
+      });
+    } catch (preferenceError) {
+      const message =
+        preferenceError instanceof Error
+          ? preferenceError.message
+          : "Falha ao aplicar preferencia de regra.";
+      setError(message);
+      appendTurn({ role: "truss", tone: "error", text: message });
+    } finally {
+      setIsSavingPreference(false);
+    }
+  }
+
+  async function restoreRulePreference(finding: Finding) {
+    if (!finding.suppression_preference_id) {
+      return;
+    }
+
+    setIsSavingPreference(true);
+    setError(null);
+    try {
+      await revokeRulePreference(apiBaseUrl, finding.suppression_preference_id);
+      const refreshed = await listSheetFindings(apiBaseUrl, finding.sheet_id);
+      findingsRef.current = refreshed;
+      setFindings(refreshed);
+      setActiveFindingId(finding.id);
+      setSelectedIds(new Set([finding.id]));
+      appendTurn({
+        role: "truss",
+        tone: "default",
+        text: `Preferencia revogada: ${finding.rule_id ?? "regra"} volta a aparecer nas auditorias.`
+      });
+    } catch (preferenceError) {
+      const message =
+        preferenceError instanceof Error
+          ? preferenceError.message
+          : "Falha ao revogar preferencia de regra.";
+      setError(message);
+      appendTurn({ role: "truss", tone: "error", text: message });
+    } finally {
+      setIsSavingPreference(false);
     }
   }
 
@@ -1733,10 +1815,12 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
       try {
         const sheetFindings = await listSheetFindings(apiBaseUrl, activeSheet.id);
         if (isMounted) {
+          const firstFinding = firstUnsuppressedFinding(sheetFindings);
           findingsRef.current = sheetFindings;
           setFindings(sheetFindings);
-          setSelectedIds(new Set(sheetFindings[0] ? [sheetFindings[0].id] : []));
-          setActiveFindingId(sheetFindings[0]?.id ?? "");
+          setSelectedIds(new Set(firstFinding ? [firstFinding.id] : []));
+          setActiveFindingId(firstFinding?.id ?? "");
+          setShowSuppressed(false);
           setManualDraft(null);
           setCursorWorld(null);
           setMutedContextIds(new Set());
@@ -2252,6 +2336,17 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                     </button>
                   ))}
                 </div>
+                <button
+                  aria-pressed={showSuppressed}
+                  className="flex h-[34px] items-center justify-center gap-2 border border-truss-line bg-truss-raised px-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle transition-colors hover:bg-truss-panel2 hover:text-truss-text data-[active=true]:border-truss-info/55 data-[active=true]:bg-truss-info/10 data-[active=true]:text-truss-info disabled:cursor-not-allowed disabled:opacity-45"
+                  data-active={showSuppressed}
+                  disabled={suppressedCount === 0}
+                  onClick={() => setShowSuppressed((current) => !current)}
+                  type="button"
+                >
+                  <EyeOff aria-hidden="true" className="truss-icon h-3.5 w-3.5" />
+                  Silenciados / {suppressedCount}
+                </button>
                 <div className="grid grid-cols-4 gap-2">
                   <button className="truss-icon-button w-full" onClick={copySelection} title="Copiar selecionados, Ctrl+C" type="button">
                     <Copy aria-hidden="true" className="truss-icon h-4 w-4" />
@@ -2280,7 +2375,9 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                       </span>
                     </>
                   ) : (
-                    "Nenhum achado nesse filtro."
+                    suppressedCount > 0 && !showSuppressed
+                      ? `${suppressedCount} achado(s) silenciado(s). Ative o filtro para revisar.`
+                      : "Nenhum achado nesse filtro."
                   )}
                 </div>
               ) : (
@@ -2290,8 +2387,9 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
 
                   return (
                     <button
-                      className="flex w-full gap-3 border-b border-truss-line px-3 py-3 text-left transition-colors hover:bg-truss-panel data-[active=true]:bg-truss-accentSoft data-[active=true]:shadow-[inset_2px_0_0_var(--red)]"
+                      className="flex w-full gap-3 border-b border-truss-line px-3 py-3 text-left transition-colors hover:bg-truss-panel data-[active=true]:bg-truss-accentSoft data-[active=true]:shadow-[inset_2px_0_0_var(--red)] data-[suppressed=true]:bg-truss-info/5"
                       data-active={selectedIds.has(finding.id)}
+                      data-suppressed={finding.suppressed}
                       key={finding.id}
                       onClick={(event) => {
                         selectFinding(finding, event.shiftKey);
@@ -2314,6 +2412,12 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                           {findingSourceLabel(finding) ? (
                             <span className="inline-flex h-6 items-center border border-truss-info/50 bg-truss-info/10 px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-info">
                               {findingSourceLabel(finding)}
+                            </span>
+                          ) : null}
+                          {finding.suppressed ? (
+                            <span className="inline-flex h-6 items-center gap-1 border border-truss-info/50 bg-truss-info/10 px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-info">
+                              <EyeOff aria-hidden="true" className="truss-icon h-3 w-3" />
+                              Silenciado
                             </span>
                           ) : null}
                           <SeverityBadge severity={finding.severity} />
@@ -2442,6 +2546,47 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                   {shouldShowHypothesisNotice(activeFinding) ? (
                     <div className="mt-3 border border-truss-warning/35 bg-truss-warning/10 px-3 py-2 text-xs leading-5 text-truss-text">
                       Hipotese pendente de verificacao humana. Severidade mede impacto, nao certeza.
+                    </div>
+                  ) : null}
+                  {activeFinding.suppressed ? (
+                    <div className="mt-3 border border-truss-info/40 bg-truss-info/10 p-3 text-xs leading-5 text-truss-text">
+                      <div className="flex items-start gap-2">
+                        <EyeOff aria-hidden="true" className="truss-icon mt-0.5 h-4 w-4 shrink-0 text-truss-info" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold">Regra silenciada neste tipo de prancha</p>
+                          <p className="mt-1 text-truss-muted">
+                            {activeFinding.rule_id} nao aparece por padrao em folhas {sheetTypeLabel(activeFinding.suppression_sheet_type ?? sheetMap?.sheet_type ?? "unknown")}. O achado continua salvo e auditavel.
+                          </p>
+                          <button
+                            className="truss-button mt-3 w-full disabled:opacity-50"
+                            disabled={isSavingPreference}
+                            onClick={() => void restoreRulePreference(activeFinding)}
+                            type="button"
+                          >
+                            Reativar regra
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : canProposeRulePreference(activeFinding) && activeFinding.rejection_reason ? (
+                    <div className="mt-3 border border-truss-warning/40 bg-truss-warning/10 p-3 text-xs leading-5 text-truss-text">
+                      <div className="flex items-start gap-2">
+                        <EyeOff aria-hidden="true" className="truss-icon mt-0.5 h-4 w-4 shrink-0 text-truss-warning" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold">Transformar esta rejeicao em preferencia?</p>
+                          <p className="mt-1 text-truss-muted">
+                            Silenciar {activeFinding.rule_id} apenas em folhas {sheetTypeLabel(sheetMap?.sheet_type ?? "unknown")}. Nada sera apagado e a decisao pode ser revogada.
+                          </p>
+                          <button
+                            className="truss-button truss-button-primary mt-3 w-full disabled:opacity-50"
+                            disabled={isSavingPreference}
+                            onClick={() => void applyRulePreference(activeFinding)}
+                            type="button"
+                          >
+                            Silenciar neste tipo
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   ) : null}
                   <div className="mt-3 grid gap-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle">
