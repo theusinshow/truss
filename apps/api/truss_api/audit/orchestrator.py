@@ -17,7 +17,7 @@ from truss_api.sheetmap.primitives import EXTRACTOR_VERSION
 from truss_api.sheetmap.elements.registry import build_revision_registry
 
 
-AUDIT_PIPELINE_VERSION = "audit-v0.4"
+AUDIT_PIPELINE_VERSION = "audit-v0.5"
 
 def audit_cache_key(
     *,

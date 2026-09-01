@@ -166,6 +166,8 @@ def test_changed_signature_is_a_medium_attention_point_not_an_error() -> None:
     assert "680" in evaluation.reason
     assert "780" in evaluation.reason
     assert evaluation.bbox == (10.0, 20.0, 30.0, 40.0)
+    # Com o tamanho alterado, a ordem impressa ja esta contada na mudanca.
+    assert not any("ordem impressa" in item for item in evaluation.evidence)
 
 
 def test_finding_carries_both_ends_with_traceable_evidence() -> None:

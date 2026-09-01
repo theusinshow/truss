@@ -633,7 +633,10 @@ def _evaluate_pillar_section_rule(
         target_printed = str(target_entry.get("section_raw") or "")
         evidence.append(f"secoes: {source_printed} -> {target_printed}")
         evidence.append(f"assinaturas: {source_signature} -> {target_signature}")
-        if source_entry.get("section_ordered_signature") != target_entry.get(
+        changed = source_signature != target_signature
+        # Só faz sentido falar em orientacao quando o tamanho e o mesmo: com o
+        # tamanho alterado, a ordem impressa ja esta contada como mudanca.
+        if not changed and source_entry.get("section_ordered_signature") != target_entry.get(
             "section_ordered_signature"
         ):
             evidence.append(
@@ -641,7 +644,6 @@ def _evaluate_pillar_section_rule(
                 "orientacao nao verificada neste slice"
             )
 
-        changed = source_signature != target_signature
         confidence = min(
             float(source_entry.get("section_confidence") or 0.0),
             float(target_entry.get("section_confidence") or 0.0),

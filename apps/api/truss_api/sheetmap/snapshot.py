@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 
-SHEET_MAP_PIPELINE = "sheetmap-v0.7"
+SHEET_MAP_PIPELINE = "sheetmap-v0.8"
 
 
 def _plain(value: Any) -> Any:
