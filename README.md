@@ -175,6 +175,39 @@ setx TRUSS_OPENAI_MAX_OUTPUT_TOKENS "900"
 
 Depois de usar `setx`, feche e reabra o terminal antes de iniciar a API. Para habilitar OpenAI diretamente, use `TRUSS_AI_PROVIDER=openai`. Para forcar execucao sem chamadas externas, use `TRUSS_AI_PROVIDER=local`. Quando houver mais de uma organizacao ou projeto na conta, configure tambem `TRUSS_OPENAI_ORG_ID` e `TRUSS_OPENAI_PROJECT_ID` para evitar que o backend use uma chave/projeto sem quota.
 
+## F4.1 - Triagem visual de legibilidade por crops
+
+A analise visual e uma acao explicita no viewer e permanece desabilitada por padrao. O Truss
+seleciona candidatos por texto nativo e geometria, recorta somente a regiao suspeita e envia ao
+provider a imagem PNG do crop. O PDF completo e o render completo da prancha nao fazem parte da
+entrada multimodal.
+
+O modelo classifica apenas `PASS`, `ATTENTION` ou `NOT_VERIFIABLE` em schema estrito. Ele nao
+recebe autoridade para criar coordenadas: todo achado continua ligado a bbox canonica em pontos
+PDF produzida antes da chamada. Resultados visuais aparecem como hipotese pendente
+`ATTENTION_POINT/MEDIUM`, com origem `VISAO / CROP` e rastreabilidade de crop, provider, modelo e
+prompt.
+
+Para habilitar com OpenAI e um limite operacional por revisao:
+
+```powershell
+setx TRUSS_AI_PROVIDER "openai"
+setx TRUSS_VISION_ENABLED "true"
+setx TRUSS_VISION_BUDGET_USD_PER_REVISION "0.25"
+setx TRUSS_VISION_MAX_CALLS_PER_REVISION "30"
+setx TRUSS_VISION_MAX_CANDIDATES_PER_SHEET "8"
+setx TRUSS_VISION_COST_RESERVE_USD_PER_CALL "0.05"
+```
+
+O cache visual usa o hash do crop, pipeline, prompt, modelo, reasoning e detalhe da imagem. A
+reserva conservadora e o teto de chamadas sao verificados antes de cada chamada nova; respostas
+ja em cache nao consomem novamente a API. O provider local informa indisponibilidade em vez de
+simular visao.
+
+O smoke test autorizado com provider real avaliou 3 crops por USD 0.019245 estimados e o replay
+identico nao gerou nova chamada. A medicao completa fica em
+`calibration/human-review/f4-visual-legibility-measurement-2026-09-01.md`.
+
 ## Requisitos locais
 
 - Node.js 20 ou superior

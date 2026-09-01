@@ -7,6 +7,7 @@ import {
   findingLifecycleState,
   findingSectionTransition,
   findingSheetTransition,
+  findingSourceLabel,
   shouldShowHypothesisNotice
 } from "@/lib/projects-api";
 
@@ -119,5 +120,10 @@ describe("apresentacao de findings F3", () => {
     expect(shouldShowHypothesisNotice(finding())).toBe(true);
     expect(shouldShowHypothesisNotice(finding({ status: "confirmed" }))).toBe(false);
     expect(shouldShowHypothesisNotice(finding({ origin: "human" }))).toBe(false);
+  });
+
+  it("distingue findings produzidos por crop visual", () => {
+    expect(findingSourceLabel(finding({ source_layer: "vision" }))).toBe("VISAO / CROP");
+    expect(findingSourceLabel(finding({ source_layer: "deterministic" }))).toBeNull();
   });
 });

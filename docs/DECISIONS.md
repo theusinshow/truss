@@ -1,5 +1,36 @@
 # Decisions
 
+## 2026-09-01 - F4.1 uses deterministic crops as the only multimodal input
+
+F4 begins with a narrow legibility slice. Native spans generate candidates for text below 5.5 pt
+or geometrically overlapping text. The source bbox is canonical in PDF points; PyMuPDF adds local
+padding and renders a content-addressed PNG crop. Neither the PDF nor a full-sheet render is sent
+to the provider.
+
+The vision provider returns only `PASS`, `ATTENTION` or `NOT_VERIFIABLE` through a strict schema
+that has no coordinate fields. A confident attention result becomes a pending
+`ATTENTION_POINT/MEDIUM` with `source_layer: vision`; coordinates, view and technical scope always
+come from the deterministic candidate. Provider, model, prompt version and crop hash remain in
+the evidence and cache key.
+
+External vision is disabled by default. When enabled, every uncached request passes revision-wide
+call and cost gates before execution. The default maximum is 8 candidates per sheet, 30 calls per
+revision, USD 0.25 estimated cost per revision and a conservative USD 0.05 reserve for the next
+call. Tests inject a fake provider and never access the network; the local provider refuses the
+operation explicitly.
+
+The network-free local measurement deduplicated 5 available files into 3 PDFs: 58 pages, 35,160
+native spans, 190 small-text candidates and 488 overlap candidates. Thirty-five pages had at least
+one candidate; a per-sheet cap of 8 retained 222 candidates for potential review. These numbers
+measure deterministic triage pressure, not model precision. Human classification and a paid real
+provider run remain separate release evidence. Full results live in
+`calibration/human-review/f4-visual-legibility-measurement-2026-09-01.md`.
+
+The owner later authorized a controlled real-provider validation: 3 local crops, 3 localized
+`ATTENTION_POINT/MEDIUM` results, USD 0.019245 estimated cost and no additional usage on an
+identical replay. The sample validates request, schema, persistence and cache integration, but is
+too small for a statistical precision claim.
+
 ## 2026-09-01 - F3.2 verifies only explicit pillar lifecycle across safely paired levels
 
 Pillar occurrences may now carry `morre`, `nasce` or `passa` when the marker belongs to the same

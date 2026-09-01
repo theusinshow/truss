@@ -200,6 +200,10 @@ export function shouldShowHypothesisNotice(finding: Finding): boolean {
   return finding.origin === "ai" && finding.status === "pending";
 }
 
+export function findingSourceLabel(finding: Finding): string | null {
+  return finding.source_layer === "vision" ? "VISAO / CROP" : null;
+}
+
 export type AuditCoverage = {
   evaluated: number;
   passed: number;
@@ -368,7 +372,16 @@ async function request<T>(apiBaseUrl: string, path: string, init?: RequestInit):
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(body || `Request failed with status ${response.status}`);
+    let message = body;
+    try {
+      const parsed = JSON.parse(body) as { detail?: unknown };
+      if (typeof parsed.detail === "string") {
+        message = parsed.detail;
+      }
+    } catch {
+      // Preserve plain-text responses from local routes and development proxies.
+    }
+    throw new Error(message || `Request failed with status ${response.status}`);
   }
 
   return response.json() as Promise<T>;
@@ -445,6 +458,12 @@ export async function importRevisionDocument(
 
 export function runSheetAudit(apiBaseUrl: string, sheetId: string): Promise<AuditRun> {
   return request<AuditRun>(apiBaseUrl, `/sheets/${sheetId}/audit-runs`, {
+    method: "POST"
+  });
+}
+
+export function runSheetVisionAudit(apiBaseUrl: string, sheetId: string): Promise<AuditRun> {
+  return request<AuditRun>(apiBaseUrl, `/sheets/${sheetId}/vision-audit-runs`, {
     method: "POST"
   });
 }

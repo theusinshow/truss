@@ -15,6 +15,7 @@ import {
   Plus,
   Redo2,
   RotateCcw,
+  ScanSearch,
   Trash2,
   Undo2,
   X
@@ -51,6 +52,7 @@ import {
   findingLifecycleState,
   findingSectionTransition,
   findingSheetTransition,
+  findingSourceLabel,
   fetchSheetUsage,
   Finding,
   FindingSeverity,
@@ -61,6 +63,7 @@ import {
   listSheetConversations,
   PersistedChatMessage,
   runSheetAudit,
+  runSheetVisionAudit,
   Sheet,
   sheetIdentityLabel,
   summarizeUsage,
@@ -573,6 +576,8 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [showMinimap, setShowMinimap] = useState(true);
   const [isAuditing, setIsAuditing] = useState(false);
+  const [isVisionAuditing, setIsVisionAuditing] = useState(false);
+  const [visionCoverage, setVisionCoverage] = useState<AuditCoverage | null>(null);
   const [manualMode, setManualMode] = useState(false);
   const [statusFilter, setStatusFilter] = useState<FindingStatus | "all">("all");
   const [severityFilter, setSeverityFilter] = useState<FindingSeverity | "all">("all");
@@ -726,7 +731,17 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
     );
   }
 
-  const chatActivity: AgentActivity = isAuditing
+  const chatActivity: AgentActivity = isVisionAuditing
+    ? {
+        state: "using-tool",
+        title: "Analisando crops visuais",
+        steps: [
+          { id: "candidates", label: "Candidatos geometricos preparados", state: "done" },
+          { id: "vision", label: "Avaliando crops dentro do teto", state: "active" },
+          { id: "findings", label: "Persistindo hipoteses localizadas", state: "queued" }
+        ]
+      }
+    : isAuditing
     ? {
         state: "using-tool",
         title: "Auditando prancha",
@@ -890,7 +905,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   }
 
   function startNewConversation() {
-    if (isChatting || isAuditing) {
+    if (isChatting || isAuditing || isVisionAuditing) {
       return;
     }
 
@@ -901,7 +916,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   }
 
   async function loadConversationHistory(nextConversationId: string) {
-    if (isChatting || isAuditing || nextConversationId === conversationId) {
+    if (isChatting || isAuditing || isVisionAuditing || nextConversationId === conversationId) {
       return;
     }
 
@@ -1305,6 +1320,43 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
       appendTurn({ role: "truss", tone: "error", text: message });
     } finally {
       setIsAuditing(false);
+    }
+  }
+
+  async function runVisionAuditFromToolbar() {
+    if (!activeSheet) {
+      return;
+    }
+
+    setIsVisionAuditing(true);
+    setError(null);
+    try {
+      const auditRun = await runSheetVisionAudit(apiBaseUrl, activeSheet.id);
+      const merged = new Map(findingsRef.current.map((finding) => [finding.id, finding]));
+      auditRun.findings.forEach((finding) => merged.set(finding.id, finding));
+      const nextFindings = Array.from(merged.values());
+      findingsRef.current = nextFindings;
+      setFindings(nextFindings);
+      setVisionCoverage(auditRun.coverage ?? null);
+      if (auditRun.findings[0]) {
+        setSelectedIds(new Set([auditRun.findings[0].id]));
+        setActiveFindingId(auditRun.findings[0].id);
+      }
+      setShowFindings(true);
+      appendTurn({
+        role: "truss",
+        tone: auditRun.findings.length > 0 ? "success" : "default",
+        text: `Visao por crops: ${[findingSummary(auditRun.findings), auditCoverageSummary(auditRun.coverage)]
+          .filter(Boolean)
+          .join(" ")}`
+      });
+    } catch (visionError) {
+      const message =
+        visionError instanceof Error ? visionError.message : "Falha ao executar analise visual.";
+      setError(message);
+      appendTurn({ role: "truss", tone: "error", text: message });
+    } finally {
+      setIsVisionAuditing(false);
     }
   }
 
@@ -1950,6 +2002,19 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
           <button className="truss-icon-button" onClick={() => void runAuditFromChat()} title="Reprocessar auditoria" type="button">
             <RotateCcw aria-hidden="true" className={`truss-icon h-4 w-4 ${isAuditing ? "animate-spin text-truss-accent" : ""}`} />
           </button>
+          <button
+            aria-label="Executar analise visual por crops"
+            className="truss-icon-button"
+            disabled={isAuditing || isVisionAuditing}
+            onClick={() => void runVisionAuditFromToolbar()}
+            title="Analisar legibilidade em crops"
+            type="button"
+          >
+            <ScanSearch
+              aria-hidden="true"
+              className={`truss-icon h-4 w-4 ${isVisionAuditing ? "animate-pulse text-truss-accent" : ""}`}
+            />
+          </button>
         </div>
       </div>
 
@@ -2016,7 +2081,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                   )}
             </div>
 
-            {isAuditing ? (
+            {isAuditing || isVisionAuditing ? (
               <div className="pointer-events-none absolute inset-y-7 left-0 z-20 w-1/2 animate-[truss-scan-sweep_1.55s_ease-in-out_infinite] truss-scan-sweep" />
             ) : null}
 
@@ -2152,6 +2217,9 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
               <span className={isAuditing ? "text-truss-accent" : "text-truss-subtle"}>
                 auditoria / {isAuditing ? "varrendo" : "pronta"}
               </span>
+              <span className={isVisionAuditing ? "text-truss-accent" : "text-truss-subtle"}>
+                visao / {isVisionAuditing ? "analisando" : visionCoverage ? `${visionCoverage.evaluated} crops` : "nao executada"}
+              </span>
             </div>
           </div>
 
@@ -2241,6 +2309,11 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                           {findingElementLabel(finding) ? (
                             <span className="inline-flex h-6 items-center border border-truss-accent/45 bg-truss-accentSoft px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-text">
                               {findingElementLabel(finding)}
+                            </span>
+                          ) : null}
+                          {findingSourceLabel(finding) ? (
+                            <span className="inline-flex h-6 items-center border border-truss-info/50 bg-truss-info/10 px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-info">
+                              {findingSourceLabel(finding)}
                             </span>
                           ) : null}
                           <SeverityBadge severity={finding.severity} />
@@ -2340,6 +2413,11 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
                     {findingElementLabel(activeFinding) ? (
                       <span className="inline-flex h-6 items-center border border-truss-accent/45 bg-truss-accentSoft px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-text">
                         {findingElementLabel(activeFinding)}
+                      </span>
+                    ) : null}
+                    {findingSourceLabel(activeFinding) ? (
+                      <span className="inline-flex h-6 items-center border border-truss-info/50 bg-truss-info/10 px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-info">
+                        {findingSourceLabel(activeFinding)}
                       </span>
                     ) : null}
                     <TypeBadge type={activeFinding.type} />
@@ -2467,7 +2545,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
             contextItems={visibleChatContextItems}
             documentName={"documentName" in activeSheet ? String(activeSheet.documentName) : ""}
             isLoadingConversations={isLoadingConversations}
-            isRunning={isChatting || isAuditing || isLoadingChatHistory}
+            isRunning={isChatting || isAuditing || isVisionAuditing || isLoadingChatHistory}
             message={chatMessage}
             messages={chatTurns}
             mode={chatMode}

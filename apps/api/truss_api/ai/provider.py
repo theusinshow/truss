@@ -1,10 +1,14 @@
 import json
-import os
+import base64
 import hashlib
+import os
 from dataclasses import dataclass
 from typing import Any, Iterator, Protocol
 
+from pydantic import ValidationError
+
 from truss_api.core.settings import Settings, _read_root_env
+from truss_api.vision.models import VisionAnalysis, VisionCropInput, VisionProviderResponse
 
 
 @dataclass(frozen=True)
@@ -66,6 +70,9 @@ class AIProvider(Protocol):
         ...
 
     def stream_respond(self, *, user_message: str, context: dict[str, object]) -> Iterator[ProviderStreamEvent]:
+        ...
+
+    def analyze_crop(self, *, crop: VisionCropInput) -> VisionProviderResponse:
         ...
 
 
@@ -170,6 +177,16 @@ class LocalHeuristicProvider:
         for chunk in _chunk_text(response.answer):
             yield ProviderStreamDelta(chunk)
         yield ProviderStreamResult(response)
+
+    def analyze_crop(self, *, crop: VisionCropInput) -> VisionProviderResponse:
+        raise AIProviderUnavailableError(
+            "Local provider does not support image analysis.",
+            public_message=(
+                "Analise visual exige provider OpenAI explicitamente configurado; "
+                "o provider local nao simula visao."
+            ),
+            provider_code="vision_provider_unavailable",
+        )
 
 
 OPENAI_MODEL_PRICING_PER_MILLION: dict[str, tuple[float, float]] = {
@@ -286,6 +303,8 @@ class OpenAIProvider:
         organization: str | None = None,
         project: str | None = None,
         client: Any | None = None,
+        vision_image_detail: str = "high",
+        vision_max_output_tokens: int = 600,
     ) -> None:
         self.model = model
         self.reasoning_effort = reasoning_effort
@@ -294,6 +313,8 @@ class OpenAIProvider:
         self._organization = organization
         self._project = project
         self._client = client
+        self.vision_image_detail = vision_image_detail
+        self.vision_max_output_tokens = vision_max_output_tokens
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "OpenAIProvider":
@@ -307,6 +328,8 @@ class OpenAIProvider:
             max_output_tokens=settings.openai_max_output_tokens,
             organization=settings.openai_org_id,
             project=settings.openai_project_id,
+            vision_image_detail=settings.vision_image_detail,
+            vision_max_output_tokens=settings.vision_max_output_tokens,
         )
 
     def _get_client(self) -> Any:
@@ -427,6 +450,139 @@ class OpenAIProvider:
 
         yield ProviderStreamResult(
             self._provider_response_from_openai(final_response, fallback_answer="".join(answer_parts))
+        )
+
+    def analyze_crop(self, *, crop: VisionCropInput) -> VisionProviderResponse:
+        client = self._get_client()
+        candidate = crop.candidate
+        schema = {
+            "type": "object",
+            "properties": {
+                "candidate_id": {"type": "string", "const": candidate.candidate_id},
+                "outcome": {
+                    "type": "string",
+                    "enum": ["pass", "attention", "not_verifiable"],
+                },
+                "issue": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "text_too_small",
+                        "text_overlap",
+                        "illegible",
+                        "not_verifiable",
+                    ],
+                },
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "description": {"type": "string", "minLength": 1, "maxLength": 600},
+                "evidence": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "maxItems": 6,
+                },
+            },
+            "required": [
+                "candidate_id",
+                "outcome",
+                "issue",
+                "confidence",
+                "description",
+                "evidence",
+            ],
+            "additionalProperties": False,
+        }
+        image_url = f"data:image/png;base64,{base64.b64encode(crop.image_bytes).decode('ascii')}"
+        input_payload = [
+            {
+                "role": "developer",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": (
+                            "Revise somente a legibilidade grafica do texto no crop de uma prancha "
+                            "estrutural. O candidato foi localizado deterministicamente; nao invente "
+                            "coordenadas, nao valide dimensionamento e nao transforme suspeita em erro "
+                            "estrutural. Use attention apenas quando o crop mostrar texto pequeno, "
+                            "sobreposto ou ilegivel de forma plausivel. Se o recorte ou a evidencia nao "
+                            "permitirem decidir, use not_verifiable. Responda em pt-BR pelo schema."
+                        ),
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": json.dumps(
+                            {
+                                "candidate_id": candidate.candidate_id,
+                                "candidate_kind": candidate.kind,
+                                "font_sizes_pt": candidate.font_sizes_pt,
+                                "text_samples": candidate.text_samples,
+                            },
+                            ensure_ascii=False,
+                        ),
+                    },
+                    {
+                        "type": "input_image",
+                        "image_url": image_url,
+                        "detail": crop.image_detail,
+                    },
+                ],
+            },
+        ]
+
+        try:
+            response = client.responses.create(
+                model=self.model,
+                reasoning={"effort": self.reasoning_effort},
+                max_output_tokens=self.vision_max_output_tokens,
+                store=False,
+                input=input_payload,
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "truss_visual_legibility",
+                        "strict": True,
+                        "schema": schema,
+                    }
+                },
+            )
+            analysis = VisionAnalysis.model_validate(json.loads(_extract_output_text(response)))
+        except (json.JSONDecodeError, ValidationError) as error:
+            raise AIProviderUnavailableError(
+                "OpenAI vision response did not match the required schema.",
+                public_message="A resposta da analise visual veio fora do contrato estruturado.",
+                provider_code="vision_schema_invalid",
+            ) from error
+        except AIProviderUnavailableError:
+            raise
+        except Exception as error:
+            public_message, provider_code = _openai_public_error(error)
+            raise AIProviderUnavailableError(
+                "OpenAI vision request failed.",
+                public_message=public_message,
+                provider_code=provider_code,
+            ) from error
+
+        if analysis.candidate_id != candidate.candidate_id:
+            raise AIProviderUnavailableError(
+                "OpenAI vision response referenced another candidate.",
+                public_message="A resposta visual nao corresponde ao crop enviado.",
+                provider_code="vision_candidate_mismatch",
+            )
+
+        usage = _extract_value(response, "usage")
+        input_tokens = _extract_value(usage, "input_tokens")
+        output_tokens = _extract_value(usage, "output_tokens")
+        return VisionProviderResponse(
+            provider=self.provider,
+            model=self.model,
+            analysis=analysis,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost_usd=_estimate_openai_cost(self.model, input_tokens, output_tokens),
         )
 
 

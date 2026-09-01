@@ -79,6 +79,9 @@ def create_audit_run(
     coverage: dict[str, object] | None = None,
     evaluations: list[object] | None = None,
     registry_hash: str | None = None,
+    mode: str = "aggressive",
+    pipeline_version: str = "deterministic-v0.4",
+    summary: str | None = None,
 ) -> dict[str, object]:
     now = _now()
     audit_run_id = str(uuid4())
@@ -111,10 +114,10 @@ def create_audit_run(
                 sheet_context["document_id"],
                 sheet_context["project_id"],
                 sheet_context["revision_id"],
-                "aggressive",
-                "deterministic-v0.4",
+                mode,
+                pipeline_version,
                 "completed",
-                f"{len(findings)} achados gerados por regras deterministicas.",
+                summary or f"{len(findings)} achados gerados por regras deterministicas.",
                 now,
                 now,
                 sheet_map_id,
