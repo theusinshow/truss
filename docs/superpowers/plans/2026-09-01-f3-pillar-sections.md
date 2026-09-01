@@ -1,7 +1,7 @@
 # F3.3 - Secoes explicitas de pilares entre niveis
 
 Data: 2026-09-01  
-Status: aprovado e em implementacao; Tasks 1 a 6 concluidas
+Status: implementado; Tasks 1 a 7 concluidas e criterios de aceite atendidos
 Escopo: terceiro slice de F3, limitado a secoes textuais `a x b` associadas a pilares observados
 
 ## Resultado pretendido
@@ -229,22 +229,25 @@ Reprocessar os 13 PDFs em bancos descartaveis e registrar:
 
 Nenhum candidato aprovado/rejeitado sera usado como allowlist ou supressao automatica.
 
+Medicao de release registrada em
+`calibration/human-review/f3-pillar-sections-measurement-2026-09-01.md`.
+
 ## Criterios de aceite
 
-- [ ] o gabarito separa associacoes de pilar, viga, tabela e outros elementos;
-- [ ] nenhum limiar espacial e escolhido sem medicao positiva e negativa;
-- [ ] texto, ordem, unidade e bbox brutos sao preservados;
-- [ ] unidade ausente nunca e completada por convencao;
-- [ ] `14x30` e `30x14` preservam ordem e nao viram mudanca de tamanho neste slice;
-- [ ] duplicatas divergentes produzem `UNKNOWN`;
-- [ ] somente ocorrencias concretas nas duas pontas sao comparadas;
-- [ ] nenhum pilar e classificado como `PASSA` por exclusao;
-- [ ] mudanca gera `ATTENTION_POINT/MEDIUM`, nunca erro estrutural confirmado;
-- [ ] findings possuem codigo, secoes, niveis, views, bboxes, proveniencia e `registry_hash`;
-- [ ] cache invalida com nova secao sem apagar feedback historico;
-- [ ] os 18 candidatos preliminares sao revisados antes da medicao de release;
-- [ ] testes API/web, lint e typecheck ficam verdes;
-- [ ] pelo menos uma transicao real igual e uma alterada sao verificadas no viewer.
+- [x] o gabarito separa associacoes de pilar, viga, tabela e outros elementos;
+- [x] nenhum limiar espacial e escolhido sem medicao positiva e negativa;
+- [x] texto, ordem, unidade e bbox brutos sao preservados;
+- [x] unidade ausente nunca e completada por convencao;
+- [x] `14x30` e `30x14` preservam ordem e nao viram mudanca de tamanho neste slice;
+- [x] duplicatas divergentes produzem `UNKNOWN`;
+- [x] somente ocorrencias concretas nas duas pontas sao comparadas;
+- [x] nenhum pilar e classificado como `PASSA` por exclusao;
+- [x] mudanca gera `ATTENTION_POINT/MEDIUM`, nunca erro estrutural confirmado;
+- [x] findings possuem codigo, secoes, niveis, views, bboxes, proveniencia e `registry_hash`;
+- [x] cache invalida com nova secao sem apagar feedback historico;
+- [x] os 18 candidatos preliminares sao revisados antes da medicao de release;
+- [x] testes API/web, lint e typecheck ficam verdes;
+- [x] pelo menos uma transicao real igual e uma alterada sao verificadas no viewer.
 
 ## Fora do escopo
 
