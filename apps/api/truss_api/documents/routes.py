@@ -3,10 +3,10 @@ from fastapi.responses import FileResponse
 
 from truss_api.core.settings import Settings, get_settings
 from truss_api.documents import repository
-from truss_api.documents.importer import InvalidPdfError, prepare_pdf_storage
 from truss_api.documents.models import Document, DocumentDetail, TextBlock
 from truss_api.documents.rendering import RenderError, render_sheet_png
-from truss_api.sheetmap.builder import build_sheet_map_for_document
+from truss_api.recovery.errors import TrussError
+from truss_api.recovery.operations import import_document
 
 
 router = APIRouter(tags=["documents"])
@@ -45,27 +45,23 @@ async def import_revision_document(
 
     content = await file.read()
     if not content:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty")
+        raise TrussError(
+            code="PDF_EMPTY",
+            message="O arquivo enviado esta vazio.",
+            action="Selecione um PDF valido e tente novamente.",
+            status_code=400,
+        )
 
     try:
-        prepared_pdf = prepare_pdf_storage(
-            content=content,
+        repository.ensure_revision_belongs_to_project(project_id, revision_id, settings)
+        return import_document(
+            project_id=project_id,
+            revision_id=revision_id,
             filename=file.filename or "document.pdf",
-            project_id=project_id,
-            revision_id=revision_id,
-            settings=settings,
+            content=content,
             mime_type=file.content_type or "application/pdf",
-        )
-        document = repository.create_document_from_prepared_pdf(
-            project_id=project_id,
-            revision_id=revision_id,
-            prepared_pdf=prepared_pdf,
             settings=settings,
         )
-        build_sheet_map_for_document(str(document["id"]), settings)
-        return document
-    except InvalidPdfError as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
     except repository.RevisionNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Revision not found") from error
     except repository.DuplicateDocumentError as error:
@@ -96,7 +92,13 @@ def get_sheet_image(
     except repository.SheetNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sheet not found") from error
     except RenderError as error:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(error)) from error
+        raise TrussError(
+            code="RENDER_FAILED",
+            message="A pagina nao pode ser renderizada.",
+            action="Execute o diagnostico do PDF e tente reconstruir o render.",
+            status_code=500,
+            retryable=True,
+        ) from error
 
     return FileResponse(image_path, media_type="image/png")
 

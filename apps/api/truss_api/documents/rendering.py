@@ -4,6 +4,8 @@ import fitz
 
 from truss_api.core.settings import Settings
 from truss_api.documents import repository
+from truss_api.recovery.atomic import atomic_write_bytes
+from truss_api.recovery.errors import TrussError
 
 
 class RenderError(Exception):
@@ -21,7 +23,12 @@ def render_sheet_png(sheet_id: str, settings: Settings, scale: float = 2.0) -> P
 
     source_path = settings.data_dir / str(context["stored_file_path"])
     if not source_path.exists():
-        raise RenderError("Source PDF file is missing")
+        raise TrussError(
+            code="PDF_SOURCE_MISSING",
+            message="O PDF original desta folha nao foi encontrado.",
+            action="Execute o diagnostico e restaure um backup valido em um novo diretorio.",
+            status_code=500,
+        )
 
     render_dir = (
         settings.renders_dir
@@ -33,15 +40,25 @@ def render_sheet_png(sheet_id: str, settings: Settings, scale: float = 2.0) -> P
     output_path = render_dir / f"page-{int(context['page_index']) + 1:04d}@{scale:g}x.png"
 
     if not output_path.exists():
-        document = fitz.open(source_path)
         try:
-            page = document.load_page(int(context["page_index"]))
-            pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
-            pixmap.save(output_path)
+            document = fitz.open(source_path)
+            try:
+                page = document.load_page(int(context["page_index"]))
+                pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+                png = pixmap.tobytes("png")
+            finally:
+                document.close()
+            atomic_write_bytes(
+                output_path,
+                png,
+                validator=lambda path: _validate_png(path),
+            )
+        except TrussError:
+            raise
         except Exception as error:
+            if isinstance(error, RenderError):
+                raise
             raise RenderError("Could not render PDF page") from error
-        finally:
-            document.close()
 
     repository.update_sheet_render_path(
         sheet_id,
@@ -49,3 +66,8 @@ def render_sheet_png(sheet_id: str, settings: Settings, scale: float = 2.0) -> P
         settings,
     )
     return output_path
+
+
+def _validate_png(path: Path) -> None:
+    if not path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
+        raise RenderError("Rendered image is not a valid PNG")

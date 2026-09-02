@@ -26,7 +26,10 @@ import {
 } from "@/lib/projects-api";
 import type { EvidenceLocator } from "@/lib/projects-api";
 import { LearningCenter } from "@/components/learning/learning-center";
+import { OperationalError } from "@/components/operations/operational-error";
+import { OperationalStatus } from "@/components/operations/operational-status";
 import { SheetViewer } from "@/components/sheet-viewer";
+import { resumeProcessingOperation } from "@/lib/diagnostics-api";
 import { SheetIcon } from "@/components/truss-icons";
 
 type ProjectWorkspaceProps = {
@@ -60,7 +63,9 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
     findingId: string;
     nonce: number;
   } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+  const [isResumingOperation, setIsResumingOperation] = useState(false);
+  const [operationsRefreshToken, setOperationsRefreshToken] = useState(0);
 
   const selectedSummary = useMemo(
     () => projects.find((project) => project.id === selectedProject?.id),
@@ -149,7 +154,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
         }
       } catch (loadError) {
         if (isMounted) {
-          setError(loadError instanceof Error ? loadError.message : "Falha ao carregar projetos.");
+          setError(loadError instanceof Error ? loadError : new Error("Falha ao carregar projetos."));
         }
       } finally {
         if (isMounted) {
@@ -187,7 +192,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
     try {
       await refreshDocuments(selectedProject.id, revisionId);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Falha ao carregar documentos.");
+      setError(loadError instanceof Error ? loadError : new Error("Falha ao carregar documentos."));
     }
   }
 
@@ -249,7 +254,8 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
       await importPdfIntoWorkspace(file, { createNewRevision: true });
     } catch (quickError) {
       setQuickStatus("");
-      setError(quickError instanceof Error ? quickError.message : "Falha ao importar e auditar PDF.");
+      setError(quickError instanceof Error ? quickError : new Error("Falha ao importar e auditar PDF."));
+      setOperationsRefreshToken((current) => current + 1);
     } finally {
       setIsQuickImporting(false);
       setIsDraggingPdf(false);
@@ -290,9 +296,25 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
     } catch (navigationError) {
       setError(
         navigationError instanceof Error
-          ? navigationError.message
-          : "Falha ao localizar a evidencia no PDF."
+          ? navigationError
+          : new Error("Falha ao localizar a evidencia no PDF.")
       );
+    }
+  }
+
+  async function handleResumeOperation(operationId: string) {
+    setIsResumingOperation(true);
+    try {
+      await resumeProcessingOperation(apiBaseUrl, operationId);
+      setError(null);
+      setOperationsRefreshToken((current) => current + 1);
+      await refreshProjects();
+    } catch (resumeError) {
+      setError(
+        resumeError instanceof Error ? resumeError : new Error("Falha ao continuar a operacao.")
+      );
+    } finally {
+      setIsResumingOperation(false);
     }
   }
 
@@ -363,10 +385,17 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
       </aside>
 
       <section className="flex min-h-0 flex-col p-3 sm:p-4">
+        <OperationalStatus
+          apiBaseUrl={apiBaseUrl}
+          onRecovered={() => void refreshProjects()}
+          refreshToken={operationsRefreshToken}
+        />
         {error ? (
-          <div className="mb-4 border border-truss-danger/30 bg-truss-danger/10 px-4 py-3 text-sm text-truss-text" role="alert">
-            {error}
-          </div>
+          <OperationalError
+            error={error}
+            isResuming={isResumingOperation}
+            onResume={(operationId) => void handleResumeOperation(operationId)}
+          />
         ) : null}
 
         <label

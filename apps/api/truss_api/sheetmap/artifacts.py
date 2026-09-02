@@ -12,6 +12,7 @@ from truss_api.sheetmap.primitives import (
     TextSpanRecord,
     VectorPrimitive,
 )
+from truss_api.recovery.atomic import atomic_write_bytes
 
 
 GZIP_LEVEL = 6
@@ -56,7 +57,13 @@ def write_extraction(
     # Enderecado por conteudo: se o arquivo ja existe, ele e identico por definicao.
     if not target.exists():
         raw = json.dumps(_payload(extraction), separators=(",", ":")).encode("utf-8")
-        target.write_bytes(gzip.compress(raw, GZIP_LEVEL))
+        atomic_write_bytes(
+            target,
+            gzip.compress(raw, GZIP_LEVEL),
+            validator=lambda path: json.loads(
+                gzip.decompress(path.read_bytes()).decode("utf-8")
+            ),
+        )
 
     return relative
 

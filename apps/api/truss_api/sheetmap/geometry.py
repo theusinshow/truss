@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 import json
+from hashlib import sha256
 from pathlib import Path
 
 import fitz
 
 from truss_api.core.settings import Settings
 from truss_api.sheetmap.primitives import PageExtraction
+from truss_api.recovery.atomic import atomic_write_text
 
 
 @dataclass(frozen=True)
@@ -83,8 +85,14 @@ def extract_page_geometry(page: fitz.Page, min_area_ratio: float = 0.0002) -> Pa
     )
 
 
-def geometry_relative_path(project_id: str, revision_id: str, sheet_id: str) -> str:
-    return f"geometry/{project_id}/{revision_id}/{sheet_id}.json"
+def geometry_relative_path(
+    project_id: str,
+    revision_id: str,
+    sheet_id: str,
+    content_hash: str | None = None,
+) -> str:
+    suffix = f".{content_hash}" if content_hash else ""
+    return f"geometry/{project_id}/{revision_id}/{sheet_id}{suffix}.json"
 
 
 def write_page_geometry(
@@ -95,10 +103,6 @@ def write_page_geometry(
     sheet_id: str,
     settings: Settings,
 ) -> str:
-    relative = geometry_relative_path(project_id, revision_id, sheet_id)
-    target = settings.data_dir / relative
-    target.parent.mkdir(parents=True, exist_ok=True)
-
     payload = {
         "width_pt": geometry.width_pt,
         "height_pt": geometry.height_pt,
@@ -106,7 +110,21 @@ def write_page_geometry(
         "curve_count": geometry.curve_count,
         "rects": [[rect.x0, rect.y0, rect.x1, rect.y1] for rect in geometry.rects],
     }
-    target.write_text(json.dumps(payload), encoding="utf-8")
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    content_hash = sha256(raw.encode("utf-8")).hexdigest()[:16]
+    relative = geometry_relative_path(
+        project_id,
+        revision_id,
+        sheet_id,
+        content_hash,
+    )
+    target = settings.data_dir / relative
+    if not target.exists():
+        atomic_write_text(
+            target,
+            raw,
+            validator=lambda path: json.loads(path.read_text(encoding="utf-8")),
+        )
     return relative
 
 

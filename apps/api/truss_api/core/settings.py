@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     app_name: str = "Truss Agent"
     environment: str = "local"
     data_dir: Path = REPO_ROOT / "data"
+    backup_dir: Path = REPO_ROOT / "backups"
     ai_provider: Literal["auto", "local", "openai"] = "local"
     openai_api_key: SecretStr | None = Field(
         default=None,
@@ -75,6 +76,10 @@ class Settings(BaseSettings):
     @property
     def database_path(self) -> Path:
         return self.db_dir / "truss.sqlite"
+
+    @property
+    def database_recovery_dir(self) -> Path:
+        return self.db_dir / "recovery"
 
     @property
     def originals_dir(self) -> Path:

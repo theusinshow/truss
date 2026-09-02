@@ -6,6 +6,8 @@ import re
 import fitz
 
 from truss_api.core.settings import Settings
+from truss_api.recovery.atomic import atomic_write_bytes
+from truss_api.recovery.errors import TrussError
 
 
 class InvalidPdfError(Exception):
@@ -111,16 +113,27 @@ def prepare_pdf_storage(
     revision_id: str,
     settings: Settings,
     mime_type: str | None = None,
+    pages: list[PdfPageInfo] | None = None,
+    operation_id: str | None = None,
 ) -> PreparedPdf:
-    pages = inspect_pdf(content)
+    resolved_pages = pages if pages is not None else inspect_pdf(content)
     content_hash = hash_bytes(content)
     filename_safe = safe_filename(filename)
     storage_dir = settings.originals_dir / project_id / revision_id
     storage_dir.mkdir(parents=True, exist_ok=True)
 
-    stored_path = storage_dir / f"{content_hash[:16]}-{filename_safe}"
-    if not stored_path.exists():
-        stored_path.write_bytes(content)
+    stored_path = storage_dir / f"{content_hash}-{filename_safe}"
+    if stored_path.exists():
+        if hash_bytes(stored_path.read_bytes()) != content_hash:
+            raise TrussError(
+                code="ARTIFACT_CORRUPT",
+                message="O destino do PDF original possui conteudo divergente.",
+                action="Execute o diagnostico local e restaure um backup valido.",
+                status_code=500,
+                operation_id=operation_id,
+            )
+    else:
+        atomic_write_bytes(stored_path, content, operation_id=operation_id)
 
     return PreparedPdf(
         original_filename=filename_safe,
@@ -128,5 +141,5 @@ def prepare_pdf_storage(
         content_hash=content_hash,
         mime_type=mime_type or "application/pdf",
         file_size_bytes=len(content),
-        pages=pages,
+        pages=resolved_pages,
     )

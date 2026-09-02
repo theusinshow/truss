@@ -8,6 +8,7 @@ def storage_directories(settings: Settings | None = None) -> tuple[Path, ...]:
     return (
         resolved.data_dir,
         resolved.db_dir,
+        resolved.database_recovery_dir,
         resolved.originals_dir,
         resolved.renders_dir,
         resolved.cache_dir,

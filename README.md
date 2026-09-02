@@ -267,6 +267,28 @@ O ZIP contem manifesto, feedback, decisoes, evidencias e metricas. PDFs, imagens
 conversas, segredos e caminhos absolutos ficam de fora. Artefatos permanecem locais em
 `data/calibration/` e nao sao versionados.
 
+## F6.1 - Recuperacao segura em andamento
+
+A F6.1 adicionou journal de operacoes, escrita atomica, diagnosticos tipados, snapshots seguros
+de migration e o formato local `truss-backup-v0.1`. Backup e restore permanecem deliberadamente
+na CLI; a interface mostra apenas falhas e operacoes que podem ser retomadas com seguranca.
+
+```powershell
+$env:PYTHONPATH="apps/api"
+.venv\Scripts\python -m truss_api.recovery.cli diagnose --deep
+.venv\Scripts\python -m truss_api.recovery.cli backup-create
+.venv\Scripts\python -m truss_api.recovery.cli backup-verify <archive>
+.venv\Scripts\python -m truss_api.recovery.cli restore <archive> --target <novo-diretorio>
+```
+
+Restore nunca sobrescreve o `data` ativo e recusa destino existente. O archive contem PDFs e nao
+e criptografado.
+
+O milestone ainda nao esta encerrado: o recovery drill real encontrou quatro referencias de PDF
+original ausentes no SQLite local e o backup recusou publicar. A lista completa de pendencias e o
+estado dos testes estao na secao final de
+`docs/superpowers/plans/2026-09-02-f61-recovery-safe-operations.md`.
+
 ## Requisitos locais
 
 - Node.js 20 ou superior

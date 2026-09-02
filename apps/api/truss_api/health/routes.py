@@ -1,7 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from truss_api.core.settings import get_settings
-from truss_api.core.storage import ensure_storage_layout
+from truss_api.core.settings import Settings, get_settings
+from truss_api.recovery.diagnostics import health_summary
 
 router = APIRouter(tags=["health"])
 
@@ -12,19 +12,5 @@ def root() -> dict[str, str]:
 
 
 @router.get("/health")
-def health() -> dict[str, object]:
-    settings = get_settings()
-    ensure_storage_layout(settings)
-
-    return {
-        "app": "truss-agent",
-        "status": "ok",
-        "environment": settings.environment,
-        "storage": {
-            "data": str(settings.data_dir),
-            "db": str(settings.db_dir),
-            "originals": str(settings.originals_dir),
-            "renders": str(settings.renders_dir),
-            "cache": str(settings.cache_dir),
-        },
-    }
+def health(settings: Settings = Depends(get_settings)) -> dict[str, object]:
+    return health_summary(settings)

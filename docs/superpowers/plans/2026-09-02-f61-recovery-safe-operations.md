@@ -2,7 +2,7 @@
 
 Data: 2026-09-02
 
-Status: proposta aguardando aprovacao do proprietario
+Status: aprovada; implementacao parcial encerrada e documentada em 2026-09-02
 
 Escopo: proteger o uso local cotidiano com backup verificavel, restauracao sem sobrescrita,
 diagnosticos acionaveis, escritas atomicas e retomada idempotente de operacoes unitarias. Nao
@@ -601,3 +601,55 @@ proprietario aprovar explicitamente as decisoes, em especial:
 - migration do journal de operacoes;
 - CLI como unica superficie de backup/restore;
 - limites entre retomada unitaria da F6.1 e fila/lote da F6.2.
+
+## Estado da implementacao em 2026-09-02
+
+Aprovacao explicita recebida. O trabalho foi interrompido por solicitacao do proprietario para
+preservar o limite da sessao, com commit e push do estado testado.
+
+Implementado:
+
+- `docs/00-PROJECT-CONTEXT.md` e `docs/06-TECH-ARCHITECTURE.md` reconstruidos;
+- migration `010` com journal de operacoes e eventos append-only;
+- deteccao de operacoes interrompidas no startup e retomada por compare-and-swap;
+- importacao e auditoria deterministica retomaveis; visao nunca recebe retry automatico;
+- escrita atomica para PDF original, render, extracao e geometria reduzida por conteudo;
+- envelope de erro tipado, `/health` seguro e `/diagnostics` com modo profundo;
+- migrations com verificacao, hash novo e snapshot pre-migration;
+- `truss-backup-v0.1`, verificacao de hashes/paths/SQLite e restore para destino inexistente;
+- CLI de backup, verify, restore, diagnose e resume;
+- aviso operacional contextual e erros acionaveis no frontend, sem dashboard e sem backup web;
+- testes de corrupcao, path traversal, alvo existente, arquivo ausente, migration falha e retomada.
+
+Validacao concluida antes do encerramento:
+
+- backend completo: `256 passed, 1 skipped`;
+- frontend completo: `50 passed`;
+- lint passou depois do ajuste do efeito React;
+- typecheck passou;
+- build Next.js 16 passou;
+- `git diff --check` deve ser reexecutado imediatamente antes do commit.
+
+Recovery drill real:
+
+- a criacao do backup foi corretamente recusada com `PDF_SOURCE_MISSING`;
+- o SQLite real possui 5 documentos e 4 referencias de original ausentes;
+- tres ausencias sao revisoes de `Proj_Estrutural_RanchoQueimado_geral.pdf`;
+- uma ausencia e `017_26_est_geral-01.pdf`;
+- nenhum archive parcial foi publicado e o banco real nao foi alterado pelo drill;
+- o snapshot pre-migration da aplicacao da migration `010` permanece ignorado em
+  `data/db/recovery/`.
+
+Trabalho restante, em ordem:
+
+1. localizar os quatro PDFs pelos hashes/conteudo conhecido ou decidir explicitamente como
+   reconciliar os registros orfaos; nao reduzir a ausencia critica a warning;
+2. tornar a saida JSON da CLI limpa: o warning de deprecacao `fitz` aparece antes do JSON porque
+   `cli.py` importa o modulo de retomada no startup; usar import lazy no subcomando `resume` ou
+   migrar imports para `pymupdf`;
+3. repetir `backup-create` e `backup-verify` sobre o estado real;
+4. restaurar para dois diretorios descartaveis e concluir o recovery drill ponto-no-tempo;
+5. iniciar API/web e verificar manualmente health, painel interrompido, retomada e viewer;
+6. executar novamente backend, frontend, lint, typecheck e build se houver qualquer correcao;
+7. atualizar criterios de aceite, DECISIONS, README e roadmap somente depois do drill verde;
+8. nao iniciar F6.2 antes de encerrar estes itens.

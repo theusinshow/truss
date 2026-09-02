@@ -537,6 +537,54 @@ export type CreateRevisionInput = {
   original_filename?: string;
 };
 
+export type TrussErrorDetail = {
+  code: string;
+  message: string;
+  action: string;
+  retryable: boolean;
+  operation_id: string | null;
+};
+
+export class TrussApiError extends Error {
+  readonly detail: TrussErrorDetail;
+  readonly status: number;
+
+  constructor(detail: TrussErrorDetail, status: number) {
+    super(detail.message);
+    this.name = "TrussApiError";
+    this.detail = detail;
+    this.status = status;
+  }
+}
+
+export async function apiErrorFromResponse(response: Response): Promise<Error> {
+  const body = await response.text();
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown };
+    if (typeof parsed.detail === "string") {
+      return new Error(parsed.detail);
+    }
+    if (parsed.detail && typeof parsed.detail === "object") {
+      const detail = parsed.detail as Partial<TrussErrorDetail>;
+      if (typeof detail.code === "string" && typeof detail.message === "string") {
+        return new TrussApiError(
+          {
+            code: detail.code,
+            message: detail.message,
+            action: typeof detail.action === "string" ? detail.action : "Execute o diagnostico local.",
+            retryable: detail.retryable === true,
+            operation_id: typeof detail.operation_id === "string" ? detail.operation_id : null
+          },
+          response.status
+        );
+      }
+    }
+  } catch {
+    // Preserve plain-text responses from local routes and development proxies.
+  }
+  return new Error(body || `Request failed with status ${response.status}`);
+}
+
 async function request<T>(apiBaseUrl: string, path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
@@ -547,17 +595,7 @@ async function request<T>(apiBaseUrl: string, path: string, init?: RequestInit):
   });
 
   if (!response.ok) {
-    const body = await response.text();
-    let message = body;
-    try {
-      const parsed = JSON.parse(body) as { detail?: unknown };
-      if (typeof parsed.detail === "string") {
-        message = parsed.detail;
-      }
-    } catch {
-      // Preserve plain-text responses from local routes and development proxies.
-    }
-    throw new Error(message || `Request failed with status ${response.status}`);
+    throw await apiErrorFromResponse(response);
   }
 
   return response.json() as Promise<T>;
@@ -625,8 +663,7 @@ export async function importRevisionDocument(
   );
 
   if (!response.ok) {
-    const body = await response.text();
-    throw new Error(body || `Request failed with status ${response.status}`);
+    throw await apiErrorFromResponse(response);
   }
 
   return response.json() as Promise<DocumentDetail>;

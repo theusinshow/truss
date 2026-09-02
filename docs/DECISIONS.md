@@ -769,3 +769,24 @@ Rationale:
 - attribution by rule matters: a noise number with no rule behind it does not say what to fix.
 
 Measured on the base project: **0 findings across 29 sheets, 49 views**. That is the current floor.
+
+## 2026-09-02 - F6.1 recovery fails closed and never restores in place
+
+The owner approved the F6.1 plan. The implemented boundary is deliberately local and unitary:
+
+- SQLite backups use `Connection.backup`, a versioned manifest and SHA-256 for every durable file;
+- original PDFs missing from disk invalidate backup creation instead of becoming warnings;
+- restore verifies the archive, extracts to sibling staging and only publishes to a path that did
+  not exist; there is no force, merge or in-place mode;
+- deterministic operations can resume from persisted checkpoints, but a potentially billed visual
+  call is never retried automatically;
+- the operation journal is not the F6.2 queue: it has no workers, scheduling, priority, progress or
+  cancellation;
+- renders and cache are reconstructible; SQLite, referenced originals, geometry, calibration runs
+  and knowledge inbox are durable backup inputs;
+- public errors carry stable code, safe message and action. Health no longer returns absolute paths.
+
+The first real drill stopped correctly: four of five document rows reference original PDFs that
+are absent from `data/originals`. No partial archive was published. These records must be
+reconciled without deleting revisions before the milestone can be marked complete. The CLI also
+needs a lazy import so the PyMuPDF deprecation warning cannot precede its JSON output.

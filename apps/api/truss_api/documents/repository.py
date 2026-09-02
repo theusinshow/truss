@@ -261,6 +261,19 @@ def get_document(document_id: str, settings: Settings) -> dict[str, object]:
     return result
 
 
+def get_document_by_revision_hash(
+    revision_id: str,
+    content_hash: str,
+    settings: Settings,
+) -> dict[str, object] | None:
+    with transaction(settings) as connection:
+        row = connection.execute(
+            "SELECT id FROM documents WHERE revision_id = ? AND content_hash = ?",
+            (revision_id, content_hash),
+        ).fetchone()
+    return get_document(str(row["id"]), settings) if row is not None else None
+
+
 def get_sheet_render_context(sheet_id: str, settings: Settings) -> dict[str, object]:
     with transaction(settings) as connection:
         row = connection.execute(

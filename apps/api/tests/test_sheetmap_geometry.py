@@ -42,7 +42,8 @@ def test_write_and_read_page_geometry_roundtrip(tmp_path: Path) -> None:
     )
     restored = read_page_geometry(relative, settings)
 
-    assert relative == "geometry/project-1/revision-1/sheet-1.json"
+    assert relative.startswith("geometry/project-1/revision-1/sheet-1.")
+    assert relative.endswith(".json")
     assert (settings.data_dir / relative).exists()
     assert restored.width_pt == geometry.width_pt
     assert len(restored.rects) == len(geometry.rects)

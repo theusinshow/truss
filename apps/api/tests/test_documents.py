@@ -161,6 +161,26 @@ def test_import_pdf_rejects_invalid_pdf(
     )
 
     assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "PDF_UNREADABLE"
+
+
+def test_missing_source_pdf_returns_actionable_diagnostic(
+    client: TestClient,
+    settings: Settings,
+    revision: tuple[str, str],
+) -> None:
+    project_id, revision_id = revision
+    imported = client.post(
+        f"/projects/{project_id}/revisions/{revision_id}/documents",
+        files={"file": ("missing.pdf", make_pdf_bytes(page_count=1), "application/pdf")},
+    ).json()
+    (settings.data_dir / str(imported["stored_file_path"])).unlink()
+
+    response = client.get(f"/sheets/{imported['sheets'][0]['id']}/image")
+
+    assert response.status_code == 500
+    assert response.json()["detail"]["code"] == "PDF_SOURCE_MISSING"
+    assert response.json()["detail"]["action"]
 
 
 def test_list_documents_requires_revision_belonging_to_project(
