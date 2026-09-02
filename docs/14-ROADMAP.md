@@ -15,7 +15,7 @@ fase aqui nao autoriza mudanca arquitetural nem o avanco de varios milestones em
 | F3 - Cruzamento entre folhas | concluida e validada | registry por revisao, continuidade e secoes de pilares | nenhuma no escopo aprovado |
 | F4 - Visao por crops | concluida e validada | triagem multimodal, cache por conteudo e teto de custo | nenhuma no escopo aprovado |
 | F5 - Aprendizado explicito | concluida e validada | F5.1: preferencias; F5.2: propostas; F5.3: corpus versionado, runs imutaveis e export auditavel | nenhuma no escopo aprovado |
-| F6 - Solidez diaria | em andamento | F6.1 concluida: recovery verificavel, fontes historicas explicitas e drill real | F6.2: lote real de 85 folhas do inicio ao fim sem falha |
+| F6 - Solidez diaria | em andamento | F6.1 concluida: recovery verificavel, fontes historicas explicitas e drill real | F6.2: 84 folhas reais + fixture de falha isolada do inicio ao fim |
 
 ## Sequencia de continuidade
 
@@ -84,10 +84,11 @@ Objetivo: processar uma revisao real grande com progresso e falhas isoladas.
 - limites de concorrencia, custo e chamadas por revisao;
 - retry apenas para operacoes seguras e cacheadas;
 - resumo final com folhas concluidas, ignoradas e com erro;
-- passada completa no corpus de 85 folhas.
+- passada completa nas 84 folhas reais disponiveis e execucao separada de uma fixture de falha.
 
-Criterio de aceite da F6: uma revisao de 85 folhas percorre importacao, Sheet Map, auditoria,
-feedback e reabertura sem perda de dados nem falha nao explicada.
+Criterio de aceite da F6: as 84 folhas estruturais reais disponiveis percorrem importacao,
+Sheet Map, auditoria, feedback e reabertura sem perda de dados; uma fixture separada comprova o
+isolamento e a explicacao de falha sem ser contabilizada como folha real.
 
 ## Depois da V0.1
 
@@ -100,5 +101,5 @@ cobranca, 3D decorativo e fine-tuning continuam fora do escopo.
 A proposta arquitetural da F6.2 esta em
 [`docs/superpowers/plans/2026-09-02-f62-batch-observability.md`](superpowers/plans/2026-09-02-f62-batch-observability.md).
 Como esse passo introduz novos contratos operacionais, a implementacao aguarda aprovacao
-explicita; nenhum worker ou fila foi antecipado pela F6.1. O gate tambem precisa resolver a
-divergencia entre o criterio historico de 85 folhas e as 84 paginas reais atualmente disponiveis.
+explicita; nenhum worker ou fila foi antecipado pela F6.1. O proprietario aprovou usar as 84
+paginas reais atualmente disponiveis e uma fixture separada de falha isolada no gate final.

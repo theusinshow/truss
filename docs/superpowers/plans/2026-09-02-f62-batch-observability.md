@@ -24,8 +24,8 @@ do foco PDF-first.
 - o SQLite continua em journal mode tradicional. Escritas caras de PDF acontecem fora das
   transacoes, mas duas escritas SQLite ainda seriam serializadas;
 - o acervo real presente em `docs/projeto_base/` contem PDFs de 29, 30 e 25 paginas: 84 paginas
-  disponiveis. O criterio historico fala em 85 folhas, mas a 85a fonte nao esta presente neste
-  clone e nao deve ser simulada silenciosamente.
+  disponiveis. O proprietario aprovou formalmente medir essas 84 folhas reais e executar uma
+  fixture de falha separada, sem apresenta-la como uma 85a folha real.
 
 ## Resultado pretendido
 
@@ -265,7 +265,8 @@ Restricoes:
 8. integrar faixa de progresso contextual e detalhes de falha no viewer;
 9. adicionar opt-in visual com snapshot de budget e nenhuma repeticao automatica;
 10. testes de crash, cancelamento em cada barreira, retry, cache e concorrencia de claims;
-11. teste de 85 folhas em copia descartavel, medindo tempo, pico de memoria, contagens e hashes;
+11. teste das 84 folhas reais em copia descartavel, medindo tempo, pico de memoria, contagens e
+    hashes, seguido por uma fixture separada de falha isolada;
 12. verificacao manual de importacao, navegacao durante processamento, feedback e reabertura;
 13. backup/restore de um lote em andamento e de um lote concluido;
 14. atualizar arquitetura, decisoes, README e roadmap somente depois do gate.
@@ -311,7 +312,8 @@ Restricoes:
 
 ### Gate real
 
-- processar exatamente 85 folhas em ambiente descartavel;
+- processar as 84 folhas estruturais reais disponiveis em ambiente descartavel;
+- executar separadamente uma fixture que falhe de forma controlada e verificar o isolamento;
 - registrar hashes e contagens antes/depois;
 - interromper e retomar ao menos uma vez;
 - pedir cancelamento em um run separado e confirmar parada cooperativa;
@@ -320,15 +322,14 @@ Restricoes:
 - criar backup, verificar e restaurar o estado final;
 - registrar tempo total, pico de memoria, quantidade de retries, falhas e itens em cache.
 
-## Lacuna do corpus de 85 folhas
+## Decisao sobre o corpus
 
-Os tres PDFs atualmente disponiveis somam 84 paginas. Antes do gate final, uma destas opcoes
-precisa de decisao do proprietario:
+Em 2026-09-02, o proprietario escolheu alterar formalmente o criterio historico de 85 folhas. O
+gate usa as 84 paginas estruturais reais atualmente disponiveis e, em execucao separada, uma
+fixture defeituosa para comprovar isolamento, diagnostico e resumo de erro.
 
-1. fornecer o PDF/folha real que completa o corpus historico de 85 folhas; recomendada;
-2. aprovar outro PDF estrutural real para completar ou ultrapassar 85 folhas;
-3. alterar formalmente o criterio para 84 folhas reais e executar separadamente uma fixture de
-   falha. Essa opcao muda o criterio do roadmap e nao deve ser assumida pelo agente.
+A fixture nao conta como folha real, nao entra em metricas de qualidade do acervo e nao pode ser
+usada para inflar cobertura. Ela testa somente o comportamento operacional diante de falha.
 
 Os dois PDFs nao rastreados em `docs/projeto_base/` permanecem fora do Git. A fila pode usa-los
 localmente no drill sem versionar os documentos.
@@ -343,7 +344,7 @@ localmente no drill sem versionar os documentos.
 - [ ] retomada nao duplica dados nem chamadas externas;
 - [ ] concorrencia e custo possuem limites explicitos;
 - [ ] o viewer continua sendo a superficie principal;
-- [ ] o gate real de 85 folhas, feedback, reabertura e recovery passa;
+- [ ] o gate de 84 folhas reais mais a fixture separada, feedback, reabertura e recovery passa;
 - [ ] suites, lint, typecheck, build e verificacao manual ficam verdes;
 - [ ] documentacao registra metricas e decisoes finais.
 
@@ -390,4 +391,5 @@ Esta proposta nao autoriza implementacao. O proprietario precisa aprovar explici
 - polling HTTP em vez de WebSocket/SSE;
 - cancelamento cooperativo, nunca terminacao forcada;
 - modo visual somente por opt-in com limites congelados;
-- tratamento do corpus atualmente disponivel com 84 paginas.
+- demais decisoes arquiteturais desta proposta. O tratamento do corpus foi aprovado: 84 paginas
+  reais mais uma fixture separada de falha isolada.

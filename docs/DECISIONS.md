@@ -809,3 +809,19 @@ declaring their source bytes unavailable instead of deleting records or substitu
 This is a narrow recovery contract for known transferred history, not permission to downgrade a
 newly lost original to a warning. Four legacy declarations were recorded, current files were
 imported as `REV-005` and `REV-006`, and the real backup and point-in-time restore drill passed.
+
+## 2026-09-02 - F6.2 uses 84 real sheets plus a separate failure fixture
+
+The F6 roadmap historically named a batch of 85 sheets. The three structural PDFs currently
+available in `docs/projeto_base/` contain 29, 30 and 25 pages, for 84 real pages. The missing page
+must not be fabricated or silently represented by synthetic content.
+
+The owner chose to change the acceptance gate:
+
+- the real-corpus pass processes all 84 available structural pages;
+- a defective fixture runs separately to prove failure isolation, diagnostics and final summary;
+- the fixture is not counted as a real sheet and does not contribute to corpus-quality metrics;
+- hashes, counts, feedback, reopening, interruption, cancellation and recovery remain part of the
+  gate;
+- this decision resolves only the corpus size. Queue, worker, polling, concurrency, cancellation
+  and visual-batch contracts still require explicit approval before implementation.
