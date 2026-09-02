@@ -7,7 +7,6 @@ from truss_api.db.schema import initialize_database
 from truss_api.recovery.backup import create_backup, verify_backup
 from truss_api.recovery.diagnostics import run_diagnostics
 from truss_api.recovery.errors import TrussError
-from truss_api.recovery.operations import resume_operation
 from truss_api.recovery.restore import restore_backup
 
 
@@ -63,6 +62,10 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "diagnose":
             print(json.dumps(run_diagnostics(settings, deep=args.deep), ensure_ascii=False))
         elif args.command == "resume":
+            # Import lazy: os modulos de PDF nao devem emitir warnings antes do JSON
+            # dos comandos de backup, verify, restore ou diagnose.
+            from truss_api.recovery.operations import resume_operation
+
             initialize_database(settings)
             print(json.dumps(resume_operation(args.operation_id, settings), ensure_ascii=False))
     except TrussError as error:
@@ -73,4 +76,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

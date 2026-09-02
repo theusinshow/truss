@@ -100,15 +100,12 @@ def create_operation(
     sheet_id: str | None = None,
     payload: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    existing = find_by_identity(identity_key, settings)
-    if existing is not None:
-        return existing
     operation_id = str(uuid4())
     now = _now()
     with transaction(settings) as connection:
-        connection.execute(
+        inserted = connection.execute(
             """
-            INSERT INTO processing_operations (
+            INSERT OR IGNORE INTO processing_operations (
                 id, identity_key, kind, project_id, revision_id, document_id, sheet_id,
                 input_hash, pipeline_version, status, checkpoint, attempt_count,
                 payload_json, created_at, updated_at
@@ -130,13 +127,17 @@ def create_operation(
                 now,
             ),
         )
-        _event(
-            connection,
-            operation_id=operation_id,
-            event_kind="created",
-            checkpoint=checkpoint,
-        )
-    return get_operation(operation_id, settings)
+        if inserted.rowcount == 1:
+            _event(
+                connection,
+                operation_id=operation_id,
+                event_kind="created",
+                checkpoint=checkpoint,
+            )
+    operation = find_by_identity(identity_key, settings)
+    if operation is None:
+        raise RuntimeError("operation identity was not persisted")
+    return operation
 
 
 def claim_operation(operation_id: str, settings: Settings) -> dict[str, object]:

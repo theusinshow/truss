@@ -61,9 +61,10 @@ identico reutilizou `analysis_key` e `run_key` sem reprocessar PDFs.
 
 Objetivo: proteger o uso local cotidiano.
 
-Status: aprovada e parcialmente implementada em 2026-09-02. Backend, frontend e build estao
-verdes; o recovery drill real esta pendente porque 4 dos 5 documentos do SQLite referenciam PDFs
-originais ausentes. O backup recusou publicar corretamente com `PDF_SOURCE_MISSING`.
+Status: aprovada e parcialmente implementada em 2026-09-02. A fundacao, as suites e o fluxo manual
+do painel operacional estao verdes; o recovery drill real esta pendente porque 4 dos 5 documentos
+do SQLite referenciam PDFs originais ausentes. O backup recusou publicar corretamente com
+`PDF_SOURCE_MISSING`.
 
 - backup e restauracao verificavel do SQLite e dos arquivos locais;
 - reconstituicao dos documentos arquiteturais ainda ausentes;
@@ -92,6 +93,7 @@ cobranca, 3D decorativo e fine-tuning continuam fora do escopo.
 
 ## Proximo passo
 
-Retomar a secao `Estado da implementacao em 2026-09-02` do plano F6.1. Primeiro reconciliar os
-quatro originais ausentes sem apagar revisoes, depois limpar a saida JSON da CLI, concluir o
-recovery drill e a verificacao manual. Nao iniciar F6.2 antes desses gates.
+Retomar a secao `Estado da implementacao em 2026-09-02` do plano F6.1. A saida JSON da CLI e o
+fluxo manual ja foram validados. Primeiro reconciliar os quatro originais ausentes sem apagar
+revisoes; depois concluir backup, verify e recovery drill sobre o estado real. Nao iniciar F6.2
+antes desses gates.

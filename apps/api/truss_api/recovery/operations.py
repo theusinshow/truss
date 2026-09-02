@@ -15,6 +15,7 @@ from truss_api.documents.importer import (
 )
 from truss_api.recovery import repository
 from truss_api.recovery.errors import TrussError
+from truss_api.rules.loader import load_packs, load_packs_for_scopes
 from truss_api.sheetmap import repository as sheetmap_repository
 from truss_api.sheetmap.builder import build_sheet_map_for_document
 from truss_api.sheetmap.elements.registry import build_revision_registry
@@ -31,6 +32,38 @@ def operation_identity(kind: str, **components: object) -> str:
         separators=(",", ":"),
     )
     return sha256(material.encode("utf-8")).hexdigest()
+
+
+def _deterministic_identity_context(
+    sheet_map: dict[str, object],
+) -> tuple[str, bool]:
+    technical_scopes = [
+        str(item["technical_scope"])
+        for item in sheet_map.get("technical_scopes", [])
+        if isinstance(item, dict) and item.get("technical_scope")
+    ]
+    packs = load_packs_for_scopes(technical_scopes)
+    if not packs:
+        packs = load_packs(str(sheet_map["sheet_type"]))
+    signature = "+".join(f"{pack.pack_id}@{pack.version}" for pack in packs)
+    needs_registry = any(rule.target == "element" for pack in packs for rule in pack.rules)
+    return signature, needs_registry
+
+
+def _vision_identity_context(settings: Settings) -> dict[str, object]:
+    return {
+        "provider": settings.ai_provider,
+        "model": settings.openai_model,
+        "reasoning": settings.openai_reasoning_effort,
+        "small_text_threshold_pt": settings.vision_small_text_threshold_pt,
+        "max_candidates_per_sheet": settings.vision_max_candidates_per_sheet,
+        "crop_padding_pt": settings.vision_crop_padding_pt,
+        "render_scale": settings.vision_render_scale,
+        "max_crop_pixels": settings.vision_max_crop_pixels,
+        "image_detail": settings.vision_image_detail,
+        "max_output_tokens": settings.vision_max_output_tokens,
+        "min_confidence": settings.vision_min_confidence,
+    }
 
 
 def _public_invalid_pdf(error: InvalidPdfError) -> TrussError:
@@ -237,19 +270,24 @@ def _audit_operation(
     kind = "vision_audit" if vision else "deterministic_audit"
     pipeline = VISION_PIPELINE_VERSION if vision else AUDIT_PIPELINE_VERSION
     registry_hash = ""
+    rule_packs = ""
     if not vision:
-        registry_hash = str(
-            build_revision_registry(str(sheet_map["revision_id"]), settings).get(
-                "registry_hash"
+        rule_packs, needs_registry = _deterministic_identity_context(sheet_map)
+        if needs_registry:
+            registry_hash = str(
+                build_revision_registry(str(sheet_map["revision_id"]), settings).get(
+                    "registry_hash"
+                )
+                or ""
             )
-            or ""
-        )
     identity = operation_identity(
         kind,
         sheet_id=sheet_id,
         sheet_map_id=str(sheet_map["id"]),
         pipeline=pipeline,
         registry_hash=registry_hash,
+        rule_packs=rule_packs,
+        vision_settings=_vision_identity_context(settings) if vision else None,
     )
     operation = repository.create_operation(
         identity_key=identity,

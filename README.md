@@ -285,8 +285,11 @@ Restore nunca sobrescreve o `data` ativo e recusa destino existente. O archive c
 e criptografado.
 
 O milestone ainda nao esta encerrado: o recovery drill real encontrou quatro referencias de PDF
-original ausentes no SQLite local e o backup recusou publicar. A lista completa de pendencias e o
-estado dos testes estao na secao final de
+original ausentes no SQLite local e o backup recusou publicar. A fundacao foi validada com 258
+testes backend aprovados, 1 ignorado, 50 testes web, lint, typecheck, build e verificacao manual do
+painel de operacoes interrompidas. Use `http://localhost:3000` no desenvolvimento local; o host
+`127.0.0.1` pode ser recusado pelo controle de origem dos recursos internos do Next.js dev. A lista
+completa de pendencias e o estado dos testes estao na secao final de
 `docs/superpowers/plans/2026-09-02-f61-recovery-safe-operations.md`.
 
 ## Requisitos locais

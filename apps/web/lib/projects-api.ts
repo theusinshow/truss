@@ -587,6 +587,7 @@ export async function apiErrorFromResponse(response: Response): Promise<Error> {
 
 async function request<T>(apiBaseUrl: string, path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
+    cache: "no-store",
     ...init,
     headers: {
       "Content-Type": "application/json",

@@ -14,6 +14,7 @@ from truss_api.projects.models import ProjectCreate, RevisionCreate
 from truss_api.recovery import repository
 from truss_api.recovery.errors import TrussError
 from truss_api.recovery.operations import IMPORT_PIPELINE_VERSION, operation_identity
+from truss_api.recovery.operations import _vision_identity_context
 
 from factories import make_structural_pdf_bytes
 
@@ -139,3 +140,34 @@ def test_visual_operation_is_never_automatically_resumable(settings: Settings) -
     assert restored["status"] == "manual_retry_required"
     assert restored["resumable"] is False
 
+
+def test_operation_creation_is_idempotent_by_identity(settings: Settings) -> None:
+    first = repository.create_operation(
+        identity_key="stable-identity",
+        kind="deterministic_audit",
+        input_hash="snapshot",
+        pipeline_version="audit-v0.5",
+        checkpoint="ready",
+        settings=settings,
+    )
+    second = repository.create_operation(
+        identity_key="stable-identity",
+        kind="deterministic_audit",
+        input_hash="snapshot",
+        pipeline_version="audit-v0.5",
+        checkpoint="ready",
+        settings=settings,
+    )
+
+    assert second["id"] == first["id"]
+    assert len(repository.list_events(str(first["id"]), settings)) == 1
+
+
+def test_vision_identity_context_changes_with_result_settings(settings: Settings) -> None:
+    baseline = _vision_identity_context(settings)
+    changed = Settings(
+        data_dir=settings.data_dir,
+        vision_crop_padding_pt=settings.vision_crop_padding_pt + 1,
+    )
+
+    assert _vision_identity_context(changed) != baseline

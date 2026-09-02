@@ -2,7 +2,8 @@
 
 Data: 2026-09-02
 
-Status: aprovada; implementacao parcial encerrada e documentada em 2026-09-02
+Status: aprovada; fundacao implementada e validada, recovery drill real bloqueado por dados
+historicos ausentes em 2026-09-02
 
 Escopo: proteger o uso local cotidiano com backup verificavel, restauracao sem sobrescrita,
 diagnosticos acionaveis, escritas atomicas e retomada idempotente de operacoes unitarias. Nao
@@ -604,8 +605,8 @@ proprietario aprovar explicitamente as decisoes, em especial:
 
 ## Estado da implementacao em 2026-09-02
 
-Aprovacao explicita recebida. O trabalho foi interrompido por solicitacao do proprietario para
-preservar o limite da sessao, com commit e push do estado testado.
+Aprovacao explicita recebida. A fundacao foi implementada, testada e publicada. O milestone
+permanece aberto somente porque o estado real nao satisfaz o contrato fail-closed do backup.
 
 Implementado:
 
@@ -618,17 +619,26 @@ Implementado:
 - migrations com verificacao, hash novo e snapshot pre-migration;
 - `truss-backup-v0.1`, verificacao de hashes/paths/SQLite e restore para destino inexistente;
 - CLI de backup, verify, restore, diagnose e resume;
+- saida JSON da CLI isolada de imports de PDF nos comandos que nao usam retomada;
+- identidade de operacao atomica e idempotente, incluindo rule packs deterministicas e a
+  configuracao relevante da analise visual;
 - aviso operacional contextual e erros acionaveis no frontend, sem dashboard e sem backup web;
+- leituras de estado mutavel do frontend sem cache HTTP;
 - testes de corrupcao, path traversal, alvo existente, arquivo ausente, migration falha e retomada.
 
-Validacao concluida antes do encerramento:
+Validacao final concluida:
 
-- backend completo: `256 passed, 1 skipped`;
+- backend completo: `258 passed, 1 skipped`;
 - frontend completo: `50 passed`;
-- lint passou depois do ajuste do efeito React;
+- lint passou;
 - typecheck passou;
 - build Next.js 16 passou;
-- `git diff --check` deve ser reexecutado imediatamente antes do commit.
+- drill completo de backup, verify, restore e rebackup passou em uma origem descartavel;
+- verificacao manual passou em API/web descartaveis: `/health` ficou `degraded`, o projeto abriu e
+  o painel exibiu uma operacao visual interrompida sem oferecer retomada automatica;
+- a verificacao web deve usar o host canonico `localhost`; `127.0.0.1` pode falhar no controle de
+  origem dos recursos internos do Next.js dev;
+- os servidores temporarios foram encerrados e as portas de teste ficaram livres.
 
 Recovery drill real:
 
@@ -636,6 +646,8 @@ Recovery drill real:
 - o SQLite real possui 5 documentos e 4 referencias de original ausentes;
 - tres ausencias sao revisoes de `Proj_Estrutural_RanchoQueimado_geral.pdf`;
 - uma ausencia e `017_26_est_geral-01.pdf`;
+- os hashes esperados sao `7d2f9c32...` para as tres primeiras revisoes e `5c7d3d3d...` para a
+  quarta;
 - nenhum archive parcial foi publicado e o banco real nao foi alterado pelo drill;
 - o snapshot pre-migration da aplicacao da migration `010` permanece ignorado em
   `data/db/recovery/`.
@@ -644,12 +656,9 @@ Trabalho restante, em ordem:
 
 1. localizar os quatro PDFs pelos hashes/conteudo conhecido ou decidir explicitamente como
    reconciliar os registros orfaos; nao reduzir a ausencia critica a warning;
-2. tornar a saida JSON da CLI limpa: o warning de deprecacao `fitz` aparece antes do JSON porque
-   `cli.py` importa o modulo de retomada no startup; usar import lazy no subcomando `resume` ou
-   migrar imports para `pymupdf`;
-3. repetir `backup-create` e `backup-verify` sobre o estado real;
-4. restaurar para dois diretorios descartaveis e concluir o recovery drill ponto-no-tempo;
-5. iniciar API/web e verificar manualmente health, painel interrompido, retomada e viewer;
-6. executar novamente backend, frontend, lint, typecheck e build se houver qualquer correcao;
-7. atualizar criterios de aceite, DECISIONS, README e roadmap somente depois do drill verde;
-8. nao iniciar F6.2 antes de encerrar estes itens.
+2. repetir `backup-create` e `backup-verify` sobre o estado real;
+3. restaurar para dois diretorios descartaveis e concluir o recovery drill ponto-no-tempo;
+4. confirmar no restore real projeto, revisao, PDF, Sheet Map, findings e feedback;
+5. executar novamente backend, frontend, lint, typecheck e build se houver qualquer correcao;
+6. atualizar criterios de aceite e DECISIONS somente depois do drill real verde;
+7. nao iniciar F6.2 antes de encerrar estes itens.
