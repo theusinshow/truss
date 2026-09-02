@@ -189,19 +189,31 @@ def list_documents_for_revision(
         rows = connection.execute(
             """
             SELECT
-                id,
-                project_id,
-                revision_id,
-                original_filename,
-                stored_file_path,
-                content_hash,
-                mime_type,
-                file_size_bytes,
-                page_count,
-                created_at
-            FROM documents
-            WHERE revision_id = ?
-            ORDER BY created_at ASC, id ASC
+                d.id,
+                d.project_id,
+                d.revision_id,
+                d.original_filename,
+                d.stored_file_path,
+                d.content_hash,
+                d.mime_type,
+                d.file_size_bytes,
+                d.page_count,
+                COALESCE(source_event.status, 'AVAILABLE') AS source_status,
+                source_event.reason_code AS source_reason_code,
+                source_event.note AS source_status_note,
+                source_event.created_at AS source_status_at,
+                d.created_at
+            FROM documents d
+            LEFT JOIN document_source_events source_event
+              ON source_event.id = (
+                  SELECT candidate.id
+                  FROM document_source_events candidate
+                  WHERE candidate.document_id = d.id
+                  ORDER BY candidate.sequence DESC
+                  LIMIT 1
+              )
+            WHERE d.revision_id = ?
+            ORDER BY d.created_at ASC, d.id ASC
             """,
             (revision_id,),
         ).fetchall()
@@ -214,18 +226,30 @@ def get_document(document_id: str, settings: Settings) -> dict[str, object]:
         document = connection.execute(
             """
             SELECT
-                id,
-                project_id,
-                revision_id,
-                original_filename,
-                stored_file_path,
-                content_hash,
-                mime_type,
-                file_size_bytes,
-                page_count,
-                created_at
-            FROM documents
-            WHERE id = ?
+                d.id,
+                d.project_id,
+                d.revision_id,
+                d.original_filename,
+                d.stored_file_path,
+                d.content_hash,
+                d.mime_type,
+                d.file_size_bytes,
+                d.page_count,
+                COALESCE(source_event.status, 'AVAILABLE') AS source_status,
+                source_event.reason_code AS source_reason_code,
+                source_event.note AS source_status_note,
+                source_event.created_at AS source_status_at,
+                d.created_at
+            FROM documents d
+            LEFT JOIN document_source_events source_event
+              ON source_event.id = (
+                  SELECT candidate.id
+                  FROM document_source_events candidate
+                  WHERE candidate.document_id = d.id
+                  ORDER BY candidate.sequence DESC
+                  LIMIT 1
+              )
+            WHERE d.id = ?
             """,
             (document_id,),
         ).fetchone()
@@ -286,9 +310,18 @@ def get_sheet_render_context(sheet_id: str, settings: Settings) -> dict[str, obj
                 s.page_index,
                 s.render_path,
                 d.stored_file_path,
-                d.content_hash
+                d.content_hash,
+                COALESCE(source_event.status, 'AVAILABLE') AS source_status
             FROM sheets s
             JOIN documents d ON d.id = s.document_id
+            LEFT JOIN document_source_events source_event
+              ON source_event.id = (
+                  SELECT candidate.id
+                  FROM document_source_events candidate
+                  WHERE candidate.document_id = d.id
+                  ORDER BY candidate.sequence DESC
+                  LIMIT 1
+              )
             WHERE s.id = ?
             """,
             (sheet_id,),

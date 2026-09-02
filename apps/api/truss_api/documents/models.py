@@ -1,6 +1,10 @@
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
+from typing import Literal
+
+
+DocumentSourceStatus = Literal["AVAILABLE", "SOURCE_UNAVAILABLE", "SOURCE_RESTORED"]
 
 
 class Sheet(BaseModel):
@@ -50,6 +54,10 @@ class Document(BaseModel):
     mime_type: str
     file_size_bytes: int
     page_count: int
+    source_status: DocumentSourceStatus
+    source_reason_code: str | None
+    source_status_note: str | None
+    source_status_at: datetime | None
     created_at: datetime
 
 

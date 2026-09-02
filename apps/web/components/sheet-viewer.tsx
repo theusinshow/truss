@@ -562,9 +562,14 @@ function FindingEvidence({ finding }: { finding: Finding }) {
 }
 
 export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetViewerProps) {
+  const unavailableDocuments = documents.filter(
+    (document) => document.source_status === "SOURCE_UNAVAILABLE"
+  );
   const sheets = useMemo(
     () =>
-      documents.flatMap((document) =>
+      documents
+        .filter((document) => document.source_status !== "SOURCE_UNAVAILABLE")
+        .flatMap((document) =>
         document.sheets.map((sheet) => ({
           ...sheet,
           documentName: document.original_filename
@@ -2048,14 +2053,30 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
   }, []);
 
   if (!activeSheet || !sheetBounds) {
+    const hasUnavailableSource = unavailableDocuments.length > 0;
     return (
       <div className="flex min-h-[680px] items-center justify-center border border-dashed border-truss-line bg-truss-panel p-6 text-center">
-        <div>
-          <SheetIcon className="mx-auto h-6 w-6 text-truss-accent" />
-          <p className="mt-4 text-sm font-semibold text-truss-text">Viewer sem prancha</p>
-          <p className="mt-3 max-w-md text-sm leading-6 text-truss-muted">
-            Importe um PDF em uma revisao para liberar a visualizacao das folhas.
+        <div className="max-w-lg">
+          <SheetIcon
+            className={`mx-auto h-6 w-6 ${hasUnavailableSource ? "text-truss-warning" : "text-truss-accent"}`}
+          />
+          <p className="mt-4 text-sm font-semibold text-truss-text">
+            {hasUnavailableSource ? "Fonte historica indisponivel" : "Viewer sem prancha"}
           </p>
+          <p className="mt-3 max-w-md text-sm leading-6 text-truss-muted">
+            {hasUnavailableSource
+              ? "O registro, os achados e o feedback desta revisao foram preservados, mas o PDF original nao veio para este clone. Abra uma revisao atual para visualizar a prancha."
+              : "Importe um PDF em uma revisao para liberar a visualizacao das folhas."}
+          </p>
+          {hasUnavailableSource ? (
+            <ul className="mx-auto mt-4 grid max-w-md gap-1 text-left font-mono text-[10.5px] text-truss-subtle">
+              {unavailableDocuments.map((document) => (
+                <li className="truncate" key={document.id} title={document.original_filename}>
+                  SOURCE_UNAVAILABLE / {document.original_filename}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       </div>
     );

@@ -1,6 +1,6 @@
 # Roadmap do Truss Agent
 
-Atualizado em: 2026-09-01
+Atualizado em: 2026-09-02
 
 Este documento e o mapa de continuidade do produto. Cada fase deve receber plano proprio,
 implementacao, testes automatizados e verificacao manual antes da fase seguinte. Registrar uma
@@ -15,7 +15,7 @@ fase aqui nao autoriza mudanca arquitetural nem o avanco de varios milestones em
 | F3 - Cruzamento entre folhas | concluida e validada | registry por revisao, continuidade e secoes de pilares | nenhuma no escopo aprovado |
 | F4 - Visao por crops | concluida e validada | triagem multimodal, cache por conteudo e teto de custo | nenhuma no escopo aprovado |
 | F5 - Aprendizado explicito | concluida e validada | F5.1: preferencias; F5.2: propostas; F5.3: corpus versionado, runs imutaveis e export auditavel | nenhuma no escopo aprovado |
-| F6 - Solidez diaria | nao iniciada | - | lote real de 85 folhas do inicio ao fim sem falha |
+| F6 - Solidez diaria | em andamento | F6.1 concluida: recovery verificavel, fontes historicas explicitas e drill real | F6.2: lote real de 85 folhas do inicio ao fim sem falha |
 
 ## Sequencia de continuidade
 
@@ -61,16 +61,20 @@ identico reutilizou `analysis_key` e `run_key` sem reprocessar PDFs.
 
 Objetivo: proteger o uso local cotidiano.
 
-Status: aprovada e parcialmente implementada em 2026-09-02. A fundacao, as suites e o fluxo manual
-do painel operacional estao verdes; o recovery drill real esta pendente porque 4 dos 5 documentos
-do SQLite referenciam PDFs originais ausentes. O backup recusou publicar corretamente com
-`PDF_SOURCE_MISSING`.
+Status: concluida e validada em 2026-09-02.
 
 - backup e restauracao verificavel do SQLite e dos arquivos locais;
 - reconstituicao dos documentos arquiteturais ainda ausentes;
 - diagnostico claro para PDF corrompido, falha de render, disco e migracao;
 - retomada idempotente de processamento interrompido;
 - teste de recuperacao sem sobrescrever revisoes ou PDFs anteriores.
+
+Resultado real: o clone recebido continha metadados de quatro PDFs historicos sem os respectivos
+bytes. Com aprovacao do proprietario, as ausencias foram registradas como `SOURCE_UNAVAILABLE` em
+eventos append-only; revisoes, findings e feedback foram preservados. As duas fontes atuais foram
+importadas como `REV-005` e `REV-006`, sem substituir o historico. O backup real foi verificado e o
+drill em duas restauracoes confirmou integridade, hashes e isolamento ponto-no-tempo. Diagnostico
+e viewer continuam mostrando a indisponibilidade historica de forma explicita.
 
 ### F6.2 - Lote e observabilidade local
 
@@ -93,7 +97,6 @@ cobranca, 3D decorativo e fine-tuning continuam fora do escopo.
 
 ## Proximo passo
 
-Retomar a secao `Estado da implementacao em 2026-09-02` do plano F6.1. A saida JSON da CLI e o
-fluxo manual ja foram validados. Primeiro reconciliar os quatro originais ausentes sem apagar
-revisoes; depois concluir backup, verify e recovery drill sobre o estado real. Nao iniciar F6.2
-antes desses gates.
+Analisar e propor o plano da F6.2 para fila local, progresso, cancelamento seguro e lote real de
+85 folhas. Como esse passo introduz novos contratos operacionais, a implementacao deve aguardar
+aprovacao explicita; nenhum worker ou fila foi antecipado pela F6.1.

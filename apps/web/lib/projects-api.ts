@@ -52,6 +52,10 @@ export type ImportedDocument = {
   mime_type: string;
   file_size_bytes: number;
   page_count: number;
+  source_status?: "AVAILABLE" | "SOURCE_UNAVAILABLE" | "SOURCE_RESTORED";
+  source_reason_code?: string | null;
+  source_status_note?: string | null;
+  source_status_at?: string | null;
   created_at: string;
 };
 

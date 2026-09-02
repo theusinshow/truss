@@ -2,8 +2,8 @@
 
 Atualizado em: 2026-09-02
 
-Estado: arquitetura implementada ate F5 e contratos aprovados da F6.1. F6.2 permanece fora desta
-fronteira.
+Estado: arquitetura implementada e validada ate F6.1. F6.2 permanece fora desta fronteira e
+aguarda plano e aprovacao.
 
 ## Visao geral
 
@@ -75,6 +75,9 @@ preferences / learning decisions / calibration decisions
 
 processing_operations
   -> processing_operation_events append-only
+
+document
+  -> document_source_events append-only (SOURCE_UNAVAILABLE / SOURCE_RESTORED)
 ```
 
 Uma revisao nao e sobrescrita por nova exportacao. Um Sheet Map com pipeline/entrada diferente e
@@ -124,6 +127,11 @@ Classificacao:
 PDF nao e armazenado no SQLite. Caminhos persistidos sao relativos ao `data_dir`. Novos
 originais usam SHA-256 completo no nome. Novas geometrias reduzidas sao enderecadas por conteudo;
 caminhos legados continuam legiveis.
+
+`document_source_events` registra, em sequencia imutavel, uma fonte historica ausente do ambiente
+ou sua restauracao posterior. `SOURCE_UNAVAILABLE` so pode ser declarado quando o arquivo nao
+existe; `SOURCE_RESTORED` exige os bytes e o SHA-256 historico exato. A API e o viewer nunca
+oferecem render para uma fonte cujo ultimo evento seja indisponivel.
 
 ## Escrita atomica
 
@@ -225,6 +233,11 @@ cancelamento. Esses contratos pertencem a F6.2.
 - analyses/runs de calibracao;
 - knowledge inbox.
 
+Uma fonte ausente invalida o backup, exceto quando o ultimo evento append-only do documento a
+declara `SOURCE_UNAVAILABLE`. Nesse caso, o manifesto lista a excecao separadamente e nao inclui
+bytes ficticios. O verificador cruza cada declaracao com o snapshot SQLite; documentos sem essa
+declaracao continuam obrigados a possuir o original e o hash correto.
+
 Cada entrada possui caminho POSIX relativo, papel, tamanho e SHA-256. Renders, cache, exports,
 previews, secrets, logs e backups anteriores ficam fora.
 
@@ -240,6 +253,8 @@ Comandos:
 .venv\Scripts\python -m truss_api.recovery.cli restore <archive> --target <novo-diretorio>
 .venv\Scripts\python -m truss_api.recovery.cli diagnose --deep
 .venv\Scripts\python -m truss_api.recovery.cli resume <operation-id>
+.venv\Scripts\python -m truss_api.recovery.cli source-unavailable <document-id> --reason-code <codigo> --note <nota>
+.venv\Scripts\python -m truss_api.recovery.cli source-restored <document-id>
 ```
 
 O archive nao e criptografado e deve ser tratado como sensivel.
@@ -283,4 +298,3 @@ Gate final de milestone:
 - recovery drill em diretorios descartaveis;
 - verificacao manual do viewer, diagnostico e retomada;
 - README, DECISIONS e roadmap atualizados.
-

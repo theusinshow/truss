@@ -11,6 +11,7 @@ from truss_api.db.schema import initialize_database
 from truss_api.main import app
 from truss_api.projects import repository
 from truss_api.projects.models import ProjectCreate, RevisionCreate
+from truss_api.recovery.sources import declare_source_unavailable
 
 
 @pytest.fixture()
@@ -181,6 +182,33 @@ def test_missing_source_pdf_returns_actionable_diagnostic(
     assert response.status_code == 500
     assert response.json()["detail"]["code"] == "PDF_SOURCE_MISSING"
     assert response.json()["detail"]["action"]
+
+
+def test_declared_historical_source_is_exposed_and_not_rendered(
+    client: TestClient,
+    settings: Settings,
+    revision: tuple[str, str],
+) -> None:
+    project_id, revision_id = revision
+    imported = client.post(
+        f"/projects/{project_id}/revisions/{revision_id}/documents",
+        files={"file": ("legacy.pdf", make_pdf_bytes(page_count=1), "application/pdf")},
+    ).json()
+    (settings.data_dir / str(imported["stored_file_path"])).unlink()
+    declare_source_unavailable(
+        str(imported["id"]),
+        reason_code="clone_migration_missing",
+        note="Fonte ficou no clone anterior.",
+        settings=settings,
+    )
+
+    detail = client.get(f"/documents/{imported['id']}")
+    image = client.get(f"/sheets/{imported['sheets'][0]['id']}/image")
+
+    assert detail.json()["source_status"] == "SOURCE_UNAVAILABLE"
+    assert detail.json()["source_reason_code"] == "clone_migration_missing"
+    assert image.status_code == 410
+    assert image.json()["detail"]["code"] == "PDF_SOURCE_UNAVAILABLE"
 
 
 def test_list_documents_requires_revision_belonging_to_project(

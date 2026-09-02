@@ -267,7 +267,7 @@ O ZIP contem manifesto, feedback, decisoes, evidencias e metricas. PDFs, imagens
 conversas, segredos e caminhos absolutos ficam de fora. Artefatos permanecem locais em
 `data/calibration/` e nao sao versionados.
 
-## F6.1 - Recuperacao segura em andamento
+## F6.1 - Recuperacao segura concluida
 
 A F6.1 adicionou journal de operacoes, escrita atomica, diagnosticos tipados, snapshots seguros
 de migration e o formato local `truss-backup-v0.1`. Backup e restore permanecem deliberadamente
@@ -279,18 +279,24 @@ $env:PYTHONPATH="apps/api"
 .venv\Scripts\python -m truss_api.recovery.cli backup-create
 .venv\Scripts\python -m truss_api.recovery.cli backup-verify <archive>
 .venv\Scripts\python -m truss_api.recovery.cli restore <archive> --target <novo-diretorio>
+.venv\Scripts\python -m truss_api.recovery.cli source-unavailable <document-id> --reason-code <codigo> --note <nota>
+.venv\Scripts\python -m truss_api.recovery.cli source-restored <document-id>
 ```
 
 Restore nunca sobrescreve o `data` ativo e recusa destino existente. O archive contem PDFs e nao
 e criptografado.
 
-O milestone ainda nao esta encerrado: o recovery drill real encontrou quatro referencias de PDF
-original ausentes no SQLite local e o backup recusou publicar. A fundacao foi validada com 258
-testes backend aprovados, 1 ignorado, 50 testes web, lint, typecheck, build e verificacao manual do
-painel de operacoes interrompidas. Use `http://localhost:3000` no desenvolvimento local; o host
-`127.0.0.1` pode ser recusado pelo controle de origem dos recursos internos do Next.js dev. A lista
-completa de pendencias e o estado dos testes estao na secao final de
-`docs/superpowers/plans/2026-09-02-f61-recovery-safe-operations.md`.
+Quatro fontes historicas que nunca vieram para este clone foram declaradas indisponiveis por
+eventos append-only, sem apagar revisoes, findings ou feedback. Essa declaracao nao simula o PDF:
+diagnostico e viewer exibem `SOURCE_UNAVAILABLE`, e uma restauracao futura so e aceita se os bytes
+possuirem o hash historico exato. As duas versoes atuais fornecidas foram importadas como novas
+revisoes imutaveis `REV-005` e `REV-006`.
+
+O backup real `backups/truss-20260902T144559Z-b03ef121.zip` foi criado e verificado, e o drill
+ponto-no-tempo confirmou que uma revisao posterior ao snapshot nao aparece no restore. O gate
+final passou com 264 testes backend, 1 ignorado, 51 testes web, lint, typecheck, build e verificacao
+manual das revisoes atual e historica. Use `http://localhost:3000` no desenvolvimento local; o
+host `127.0.0.1` pode ser recusado pelo controle de origem dos recursos internos do Next.js dev.
 
 ## Requisitos locais
 

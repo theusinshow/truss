@@ -786,7 +786,26 @@ The owner approved the F6.1 plan. The implemented boundary is deliberately local
   and knowledge inbox are durable backup inputs;
 - public errors carry stable code, safe message and action. Health no longer returns absolute paths.
 
-The first real drill stopped correctly: four of five document rows reference original PDFs that
-are absent from `data/originals`. No partial archive was published. These records must be
-reconciled without deleting revisions before the milestone can be marked complete. The CLI also
-needs a lazy import so the PyMuPDF deprecation warning cannot precede its JSON output.
+The first real drill stopped correctly: four of five document rows referenced original PDFs that
+were absent from `data/originals`. No partial archive was published. This finding led to the
+explicit source-availability decision below; no revision was deleted or rewritten. The CLI also
+uses lazy imports so PDF-library warnings cannot precede its JSON output.
+
+## 2026-09-02 - Historical source absence is explicit and append-only
+
+Repository history and the transferred database showed that four historical PDF rows arrived in
+the 2026-08-29 clone without their local files. The owner approved preserving those revisions and
+declaring their source bytes unavailable instead of deleting records or substituting newer PDFs.
+
+- `document_source_events` is append-only and sequence-addressed per document;
+- `SOURCE_UNAVAILABLE` is accepted only while the expected file is absent and carries a reason
+  code, note and timestamp;
+- `SOURCE_RESTORED` is accepted only for bytes matching the stored historical SHA-256;
+- backup manifests enumerate unavailable sources and verification cross-checks them with SQLite;
+- any missing source without that explicit latest event still fails backup creation;
+- diagnostics remain degraded and the viewer states that the historical source is unavailable;
+- current supplied PDFs become new immutable revisions and never stand in for historical bytes.
+
+This is a narrow recovery contract for known transferred history, not permission to downgrade a
+newly lost original to a warning. Four legacy declarations were recorded, current files were
+imported as `REV-005` and `REV-006`, and the real backup and point-in-time restore drill passed.

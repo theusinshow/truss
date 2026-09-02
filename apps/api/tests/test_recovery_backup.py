@@ -14,6 +14,7 @@ from truss_api.recovery.backup import BACKUP_SCHEMA, create_backup, verify_backu
 from truss_api.recovery.errors import TrussError
 from truss_api.recovery.operations import import_document
 from truss_api.recovery.restore import restore_backup
+from truss_api.recovery.sources import declare_source_unavailable
 
 
 @pytest.fixture()
@@ -130,6 +131,46 @@ def test_backup_refuses_missing_original_and_destination_inside_data(
     with pytest.raises(TrussError) as destination:
         create_backup(settings, settings.data_dir / "backups")
     assert destination.value.public.code == "BACKUP_DESTINATION_INVALID"
+
+
+def test_backup_preserves_explicit_unavailable_source(
+    populated: tuple[Settings, dict[str, object]],
+    tmp_path: Path,
+) -> None:
+    settings, document = populated
+    (settings.data_dir / str(document["stored_file_path"])).unlink()
+    declare_source_unavailable(
+        str(document["id"]),
+        reason_code="clone_migration_missing",
+        note="Estado local anterior nao transferido.",
+        settings=settings,
+    )
+
+    archive = create_backup(settings)
+    manifest = verify_backup(archive)
+
+    assert manifest["logical_counts"]["document_source_events"] == 1
+    assert manifest["unavailable_sources"] == [
+        {
+            "document_id": document["id"],
+            "revision_id": document["revision_id"],
+            "original_filename": document["original_filename"],
+            "stored_file_path": str(document["stored_file_path"]).replace("\\", "/"),
+            "content_hash": document["content_hash"],
+            "file_size_bytes": document["file_size_bytes"],
+            "page_count": document["page_count"],
+            "status": "SOURCE_UNAVAILABLE",
+            "reason_code": "clone_migration_missing",
+            "note": "Estado local anterior nao transferido.",
+            "declared_at": manifest["unavailable_sources"][0]["declared_at"],
+        }
+    ]
+    unavailable_path = f"files/{str(document['stored_file_path']).replace(chr(92), '/')}"
+    assert unavailable_path not in {item["relative_path"] for item in manifest["files"]}
+
+    restored = restore_backup(archive, tmp_path / "restored-with-declaration")
+    with sqlite3.connect(restored / "db" / "truss.sqlite") as connection:
+        assert connection.execute("SELECT COUNT(*) FROM document_source_events").fetchone()[0] == 1
 
 
 def test_verify_rejects_path_traversal_before_extraction(tmp_path: Path) -> None:

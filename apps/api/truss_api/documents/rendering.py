@@ -15,6 +15,14 @@ class RenderError(Exception):
 def render_sheet_png(sheet_id: str, settings: Settings, scale: float = 2.0) -> Path:
     context = repository.get_sheet_render_context(sheet_id, settings)
 
+    if context.get("source_status") == "SOURCE_UNAVAILABLE":
+        raise TrussError(
+            code="PDF_SOURCE_UNAVAILABLE",
+            message="A fonte desta revisao historica foi declarada indisponivel.",
+            action="Abra uma revisao atual com PDF disponivel.",
+            status_code=410,
+        )
+
     existing_render_path = context.get("render_path")
     if existing_render_path:
         existing_path = settings.data_dir / str(existing_render_path)

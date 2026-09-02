@@ -23,9 +23,11 @@ from truss_api.sheetmap.routes import router as sheetmap_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    ensure_storage_layout()
-    initialize_database()
-    mark_running_as_interrupted(get_settings())
+    settings_provider = app.dependency_overrides.get(get_settings, get_settings)
+    settings = settings_provider()
+    ensure_storage_layout(settings)
+    initialize_database(settings)
+    mark_running_as_interrupted(settings)
     yield
 
 

@@ -2,8 +2,8 @@
 
 Atualizado em: 2026-09-02
 
-Status do produto: V0.1 em desenvolvimento local. F1 a F5 concluidas; F6.1 aprovada e em
-implementacao.
+Status do produto: V0.1 em desenvolvimento local. F1 a F5 e F6.1 concluidas; F6.2 aguarda plano
+e aprovacao.
 
 ## Missao
 
@@ -66,6 +66,10 @@ overlay sao transformacoes dessa fonte canonica.
 
 Uma nova exportacao gera nova revisao. PDF, Sheet Map e auditoria historicos nao sao
 sobrescritos. Derivados podem ser recriados, mas o dado que explica uma decisao permanece.
+
+Quando os bytes de uma fonte historica nao existem no ambiente recebido, a ausencia e registrada
+explicitamente em eventos append-only. Ela nao apaga a revisao nem e tratada como PDF valido. Uma
+fonte declarada restaurada precisa corresponder ao hash historico exato.
 
 ### Humano decide
 
@@ -132,7 +136,7 @@ Divergencias devem ser registradas. Mudanca arquitetural relevante segue
 - F3: elementos, registro entre folhas, continuidade e secoes de pilares;
 - F4: provider multimodal localizado, crops, cache, custo e limites;
 - F5: preferencias explicitas, propostas auditaveis e calibracao deterministica do corpus;
-- F6.1: recuperacao e operacao local segura;
+- F6.1: recuperacao e operacao local segura, concluida;
 - F6.2: futura fila local, lote de 85 folhas, progresso e falhas isoladas.
 
 F7, comparacao grafica entre revisoes, e apenas candidata e exige novo gate.
@@ -154,4 +158,3 @@ F7, comparacao grafica entre revisoes, e apenas candidata e exige novo gate.
 Um milestone so termina com criterios de aceite atendidos, testes automatizados relevantes,
 verificacao manual do fluxo principal e documentacao atualizada. Persistencia, coordenadas,
 findings, revisoes, cache, preferencias, calibracao e recuperacao exigem testes especificos.
-

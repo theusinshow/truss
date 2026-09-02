@@ -2,8 +2,8 @@
 
 Data: 2026-09-02
 
-Status: aprovada; fundacao implementada e validada, recovery drill real bloqueado por dados
-historicos ausentes em 2026-09-02
+Status: concluida e validada em 2026-09-02, incluindo reconciliacao explicita das fontes
+historicas ausentes e recovery drill real
 
 Escopo: proteger o uso local cotidiano com backup verificavel, restauracao sem sobrescrita,
 diagnosticos acionaveis, escritas atomicas e retomada idempotente de operacoes unitarias. Nao
@@ -547,24 +547,24 @@ Executar somente em copia/target descartavel:
 
 ## Criterios de aceite
 
-- [ ] os dois documentos arquiteturais ausentes existem e refletem codigo, decisoes e roadmap;
-- [ ] backup usa snapshot SQLite, manifesto versionado e hashes de todo dado duravel;
-- [ ] verificacao detecta corrupcao antes de qualquer restore;
-- [ ] restore so publica em destino inexistente e nunca sobrescreve `data`, revisao ou PDF;
-- [ ] PDFs originais e feedback humano sobrevivem ao recovery drill;
-- [ ] dados reconstruiveis excluidos reaparecem sob demanda sem perda funcional;
-- [ ] escritas relevantes usam temporario, validacao e promocao atomica;
-- [ ] geometrias novas sao imutaveis por conteudo e geometrias legadas continuam legiveis;
-- [ ] falhas de PDF, render, disco, artefato, banco e migration possuem diagnostico acionavel;
-- [ ] health nao mascara falha nem expoe caminho absoluto;
-- [ ] migration insegura ou banco corrompido nao recebem escrita automatica;
-- [ ] importacao, Sheet Map e auditoria deterministica interrompidos podem ser retomados sem
+- [x] os dois documentos arquiteturais ausentes existem e refletem codigo, decisoes e roadmap;
+- [x] backup usa snapshot SQLite, manifesto versionado e hashes de todo dado duravel;
+- [x] verificacao detecta corrupcao antes de qualquer restore;
+- [x] restore so publica em destino inexistente e nunca sobrescreve `data`, revisao ou PDF;
+- [x] PDFs disponiveis, declaracoes historicas e feedback humano sobrevivem ao recovery drill;
+- [x] dados reconstruiveis excluidos reaparecem sob demanda sem perda funcional;
+- [x] escritas relevantes usam temporario, validacao e promocao atomica;
+- [x] geometrias novas sao imutaveis por conteudo e geometrias legadas continuam legiveis;
+- [x] falhas de PDF, render, disco, artefato, banco e migration possuem diagnostico acionavel;
+- [x] health nao mascara falha nem expoe caminho absoluto;
+- [x] migration insegura ou banco corrompido nao recebem escrita automatica;
+- [x] importacao, Sheet Map e auditoria deterministica interrompidos podem ser retomados sem
       duplicar estado;
-- [ ] chamada externa potencialmente cobrada nunca e repetida silenciosamente;
-- [ ] journal preserva eventos e nao implementa antecipadamente a fila da F6.2;
-- [ ] suites completas, lint, typecheck e build ficam verdes;
-- [ ] fluxo principal e recovery drill sao verificados manualmente e documentados;
-- [ ] nenhuma fila, lote, worker, SaaS, autenticacao ou cloud backup entra no milestone.
+- [x] chamada externa potencialmente cobrada nunca e repetida silenciosamente;
+- [x] journal preserva eventos e nao implementa antecipadamente a fila da F6.2;
+- [x] suites completas, lint, typecheck e build ficam verdes;
+- [x] fluxo principal e recovery drill sao verificados manualmente e documentados;
+- [x] nenhuma fila, lote, worker, SaaS, autenticacao ou cloud backup entra no milestone.
 
 ## Fora do escopo
 
@@ -605,8 +605,8 @@ proprietario aprovar explicitamente as decisoes, em especial:
 
 ## Estado da implementacao em 2026-09-02
 
-Aprovacao explicita recebida. A fundacao foi implementada, testada e publicada. O milestone
-permanece aberto somente porque o estado real nao satisfaz o contrato fail-closed do backup.
+Aprovacao explicita recebida. A fundacao, a reconciliacao de fontes e o recovery drill real foram
+implementados e validados. O milestone esta concluido.
 
 Implementado:
 
@@ -628,8 +628,8 @@ Implementado:
 
 Validacao final concluida:
 
-- backend completo: `258 passed, 1 skipped`;
-- frontend completo: `50 passed`;
+- backend completo: `264 passed, 1 skipped`;
+- frontend completo: `51 passed`;
 - lint passou;
 - typecheck passou;
 - build Next.js 16 passou;
@@ -640,25 +640,25 @@ Validacao final concluida:
   origem dos recursos internos do Next.js dev;
 - os servidores temporarios foram encerrados e as portas de teste ficaram livres.
 
-Recovery drill real:
+Recovery drill real e reconciliacao:
 
-- a criacao do backup foi corretamente recusada com `PDF_SOURCE_MISSING`;
-- o SQLite real possui 5 documentos e 4 referencias de original ausentes;
-- tres ausencias sao revisoes de `Proj_Estrutural_RanchoQueimado_geral.pdf`;
-- uma ausencia e `017_26_est_geral-01.pdf`;
-- os hashes esperados sao `7d2f9c32...` para as tres primeiras revisoes e `5c7d3d3d...` para a
-  quarta;
-- nenhum archive parcial foi publicado e o banco real nao foi alterado pelo drill;
-- o snapshot pre-migration da aplicacao da migration `010` permanece ignorado em
-  `data/db/recovery/`.
+- a primeira tentativa recusou corretamente quatro originais ausentes com `PDF_SOURCE_MISSING`;
+- a investigacao confirmou que o banco historico foi transferido para o clone de 2026-08-29 sem
+  o armazenamento local correspondente; nao houve evidencia de exclusao pela F6.1;
+- por aprovacao explicita, quatro ausencias receberam eventos append-only
+  `SOURCE_UNAVAILABLE`, preservando revisoes, 63 findings e feedback;
+- migrations `011` e `012` criaram o historico de fonte imutavel e sua sequencia por documento;
+- os PDFs atuais foram importados como `REV-005` (30 paginas) e `REV-006` (25 paginas), sem
+  substituir as fontes historicas;
+- `backups/truss-20260902T144559Z-b03ef121.zip` foi criado e verificado com 231 arquivos e
+  175.599.885 bytes;
+- a origem descartavel anterior ao snapshot e o restore apresentaram integridade SQLite,
+  zero foreign keys invalidas, 7 documentos, 169 folhas, 63 findings e 4 eventos de fonte;
+- uma `REV-007` de prova criada depois do segundo snapshot existiu somente na origem descartavel
+  e nao apareceu no restore, confirmando o isolamento ponto-no-tempo;
+- o viewer foi verificado manualmente: `REV-006` renderizou a prancha atual e a revisao `A`
+  exibiu `Fonte historica indisponivel` sem oferecer um render inexistente;
+- os servidores temporarios foram encerrados e as portas 3001 e 8000 ficaram livres.
 
-Trabalho restante, em ordem:
-
-1. localizar os quatro PDFs pelos hashes/conteudo conhecido ou decidir explicitamente como
-   reconciliar os registros orfaos; nao reduzir a ausencia critica a warning;
-2. repetir `backup-create` e `backup-verify` sobre o estado real;
-3. restaurar para dois diretorios descartaveis e concluir o recovery drill ponto-no-tempo;
-4. confirmar no restore real projeto, revisao, PDF, Sheet Map, findings e feedback;
-5. executar novamente backend, frontend, lint, typecheck e build se houver qualquer correcao;
-6. atualizar criterios de aceite e DECISIONS somente depois do drill real verde;
-7. nao iniciar F6.2 antes de encerrar estes itens.
+Proximo gate: analisar e propor a F6.2; implementacao de fila, worker, progresso ou lote depende
+de nova aprovacao arquitetural.

@@ -24,6 +24,14 @@ def _parser() -> argparse.ArgumentParser:
     diagnose.add_argument("--deep", action="store_true")
     resume = commands.add_parser("resume")
     resume.add_argument("operation_id")
+    unavailable = commands.add_parser("source-unavailable")
+    unavailable.add_argument("document_id")
+    unavailable.add_argument("--reason-code", required=True)
+    unavailable.add_argument("--note", default="")
+    restored = commands.add_parser("source-restored")
+    restored.add_argument("document_id")
+    restored.add_argument("--reason-code", default="source_recovered")
+    restored.add_argument("--note", default="")
     return parser
 
 
@@ -68,6 +76,28 @@ def main(argv: list[str] | None = None) -> int:
 
             initialize_database(settings)
             print(json.dumps(resume_operation(args.operation_id, settings), ensure_ascii=False))
+        elif args.command in {"source-unavailable", "source-restored"}:
+            from truss_api.recovery.sources import (
+                declare_source_restored,
+                declare_source_unavailable,
+            )
+
+            initialize_database(settings)
+            if args.command == "source-unavailable":
+                event = declare_source_unavailable(
+                    args.document_id,
+                    reason_code=args.reason_code,
+                    note=args.note,
+                    settings=settings,
+                )
+            else:
+                event = declare_source_restored(
+                    args.document_id,
+                    reason_code=args.reason_code,
+                    note=args.note,
+                    settings=settings,
+                )
+            print(json.dumps({"status": "ok", "event": event}, ensure_ascii=False))
     except TrussError as error:
         print(json.dumps({"status": "error", "detail": error.public.as_detail()}, ensure_ascii=False))
         return 1

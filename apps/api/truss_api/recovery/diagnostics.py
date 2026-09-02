@@ -8,6 +8,7 @@ from typing import Literal
 
 from truss_api.core.settings import Settings
 from truss_api.db.migrations import available_migrations
+from truss_api.recovery.sources import SOURCE_UNAVAILABLE, list_document_sources
 
 
 CheckStatus = Literal["ok", "warning", "error"]
@@ -172,6 +173,7 @@ def _deep_originals_check(settings: Settings) -> DiagnosticCheck:
     missing = 0
     corrupt = 0
     checked = 0
+    unavailable = 0
     if not settings.database_path.is_file():
         return DiagnosticCheck(
             name="originals",
@@ -181,18 +183,23 @@ def _deep_originals_check(settings: Settings) -> DiagnosticCheck:
         )
     try:
         connection = sqlite3.connect(_database_uri(settings.database_path), uri=True)
-        rows = connection.execute(
-            "SELECT stored_file_path, content_hash FROM documents ORDER BY id"
-        ).fetchall()
+        rows = list_document_sources(connection)
         connection.close()
-        for relative, expected in rows:
-            path = settings.data_dir / str(relative)
+        for document in rows:
+            relative = str(document["stored_file_path"])
+            expected = str(document["content_hash"])
+            path = settings.data_dir / relative
             if not path.is_file():
+                if document["source_status"] == SOURCE_UNAVAILABLE:
+                    unavailable += 1
+                    continue
                 missing += 1
                 continue
             checked += 1
             digest = sha256(path.read_bytes()).hexdigest()
             if digest != str(expected):
+                corrupt += 1
+            elif document["source_status"] == SOURCE_UNAVAILABLE:
                 corrupt += 1
     except (sqlite3.Error, OSError):
         return DiagnosticCheck(
@@ -202,18 +209,39 @@ def _deep_originals_check(settings: Settings) -> DiagnosticCheck:
             message="A verificacao dos PDFs originais nao pode ser concluida.",
             action="Verifique o armazenamento e um backup valido.",
         )
-    status: CheckStatus = "error" if missing or corrupt else "ok"
+    status: CheckStatus = "error" if missing or corrupt else "warning" if unavailable else "ok"
+    if missing:
+        code = "PDF_SOURCE_MISSING"
+    elif corrupt:
+        code = "ARTIFACT_CORRUPT"
+    elif unavailable:
+        code = "PDF_SOURCE_UNAVAILABLE"
+    else:
+        code = "ORIGINALS_OK"
     return DiagnosticCheck(
         name="originals",
         status=status,
-        code="PDF_SOURCE_MISSING" if missing else "ARTIFACT_CORRUPT" if corrupt else "ORIGINALS_OK",
+        code=code,
         message=(
             "Ha PDFs originais ausentes ou com hash divergente."
             if status == "error"
+            else f"Ha {unavailable} fonte(s) historica(s) declarada(s) como indisponivel(is)."
+            if status == "warning"
             else "Todos os PDFs originais referenciados foram verificados."
         ),
-        action="Restaure um backup valido em um novo diretorio." if status == "error" else None,
-        data={"checked": checked, "missing": missing, "corrupt": corrupt},
+        action=(
+            "Restaure um backup valido em um novo diretorio."
+            if status == "error"
+            else "Use uma nova revisao para os PDFs atuais; o historico foi preservado."
+            if status == "warning"
+            else None
+        ),
+        data={
+            "checked": checked,
+            "missing": missing,
+            "corrupt": corrupt,
+            "unavailable": unavailable,
+        },
     )
 
 

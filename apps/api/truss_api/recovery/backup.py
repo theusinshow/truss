@@ -13,6 +13,11 @@ from truss_api.core.settings import Settings
 from truss_api.db.migrations import available_migrations
 from truss_api.recovery.atomic import atomic_output_path
 from truss_api.recovery.errors import TrussError, storage_error
+from truss_api.recovery.sources import (
+    SOURCE_UNAVAILABLE,
+    list_document_sources,
+    unavailable_manifest_entry,
+)
 
 
 BACKUP_SCHEMA = "truss-backup-v0.1"
@@ -99,6 +104,7 @@ def _sqlite_integrity(path: Path) -> tuple[list[str], dict[str, int]]:
             "calibration_runs",
             "calibration_proposal_decisions",
             "processing_operations",
+            "document_source_events",
         ):
             exists = connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
@@ -137,22 +143,33 @@ def _snapshot_database(source: Path, target: Path) -> None:
         ) from error
 
 
-def _source_files(settings: Settings, snapshot: Path) -> list[tuple[Path, str, str, bool]]:
+def _source_files(
+    settings: Settings,
+    snapshot: Path,
+) -> tuple[list[tuple[Path, str, str, bool]], list[dict[str, object]]]:
     connection = sqlite3.connect(f"file:{snapshot.resolve().as_posix()}?mode=ro", uri=True)
-    documents = connection.execute(
-        "SELECT stored_file_path, content_hash FROM documents ORDER BY stored_file_path"
-    ).fetchall()
+    documents = list_document_sources(connection)
     connection.close()
     selected: dict[str, tuple[Path, str, str, bool]] = {}
-    for relative, expected_hash in documents:
+    unavailable: list[dict[str, object]] = []
+    for document in documents:
+        relative = str(document["stored_file_path"])
+        expected_hash = str(document["content_hash"])
         # Caminhos historicos foram persistidos com separador nativo do Windows.
         relative_posix = PurePosixPath(str(relative).replace("\\", "/")).as_posix()
         path = _confined(settings.data_dir, relative_posix)
+        declared_unavailable = document["source_status"] == SOURCE_UNAVAILABLE
         if not path.is_file():
+            if declared_unavailable:
+                unavailable.append(unavailable_manifest_entry(document))
+                continue
             raise TrussError(
                 code="PDF_SOURCE_MISSING",
                 message="Um PDF original referenciado pelo banco nao foi encontrado.",
-                action="Restaure um backup valido antes de criar um novo backup.",
+                action=(
+                    "Restaure um backup valido ou declare explicitamente a fonte historica "
+                    "como indisponivel."
+                ),
                 status_code=500,
             )
         digest, _ = _hash_file(path)
@@ -162,6 +179,13 @@ def _source_files(settings: Settings, snapshot: Path) -> list[tuple[Path, str, s
                 message="Um PDF original diverge do hash registrado no banco.",
                 action="Restaure um backup valido em um novo diretorio.",
                 status_code=500,
+            )
+        if declared_unavailable:
+            raise TrussError(
+                code="SOURCE_DECLARATION_CONFLICT",
+                message="Um PDF declarado indisponivel esta novamente presente e integro.",
+                action="Registre a restauracao da fonte antes de criar o backup.",
+                status_code=409,
             )
         archive_path = f"files/{relative_posix}"
         selected[archive_path] = (path, archive_path, "original", True)
@@ -183,7 +207,10 @@ def _source_files(settings: Settings, snapshot: Path) -> list[tuple[Path, str, s
             relative = path.relative_to(settings.data_dir).as_posix()
             archive_path = f"files/{relative}"
             selected.setdefault(archive_path, (path, archive_path, role, False))
-    return [selected[key] for key in sorted(selected)]
+    return [selected[key] for key in sorted(selected)], sorted(
+        unavailable,
+        key=lambda item: (str(item["stored_file_path"]), str(item["document_id"])),
+    )
 
 
 def _write_entry(
@@ -249,7 +276,7 @@ def create_backup(settings: Settings, output_dir: Path | None = None) -> Path:
         snapshot = Path(temporary) / "truss.sqlite"
         _snapshot_database(settings.database_path, snapshot)
         migrations, logical_counts = _sqlite_integrity(snapshot)
-        sources = _source_files(settings, snapshot)
+        sources, unavailable_sources = _source_files(settings, snapshot)
         required = snapshot.stat().st_size + sum(item[0].stat().st_size for item in sources)
         free = shutil.disk_usage(output).free
         if free < required + max(64 * 1024 * 1024, required // 10):
@@ -294,6 +321,7 @@ def create_backup(settings: Settings, output_dir: Path | None = None) -> Path:
                     "database_sha256": entries[0]["sha256"],
                     "schema_migrations": migrations,
                     "logical_counts": logical_counts,
+                    "unavailable_sources": unavailable_sources,
                     "files": entries,
                     "total_size_bytes": sum(int(item["size_bytes"]) for item in entries),
                     "excluded_roles": [
@@ -307,7 +335,15 @@ def create_backup(settings: Settings, output_dir: Path | None = None) -> Path:
                         "backups",
                     ],
                     "warnings": [
-                        "Este backup contem PDFs e nao possui criptografia."
+                        "Este backup contem PDFs e nao possui criptografia.",
+                        *(
+                            [
+                                f"{len(unavailable_sources)} fonte(s) historica(s) estao "
+                                "explicitamente indisponiveis."
+                            ]
+                            if unavailable_sources
+                            else []
+                        ),
                     ],
                 }
                 info = zipfile.ZipInfo("manifest.json", date_time=(1980, 1, 1, 0, 0, 0))
@@ -388,11 +424,39 @@ def verify_backup(path: Path) -> dict[str, object]:
                 connection = sqlite3.connect(
                     f"file:{database.resolve().as_posix()}?mode=ro", uri=True
                 )
-                documents = connection.execute(
-                    "SELECT stored_file_path, content_hash FROM documents"
-                ).fetchall()
+                documents = list_document_sources(connection)
                 connection.close()
-                for relative, expected_hash in documents:
+                expected_unavailable = [
+                    unavailable_manifest_entry(document)
+                    for document in documents
+                    if document["source_status"] == SOURCE_UNAVAILABLE
+                ]
+                expected_unavailable.sort(
+                    key=lambda item: (str(item["stored_file_path"]), str(item["document_id"]))
+                )
+                declared_unavailable = manifest.get("unavailable_sources", [])
+                if not isinstance(declared_unavailable, list):
+                    _raise_invalid("A lista de fontes indisponiveis e invalida.")
+                if declared_unavailable != expected_unavailable:
+                    _raise_invalid(
+                        "As fontes indisponiveis do manifesto divergem dos eventos do SQLite."
+                    )
+                unavailable_ids = {
+                    str(item["document_id"])
+                    for item in expected_unavailable
+                }
+                for document in documents:
+                    if str(document["document_id"]) in unavailable_ids:
+                        normalized = PurePosixPath(
+                            str(document["stored_file_path"]).replace("\\", "/")
+                        ).as_posix()
+                        if f"files/{normalized}" in entries_by_name:
+                            _raise_invalid(
+                                "Uma fonte indisponivel foi incluída como PDF original."
+                            )
+                        continue
+                    relative = str(document["stored_file_path"])
+                    expected_hash = str(document["content_hash"])
                     normalized = PurePosixPath(str(relative).replace("\\", "/")).as_posix()
                     name = f"files/{normalized}"
                     item = entries_by_name.get(name)
