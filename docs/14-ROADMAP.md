@@ -97,6 +97,8 @@ cobranca, 3D decorativo e fine-tuning continuam fora do escopo.
 
 ## Proximo passo
 
-Analisar e propor o plano da F6.2 para fila local, progresso, cancelamento seguro e lote real de
-85 folhas. Como esse passo introduz novos contratos operacionais, a implementacao deve aguardar
-aprovacao explicita; nenhum worker ou fila foi antecipado pela F6.1.
+A proposta arquitetural da F6.2 esta em
+[`docs/superpowers/plans/2026-09-02-f62-batch-observability.md`](superpowers/plans/2026-09-02-f62-batch-observability.md).
+Como esse passo introduz novos contratos operacionais, a implementacao aguarda aprovacao
+explicita; nenhum worker ou fila foi antecipado pela F6.1. O gate tambem precisa resolver a
+divergencia entre o criterio historico de 85 folhas e as 84 paginas reais atualmente disponiveis.
