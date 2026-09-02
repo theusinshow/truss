@@ -2,8 +2,7 @@
 
 Atualizado em: 2026-09-02
 
-Status do produto: V0.1 em desenvolvimento local. F1 a F5 e F6.1 concluidas; F6.2 aguarda plano
-e aprovacao.
+Status do produto: V0.1 local concluida ate F6.2. F7 permanece candidata e exige novo gate.
 
 ## Missao
 
@@ -137,8 +136,8 @@ Divergencias devem ser registradas. Mudanca arquitetural relevante segue
 - F4: provider multimodal localizado, crops, cache, custo e limites;
 - F5: preferencias explicitas, propostas auditaveis e calibracao deterministica do corpus;
 - F6.1: recuperacao e operacao local segura, concluida;
-- F6.2: futura fila local, lote de 84 folhas reais, fixture separada de falha, progresso e falhas
-  isoladas.
+- F6.2: fila e worker locais, lote de 84 folhas reais, fixture separada de falha, progresso,
+  cancelamento cooperativo e recovery, concluidos e validados.
 
 F7, comparacao grafica entre revisoes, e apenas candidata e exige novo gate.
 

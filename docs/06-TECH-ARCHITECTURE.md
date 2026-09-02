@@ -2,8 +2,7 @@
 
 Atualizado em: 2026-09-02
 
-Estado: arquitetura implementada e validada ate F6.1. F6.2 permanece fora desta fronteira e
-aguarda plano e aprovacao.
+Estado: arquitetura implementada e validada ate F6.2.
 
 ## Visao geral
 
@@ -17,11 +16,15 @@ FastAPI / Python
    |         |             +--> AI Provider abstrato (opt-in, crops localizados)
    |         +--> arquivos locais (PDF, geometria, render, artefatos)
    +--> SQLite (metadados, snapshots, auditoria, feedback, operacoes)
+
+Python batch worker (sem porta, concorrencia 1)
+        |
+        +--> SQLite queue -> journal unitario -> pipelines
 ```
 
-Ha um unico processo de frontend e um backend local. Nao existe tenancy, conta de usuario,
-servico de fila ou banco remoto. O backend e a autoridade para persistencia e coordenadas; o
-frontend nao escreve diretamente em SQLite ou no filesystem.
+Ha um processo de frontend, uma API local e um worker Python local sem porta de rede. Nao existe
+tenancy, conta de usuario, broker ou banco remoto. O backend e a autoridade para persistencia e
+coordenadas; o frontend nao escreve diretamente em SQLite ou no filesystem.
 
 ## Componentes
 
@@ -52,6 +55,7 @@ FastAPI organiza o dominio em modulos:
 - `preferences`, `learning` e `calibration`: aprendizado explicito e corpus;
 - `db`: conexao, schema e migrations numeradas;
 - `recovery`: erros publicos, diagnostico, escrita atomica, journal, backup e restore.
+- `batch`: fila duravel, fases, claims atomicos, cancelamento, retomada e worker local.
 
 Rotas chamam orquestradores; orquestradores combinam dominio e repositories; repositories
 concentram SQL. Artefatos em disco sao referenciados por caminhos relativos a `data_dir`.
@@ -78,6 +82,10 @@ processing_operations
 
 document
   -> document_source_events append-only (SOURCE_UNAVAILABLE / SOURCE_RESTORED)
+
+batch_run
+  -> batch_items por folha e fase
+  -> batch_run_events append-only
 ```
 
 Uma revisao nao e sobrescrita por nova exportacao. Um Sheet Map com pipeline/entrada diferente e
@@ -171,7 +179,8 @@ Falha e fail-closed. Snapshot nunca e copiado automaticamente sobre o banco ativ
 validar PDF
 -> armazenar original por hash
 -> registrar document/sheets/text blocks em transacao
--> construir Sheet Maps
+-> responder 202 no fluxo em lote
+-> worker constroi Sheet Maps e auditorias
 ```
 
 ### Sheet Map
@@ -219,8 +228,26 @@ acao do usuario.
 Somente operacao deterministica/cacheada pode ser retomada. Chamada visual interrompida vira
 `manual_retry_required`, pois repetir pode gerar custo externo.
 
-O journal nao e fila: nao possui worker, prioridade, agenda, percentual, concorrencia ou
-cancelamento. Esses contratos pertencem a F6.2.
+O journal nao e fila: a F6.2 adiciona uma camada separada que somente agenda e agrega operacoes
+unitarias. Resultados e identidades cacheadas continuam pertencendo ao journal e aos pipelines.
+
+## Lote e observabilidade F6.2
+
+`batch_runs`, `batch_items` e `batch_run_events` persistem configuracao congelada, unidade por
+folha/fase e historico append-only. O fluxo possui barreira global de Sheet Map antes da auditoria
+deterministica. Registry parcial declara cobertura incompleta e regras cross-sheet retornam
+`UNKNOWN`; a folha sem Sheet Map fica `skipped_dependency`.
+
+O worker usa processo separado, abre o PDF por operacao e reivindica um item por compare-and-swap
+com `run_token`. Concorrencia deterministica e visual permanecem fixas em 1; o SQLite mantem o
+journal mode anterior e `busy_timeout=5000`. Startup transforma item sem dono em falha e lote
+`interrupted`; retomada e sempre explicita. Falha local tipada permite no maximo uma repeticao
+automatica. Chamada visual nunca e repetida sem nova confirmacao.
+
+Cancelamento grava `cancel_requested`, deixa a etapa atomica corrente publicar com seguranca e
+marca o restante como `cancelled`. A web consulta a cada 1 s em primeiro plano e 5 s em background,
+para no estado terminal e mantem o viewer navegavel. Progresso e contagens sao derivados dos itens,
+nunca de timer ou contador duplicado.
 
 ## Backup e restore F6.1
 

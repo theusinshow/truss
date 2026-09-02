@@ -2,7 +2,7 @@
 
 Data: 2026-09-02
 
-Status: proposta arquitetural pronta; implementacao aguardando aprovacao explicita
+Status: aprovada, implementada e validada em 2026-09-02
 
 Escopo: processar uma revisao grande de forma duravel e observavel, com fila local por folha,
 barreiras corretas entre fases, cancelamento cooperativo, falhas isoladas e limites explicitos.
@@ -336,17 +336,17 @@ localmente no drill sem versionar os documentos.
 
 ## Criterios de aceite
 
-- [ ] uma revisao grande e processada sem bloquear o servidor HTTP;
-- [ ] progresso e resumo derivam de estado duravel por folha;
-- [ ] a barreira de Sheet Map protege a corretude cross-sheet;
-- [ ] cancelamento e cooperativo, honesto e nao corrompe artefatos;
-- [ ] falha de uma folha fica isolada e explicada;
-- [ ] retomada nao duplica dados nem chamadas externas;
-- [ ] concorrencia e custo possuem limites explicitos;
-- [ ] o viewer continua sendo a superficie principal;
-- [ ] o gate de 84 folhas reais mais a fixture separada, feedback, reabertura e recovery passa;
-- [ ] suites, lint, typecheck, build e verificacao manual ficam verdes;
-- [ ] documentacao registra metricas e decisoes finais.
+- [x] uma revisao grande e processada sem bloquear o servidor HTTP;
+- [x] progresso e resumo derivam de estado duravel por folha;
+- [x] a barreira de Sheet Map protege a corretude cross-sheet;
+- [x] cancelamento e cooperativo, honesto e nao corrompe artefatos;
+- [x] falha de uma folha fica isolada e explicada;
+- [x] retomada nao duplica dados nem chamadas externas;
+- [x] concorrencia e custo possuem limites explicitos;
+- [x] o viewer continua sendo a superficie principal;
+- [x] o gate de 84 folhas reais mais a fixture separada, feedback, reabertura e recovery passa;
+- [x] suites, lint, typecheck, build e verificacao manual ficam verdes;
+- [x] documentacao registra metricas e decisoes finais.
 
 ## Fora do escopo
 
@@ -383,7 +383,7 @@ localmente no drill sem versionar os documentos.
 
 ## Gate de aprovacao
 
-Esta proposta nao autoriza implementacao. O proprietario precisa aprovar explicitamente:
+Aprovado explicitamente pelo proprietario antes da implementacao:
 
 - tabelas duraveis de lote separadas do journal F6.1;
 - worker Python local sem porta, iniciado junto ao ambiente de desenvolvimento;
@@ -391,5 +391,5 @@ Esta proposta nao autoriza implementacao. O proprietario precisa aprovar explici
 - polling HTTP em vez de WebSocket/SSE;
 - cancelamento cooperativo, nunca terminacao forcada;
 - modo visual somente por opt-in com limites congelados;
-- demais decisoes arquiteturais desta proposta. O tratamento do corpus foi aprovado: 84 paginas
-  reais mais uma fixture separada de falha isolada.
+- demais decisoes arquiteturais desta proposta. O tratamento do corpus usa 84 paginas reais mais
+  uma fixture separada de falha isolada.

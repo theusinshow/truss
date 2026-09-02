@@ -825,3 +825,27 @@ The owner chose to change the acceptance gate:
   gate;
 - this decision resolves only the corpus size. Queue, worker, polling, concurrency, cancellation
   and visual-batch contracts still require explicit approval before implementation.
+
+## 2026-09-02 - F6.2 uses a durable local queue and a single worker
+
+The owner explicitly approved the F6.2 architecture and the compact progress direction A. The
+implemented boundary stays personal and local:
+
+- `batch_runs`, `batch_items` and append-only `batch_run_events` schedule operations without
+  replacing the F6.1 unit journal;
+- a Python worker with no network port processes exactly one sheet at a time; PyMuPDF is never
+  parallelized with threads and SQLite keeps its prior journal mode;
+- the Sheet Map phase is a revision-wide barrier. Incomplete registry coverage produces `UNKNOWN`
+  for cross-sheet rules and `skipped_dependency` for the unmapped sheet;
+- cancellation is cooperative and finishes the atomic item already running. External visual work
+  is opt-in, budgeted and never retried automatically;
+- the web polls durable state and keeps a compact strip above the PDF viewer. Normal progress is
+  not promoted to a global health alert;
+- the approved 84-page corpus completed 84 Sheet Maps and 84 audits. A full cache replay created
+  no duplicate Sheet Map, audit run or finding; interruption, cancellation, feedback reopening,
+  backup/restore and the separate failure fixture also passed.
+
+The measured primary processing time was 474.478 seconds and the complete drill 487.108 seconds.
+Observed peak process working set was 761,278,464 bytes, so concurrency remains fixed at one until
+a separate measured plan justifies changing it. The machine-readable evidence is
+`docs/f62-batch-gate-2026-09-02.json`.

@@ -298,6 +298,28 @@ final passou com 264 testes backend, 1 ignorado, 51 testes web, lint, typecheck,
 manual das revisoes atual e historica. Use `http://localhost:3000` no desenvolvimento local; o
 host `127.0.0.1` pode ser recusado pelo controle de origem dos recursos internos do Next.js dev.
 
+## F6.2 - Lote local concluido
+
+A importacao rapida agora conclui o intake e responde `202`; Sheet Map e auditoria seguem em um
+worker Python local, uma folha por vez. A revisao mostra uma faixa compacta acima do viewer com
+fase, contagens derivadas dos itens persistidos, detalhes de falha, cancelamento cooperativo e
+retomada explicita. O modo padrao e totalmente local. O lote visual exige instalacao habilitada e
+opt-in que exibe provider, modelo, teto de chamadas, budget e candidatos.
+
+O gate reproduzivel fica em `truss_api.batch.gate`. Em armazenamento descartavel ele processou os
+tres PDFs reais (84 folhas) em 487,108 s: 84 Sheet Maps e 84 auditorias concluidas, 14 findings,
+replay integral sem duplicar artefatos, interrupcao/retomada, cancelamento, feedback reaberto e
+backup/restore verificado. A fixture sintetica separada terminou `completed_with_errors`, com uma
+falha isolada e uma dependencia ignorada. Evidencia completa:
+[`docs/f62-batch-gate-2026-09-02.json`](docs/f62-batch-gate-2026-09-02.json).
+O fechamento passou com 278 testes de API coletados (277 aprovados e 1 skip previsto), 55 testes
+web, lint, typecheck, build e verificacao manual no navegador.
+
+```powershell
+$env:PYTHONPATH="apps/api"
+.venv\Scripts\python -m truss_api.batch.gate --report docs/f62-batch-gate-2026-09-02.json
+```
+
 ## Requisitos locais
 
 - Node.js 20 ou superior
@@ -322,6 +344,13 @@ npm run dev:web
 
 ```bash
 .venv\Scripts\python -m uvicorn truss_api.main:app --reload --app-dir apps/api
+```
+
+O processamento em lote exige um terceiro terminal:
+
+```bash
+$env:PYTHONPATH="apps/api"
+.venv\Scripts\python -m truss_api.batch.worker
 ```
 
 Ou, depois de instalar as dependencias Python no ambiente ativo:

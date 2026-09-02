@@ -15,7 +15,7 @@ fase aqui nao autoriza mudanca arquitetural nem o avanco de varios milestones em
 | F3 - Cruzamento entre folhas | concluida e validada | registry por revisao, continuidade e secoes de pilares | nenhuma no escopo aprovado |
 | F4 - Visao por crops | concluida e validada | triagem multimodal, cache por conteudo e teto de custo | nenhuma no escopo aprovado |
 | F5 - Aprendizado explicito | concluida e validada | F5.1: preferencias; F5.2: propostas; F5.3: corpus versionado, runs imutaveis e export auditavel | nenhuma no escopo aprovado |
-| F6 - Solidez diaria | em andamento | F6.1 concluida: recovery verificavel, fontes historicas explicitas e drill real | F6.2: 84 folhas reais + fixture de falha isolada do inicio ao fim |
+| F6 - Solidez diaria | concluida e validada | F6.1 recovery + F6.2 lote real de 84 folhas e fixture isolada | nenhuma no escopo aprovado |
 
 ## Sequencia de continuidade
 
@@ -78,6 +78,8 @@ e viewer continuam mostrando a indisponibilidade historica de forma explicita.
 
 ### F6.2 - Lote e observabilidade local
 
+Status: concluida e validada em 2026-09-02.
+
 Objetivo: processar uma revisao real grande com progresso e falhas isoladas.
 
 - fila local de folhas com estados, progresso e cancelamento seguro;
@@ -90,6 +92,14 @@ Criterio de aceite da F6: as 84 folhas estruturais reais disponiveis percorrem i
 Sheet Map, auditoria, feedback e reabertura sem perda de dados; uma fixture separada comprova o
 isolamento e a explicacao de falha sem ser contabilizada como folha real.
 
+Resultado real: os tres PDFs aprovados totalizaram 84 folhas e hashes registrados. O lote concluiu
+84 Sheet Maps e 84 auditorias em 487,108 s, com 14 findings e pico observado de working set de
+761.278.464 bytes. O replay cacheado adicionou zero Sheet Maps, audit runs ou findings. Um restart
+foi retomado explicitamente, o drill de cancelamento terminou um item e cancelou 167, feedback
+permaneceu apos reabertura e o backup restaurado preservou todas as contagens. A fixture separada
+produziu uma falha, uma dependencia ignorada e duas etapas concluidas. Relatorio:
+[`docs/f62-batch-gate-2026-09-02.json`](f62-batch-gate-2026-09-02.json).
+
 ## Depois da V0.1
 
 F7 permanece apenas candidata: comparacao grafica entre revisoes imutaveis. Ela exige analise,
@@ -98,8 +108,5 @@ cobranca, 3D decorativo e fine-tuning continuam fora do escopo.
 
 ## Proximo passo
 
-A proposta arquitetural da F6.2 esta em
-[`docs/superpowers/plans/2026-09-02-f62-batch-observability.md`](superpowers/plans/2026-09-02-f62-batch-observability.md).
-Como esse passo introduz novos contratos operacionais, a implementacao aguarda aprovacao
-explicita; nenhum worker ou fila foi antecipado pela F6.1. O proprietario aprovou usar as 84
-paginas reais atualmente disponiveis e uma fixture separada de falha isolada no gate final.
+F7 continua apenas candidata. Comparacao grafica entre revisoes exige analise, proposta e
+aprovacao explicita antes de qualquer implementacao.
