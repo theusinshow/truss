@@ -88,5 +88,6 @@ cobranca, 3D decorativo e fine-tuning continuam fora do escopo.
 
 ## Proximo passo
 
-Elaborar e submeter o plano detalhado da F6.1 ao proprietario. Nao implementar backup,
-restauracao, retomada ou reconstrucao arquitetural antes dessa aprovacao.
+Revisar e aprovar a proposta detalhada da F6.1 em
+`docs/superpowers/plans/2026-09-02-f61-recovery-safe-operations.md`. Nao implementar backup,
+restauracao, retomada ou reconstrucao arquitetural antes dessa aprovacao explicita.
