@@ -47,6 +47,13 @@ def _element_digest(elements: list[dict[str, object]]) -> str:
 
 def build_revision_registry(revision_id: str, settings: Settings) -> dict[str, object]:
     with transaction(settings) as connection:
+        expected_sheet_ids = [
+            str(row["id"])
+            for row in connection.execute(
+                "SELECT id FROM sheets WHERE revision_id = ? ORDER BY id",
+                (revision_id,),
+            ).fetchall()
+        ]
         map_rows = [
             dict(row)
             for row in connection.execute(
@@ -130,11 +137,20 @@ def build_revision_registry(revision_id: str, settings: Settings) -> dict[str, o
                 )
             )
 
+    mapped_sheet_ids = {str(item["sheet_id"]) for item in current_maps}
+    missing_sheet_ids = sorted(set(expected_sheet_ids) - mapped_sheet_ids)
+    fingerprint_parts.append(
+        f"coverage:{len(mapped_sheet_ids)}/{len(expected_sheet_ids)}:{','.join(missing_sheet_ids)}"
+    )
     fingerprint_material = "\n".join(sorted(fingerprint_parts))
     registry_hash = sha256(fingerprint_material.encode("utf-8")).hexdigest()[:24]
     registry = {
         "revision_id": revision_id,
         "registry_hash": registry_hash,
+        "coverage_complete": not missing_sheet_ids,
+        "expected_sheet_count": len(expected_sheet_ids),
+        "mapped_sheet_count": len(mapped_sheet_ids),
+        "missing_sheet_ids": missing_sheet_ids,
         "sheet_maps": current_maps,
         "views": views,
         "occurrences": occurrences,

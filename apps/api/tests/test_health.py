@@ -43,6 +43,7 @@ def test_health_returns_safe_summary(client: TestClient) -> None:
     assert payload["database"] == "ok"
     assert payload["storage"] == "ok"
     assert payload["interrupted_operations"] == 0
+    assert payload["interrupted_batches"] == 0
     assert "data" not in payload
 
 
@@ -56,6 +57,7 @@ def test_diagnostics_can_verify_originals_without_exposing_paths(client: TestCli
         "storage",
         "database",
         "operations",
+        "batches",
         "originals",
     }
     assert "data_dir" not in response.text

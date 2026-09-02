@@ -17,8 +17,9 @@ from truss_api.recovery import repository
 from truss_api.recovery.errors import TrussError
 from truss_api.rules.loader import load_packs, load_packs_for_scopes
 from truss_api.sheetmap import repository as sheetmap_repository
-from truss_api.sheetmap.builder import build_sheet_map_for_document
+from truss_api.sheetmap.builder import build_sheet_map_for_document, build_sheet_map_for_sheet
 from truss_api.sheetmap.elements.registry import build_revision_registry
+from truss_api.sheetmap.snapshot import SHEET_MAP_PIPELINE
 from truss_api.vision.orchestrator import VISION_PIPELINE_VERSION, run_visual_audit
 
 
@@ -107,6 +108,7 @@ def import_document(
     content: bytes,
     mime_type: str,
     settings: Settings,
+    build_sheet_maps: bool = True,
 ) -> dict[str, object]:
     try:
         pages = inspect_pdf(content)
@@ -128,7 +130,11 @@ def import_document(
         input_hash=content_hash,
         pipeline_version=IMPORT_PIPELINE_VERSION,
         checkpoint="validated",
-        payload={"original_filename": safe_filename(filename), "mime_type": mime_type},
+        payload={
+            "original_filename": safe_filename(filename),
+            "mime_type": mime_type,
+            "build_sheet_maps": build_sheet_maps,
+        },
         settings=settings,
     )
     if operation["status"] == "completed":
@@ -234,8 +240,9 @@ def _continue_document_import(
             settings,
             document_id=str(document["id"]),
         )
-        build_sheet_map_for_document(str(document["id"]), settings)
-        repository.save_checkpoint(operation_id, "sheet_maps_completed", settings)
+        if bool(payload.get("build_sheet_maps", True)):
+            build_sheet_map_for_document(str(document["id"]), settings)
+            repository.save_checkpoint(operation_id, "sheet_maps_completed", settings)
         repository.complete_operation(
             operation_id,
             settings,
@@ -258,6 +265,56 @@ def _continue_document_import(
             retryable=True,
             operation_id=operation_id,
         ) from error
+
+
+def run_sheet_map_operation(sheet_id: str, settings: Settings) -> dict[str, object]:
+    context = documents_repository.get_sheet_processing_context(sheet_id, settings)
+    identity = operation_identity(
+        "sheet_map_build",
+        sheet_id=sheet_id,
+        document_hash=context["document_hash"],
+        page_index=context["page_index"],
+        pipeline=SHEET_MAP_PIPELINE,
+    )
+    operation = repository.create_operation(
+        identity_key=identity,
+        kind="sheet_map_build",
+        project_id=str(context["project_id"]),
+        revision_id=str(context["revision_id"]),
+        document_id=str(context["document_id"]),
+        sheet_id=sheet_id,
+        input_hash=str(context["document_hash"]),
+        pipeline_version=SHEET_MAP_PIPELINE,
+        checkpoint="ready",
+        settings=settings,
+    )
+    result_id = dict(operation["payload"]).get("result_sheet_map_id")
+    if operation["status"] == "completed" and result_id:
+        return sheetmap_repository.get_sheet_map_by_id(str(result_id), settings)
+    repository.claim_operation(str(operation["id"]), settings)
+    try:
+        result = build_sheet_map_for_sheet(sheet_id, settings)
+        repository.complete_operation(
+            str(operation["id"]),
+            settings,
+            payload={"result_sheet_map_id": str(result["id"])},
+        )
+        return result
+    except Exception as error:
+        code = error.public.code if isinstance(error, TrussError) else "SHEET_MAP_FAILED"
+        message = (
+            error.public.message
+            if isinstance(error, TrussError)
+            else "O Sheet Map da folha nao pode ser concluido."
+        )
+        repository.fail_operation(
+            str(operation["id"]),
+            settings,
+            code=code,
+            message=message,
+            retryable=True,
+        )
+        raise
 
 
 def _audit_operation(
@@ -364,6 +421,13 @@ def resume_operation(operation_id: str, settings: Settings) -> dict[str, object]
     repository.claim_operation(operation_id, settings)
     if operation["kind"] == "document_import":
         _continue_document_import(operation_id, settings)
+    elif operation["kind"] == "sheet_map_build":
+        result = build_sheet_map_for_sheet(str(operation["sheet_id"]), settings)
+        repository.complete_operation(
+            operation_id,
+            settings,
+            payload={"result_sheet_map_id": str(result["id"])},
+        )
     elif operation["kind"] == "deterministic_audit":
         result = run_deterministic_audit(str(operation["sheet_id"]), settings)
         repository.complete_operation(

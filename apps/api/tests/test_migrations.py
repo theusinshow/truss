@@ -40,6 +40,9 @@ def test_apply_migrations_creates_schema_and_is_idempotent(tmp_path: Path) -> No
         "processing_operations",
         "processing_operation_events",
         "document_source_events",
+        "batch_runs",
+        "batch_items",
+        "batch_run_events",
     } <= _table_names(settings)
     with transaction(settings) as connection:
         view_columns = {

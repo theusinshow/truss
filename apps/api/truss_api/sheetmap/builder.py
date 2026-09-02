@@ -91,8 +91,14 @@ def _load_document_context(
 def build_sheet_map_for_document(
     document_id: str,
     settings: Settings,
+    *,
+    only_sheet_id: str | None = None,
 ) -> list[dict[str, object]]:
     stored_path, document_hash, sheets = _load_document_context(document_id, settings)
+    if only_sheet_id is not None:
+        sheets = [sheet for sheet in sheets if str(sheet["id"]) == only_sheet_id]
+        if not sheets:
+            raise DocumentNotFoundError(only_sheet_id)
     pdf_path = settings.data_dir / stored_path
     built: list[dict[str, object]] = []
 
@@ -204,3 +210,22 @@ def build_sheet_map_for_document(
         pdf.close()
 
     return built
+
+
+def build_sheet_map_for_sheet(
+    sheet_id: str,
+    settings: Settings,
+) -> dict[str, object]:
+    with transaction(settings) as connection:
+        row = connection.execute(
+            "SELECT document_id FROM sheets WHERE id = ?",
+            (sheet_id,),
+        ).fetchone()
+    if row is None:
+        raise DocumentNotFoundError(sheet_id)
+    built = build_sheet_map_for_document(
+        str(row["document_id"]),
+        settings,
+        only_sheet_id=sheet_id,
+    )
+    return built[0]

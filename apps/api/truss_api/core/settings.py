@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     vision_max_crop_pixels: int = Field(default=1600, ge=256, le=4096)
     vision_image_detail: Literal["low", "high", "original"] = "high"
     vision_max_output_tokens: int = Field(default=600, ge=100, le=4000)
+    batch_poll_interval_seconds: float = Field(default=0.5, ge=0.1, le=10.0)
 
     model_config = SettingsConfigDict(
         env_prefix="TRUSS_",

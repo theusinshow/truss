@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from truss_api.audit.routes import router as audit_router
 from truss_api.calibration.routes import router as calibration_router
 from truss_api.assistant.routes import router as assistant_router
+from truss_api.batch.routes import router as batch_router
 from truss_api.core.storage import ensure_storage_layout
 from truss_api.core.settings import get_settings
 from truss_api.db.schema import initialize_database
@@ -65,6 +66,7 @@ app.include_router(documents_router)
 app.include_router(sheetmap_router)
 app.include_router(audit_router)
 app.include_router(assistant_router)
+app.include_router(batch_router)
 app.include_router(preferences_router)
 app.include_router(learning_router)
 app.include_router(calibration_router)

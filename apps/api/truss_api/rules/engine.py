@@ -118,6 +118,29 @@ def _evaluate_element_rule(
     snapshot: dict,
     registry: dict[str, object] | None,
 ) -> list[RuleEvaluation]:
+    if registry is not None and registry.get("coverage_complete") is False:
+        expected = int(registry.get("expected_sheet_count") or 0)
+        mapped = int(registry.get("mapped_sheet_count") or 0)
+        return [
+            _result(
+                rule,
+                pack,
+                target_kind="element",
+                target_id=None,
+                outcome=OUTCOME_UNKNOWN,
+                reason="A cobertura do Sheet Map da revisao esta incompleta.",
+                evidence=[
+                    f"folhas mapeadas: {mapped}/{expected}",
+                    f"folhas ausentes: {registry.get('missing_sheet_ids') or []}",
+                    f"registry_hash: {registry.get('registry_hash') or 'ausente'}",
+                ],
+                bbox=_sheet_bbox(snapshot),
+                confidence=0.0,
+                finding_type="unverifiable",
+                registry_hash=str(registry.get("registry_hash") or "") or None,
+            )
+        ]
+
     if rule.check == "pillar_lifecycle_continuity":
         return _evaluate_pillar_lifecycle_rule(rule, pack, snapshot, registry)
 

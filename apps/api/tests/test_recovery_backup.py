@@ -7,6 +7,7 @@ import pytest
 
 from factories import make_structural_pdf_bytes
 from truss_api.core.settings import Settings
+from truss_api.batch import repository as batch_repository
 from truss_api.db.schema import initialize_database
 from truss_api.projects import repository as projects_repository
 from truss_api.projects.models import ProjectCreate, RevisionCreate
@@ -83,6 +84,37 @@ def test_restore_publishes_new_data_dir_without_mutating_source(
     connection.close()
     assert (restored / "recovery" / "restore-manifest.json").is_file()
     assert not (restored / "renders").exists()
+
+
+def test_backup_and_restore_preserve_an_in_progress_batch(
+    populated: tuple[Settings, dict[str, object]],
+    tmp_path: Path,
+) -> None:
+    settings, document = populated
+    batch = batch_repository.create_batch_run(
+        project_id=str(document["project_id"]),
+        revision_id=str(document["revision_id"]),
+        mode="local_deterministic",
+        config={"worker_concurrency": 1},
+        settings=settings,
+    )
+    claimed = batch_repository.claim_next_item(settings)
+    assert claimed is not None
+
+    archive = create_backup(settings)
+    manifest = verify_backup(archive)
+    assert manifest["logical_counts"]["batch_runs"] == 1
+    assert manifest["logical_counts"]["batch_items"] == 4
+    assert manifest["logical_counts"]["batch_run_events"] == 2
+
+    restored = restore_backup(archive, tmp_path / "restored-batch")
+    with sqlite3.connect(restored / "db" / "truss.sqlite") as connection:
+        assert connection.execute(
+            "SELECT status FROM batch_runs WHERE id = ?", (batch["id"],)
+        ).fetchone()[0] == "running"
+        assert connection.execute(
+            "SELECT COUNT(*) FROM batch_items WHERE status = 'running'"
+        ).fetchone()[0] == 1
 
 
 def test_restore_refuses_existing_target(

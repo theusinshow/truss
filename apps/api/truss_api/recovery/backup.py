@@ -105,6 +105,9 @@ def _sqlite_integrity(path: Path) -> tuple[list[str], dict[str, int]]:
             "calibration_proposal_decisions",
             "processing_operations",
             "document_source_events",
+            "batch_runs",
+            "batch_items",
+            "batch_run_events",
         ):
             exists = connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)

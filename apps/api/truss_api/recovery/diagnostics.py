@@ -169,6 +169,43 @@ def _operations_check(settings: Settings) -> DiagnosticCheck:
     )
 
 
+def _batches_check(settings: Settings) -> DiagnosticCheck:
+    if not settings.database_path.is_file():
+        return DiagnosticCheck(
+            name="batches",
+            status="warning",
+            code="BATCHES_UNAVAILABLE",
+            message="Lotes nao podem ser consultados sem o banco local.",
+        )
+    try:
+        connection = sqlite3.connect(_database_uri(settings.database_path), uri=True)
+        exists = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='batch_runs'"
+        ).fetchone()
+        interrupted = 0
+        if exists:
+            interrupted = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM batch_runs WHERE status = 'interrupted'"
+                ).fetchone()[0]
+            )
+        connection.close()
+    except sqlite3.Error:
+        interrupted = 0
+    return DiagnosticCheck(
+        name="batches",
+        status="warning" if interrupted else "ok",
+        code="BATCH_INTERRUPTED" if interrupted else "BATCHES_OK",
+        message=(
+            f"Ha {interrupted} lote(s) interrompido(s) aguardando retomada."
+            if interrupted
+            else "Nao ha lotes interrompidos."
+        ),
+        action="Revise o lote e retome apenas as falhas locais." if interrupted else None,
+        data={"interrupted_count": interrupted},
+    )
+
+
 def _deep_originals_check(settings: Settings) -> DiagnosticCheck:
     missing = 0
     corrupt = 0
@@ -246,7 +283,12 @@ def _deep_originals_check(settings: Settings) -> DiagnosticCheck:
 
 
 def run_diagnostics(settings: Settings, *, deep: bool = False) -> dict[str, object]:
-    checks = [_storage_check(settings), _database_check(settings), _operations_check(settings)]
+    checks = [
+        _storage_check(settings),
+        _database_check(settings),
+        _operations_check(settings),
+        _batches_check(settings),
+    ]
     if deep:
         checks.append(_deep_originals_check(settings))
     if any(check.status == "error" for check in checks):
@@ -267,6 +309,7 @@ def health_summary(settings: Settings) -> dict[str, object]:
     report = run_diagnostics(settings, deep=False)
     by_name = {str(item["name"]): item for item in report["checks"]}
     operations_data = by_name["operations"].get("data") or {}
+    batches_data = by_name["batches"].get("data") or {}
     return {
         "app": "truss-agent",
         "status": report["status"],
@@ -274,4 +317,5 @@ def health_summary(settings: Settings) -> dict[str, object]:
         "database": by_name["database"]["status"],
         "storage": by_name["storage"]["status"],
         "interrupted_operations": int(operations_data.get("interrupted_count", 0)),
+        "interrupted_batches": int(batches_data.get("interrupted_count", 0)),
     }

@@ -341,6 +341,23 @@ def update_sheet_render_path(sheet_id: str, render_path: str, settings: Settings
         )
 
 
+def get_sheet_processing_context(sheet_id: str, settings: Settings) -> dict[str, object]:
+    with transaction(settings) as connection:
+        row = connection.execute(
+            """
+            SELECT s.id AS sheet_id, s.project_id, s.revision_id, s.document_id,
+                   s.page_index, d.content_hash AS document_hash
+            FROM sheets s
+            JOIN documents d ON d.id = s.document_id
+            WHERE s.id = ?
+            """,
+            (sheet_id,),
+        ).fetchone()
+    if row is None:
+        raise SheetNotFoundError(sheet_id)
+    return _row_to_dict(row)
+
+
 def list_text_blocks_for_sheet(sheet_id: str, settings: Settings) -> list[dict[str, object]]:
     with transaction(settings) as connection:
         sheet = connection.execute(

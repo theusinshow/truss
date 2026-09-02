@@ -6,9 +6,10 @@
     "apps/web"
   ],
   "scripts": {
-    "dev": "concurrently -n web,api -c red,blue \"npm:dev:web\" \"npm:dev:api\"",
+    "dev": "concurrently -n web,api,worker -c red,blue,yellow \"npm:dev:web\" \"npm:dev:api\" \"npm:dev:worker\"",
     "dev:web": "npm --workspace apps/web run dev",
     "dev:api": ".venv\\Scripts\\python -m uvicorn truss_api.main:app --reload --app-dir apps/api",
+    "dev:worker": "set PYTHONPATH=apps/api&& .venv\\Scripts\\python -m truss_api.batch.worker",
     "build": "npm --workspace apps/web run build",
     "lint": "npm --workspace apps/web run lint",
     "typecheck": "npm --workspace apps/web run typecheck",
