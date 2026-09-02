@@ -85,3 +85,19 @@ presentes. O primeiro lote possui 17 caixas confirmadas em seis folhas e exige I
   nessas caixas; generalizar a metrica exige novos lotes confirmados.
 - **cobertura e precisao de findings**: exigem folhas com defeito conhecido e descrito. Todo o
   material conferido ate agora e de projeto aprovado, onde o esperado e zero.
+
+## Medicao reproduzivel do acervo aprovado
+
+A F5.3 combina os 12 PDFs de `data/knowledge-inbox/approved/` com o projeto-base
+`human_verified`. `delivered_reference` serve como sinal de ruido e nunca como confirmacao de erro
+zero; `human_verified_ground_truth` conserva autoridade somente sobre os campos revisados.
+
+O comando `python -m truss_api.calibration.runner measure-approved`, com `apps/api` no
+`PYTHONPATH`, cria `raw.json` por `analysis_key` e `report.json` por `run_key` em
+`data/calibration/`. A primeira chave depende do manifesto, pipelines, rule packs e politica; a
+segunda acrescenta o digest das preferencias ativas. Assim, mudar apenas uma preferencia recalcula
+brutos/suprimidos/efetivos sem repetir a extracao dos PDFs.
+
+Medicao de 2026-09-02: 13 PDFs, 259 paginas, 1.626 avaliacoes, 140 findings brutos, zero
+suprimidos, 140 efetivos, 721 views e 2.557 pilares. Duas regras apareceram em ao menos dois
+documentos entregues e geraram propostas auditaveis. O replay identico confirmou cache integral.

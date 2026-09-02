@@ -30,6 +30,10 @@ def test_apply_migrations_creates_schema_and_is_idempotent(tmp_path: Path) -> No
         "rule_preferences",
         "learning_proposal_decisions",
         "learning_proposal_evidence",
+        "calibration_runs",
+        "calibration_proposals",
+        "calibration_proposal_evidence",
+        "calibration_proposal_decisions",
     } <= _table_names(settings)
     with transaction(settings) as connection:
         view_columns = {

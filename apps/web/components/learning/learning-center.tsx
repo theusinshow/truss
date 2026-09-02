@@ -27,6 +27,7 @@ import {
   RulePreference,
   sheetTypeLabel
 } from "@/lib/projects-api";
+import { CalibrationPanel } from "@/components/learning/calibration-panel";
 
 type LearningCenterProps = {
   apiBaseUrl: string;
@@ -34,7 +35,7 @@ type LearningCenterProps = {
   onOpenEvidence: (evidence: EvidenceLocator) => void;
 };
 
-type CenterTab = "preferences" | "proposals";
+type CenterTab = "preferences" | "proposals" | "calibration";
 type PreferenceFilter = "active" | "revoked" | "all";
 type ProposalFilter = LearningProposalState | "all";
 
@@ -238,7 +239,7 @@ export function LearningCenter({ apiBaseUrl, onClose, onOpenEvidence }: Learning
   }
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden border border-truss-line bg-truss-raised">
+    <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden border border-truss-line bg-truss-raised">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-truss-line bg-truss-panel px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <ShieldCheck aria-hidden="true" className="truss-icon h-5 w-5 shrink-0 text-truss-accent" />
@@ -280,6 +281,18 @@ export function LearningCenter({ apiBaseUrl, onClose, onOpenEvidence }: Learning
         >
           Propostas / {proposals.filter((item) => item.state === "pending").length}
         </button>
+        <button
+          aria-selected={tab === "calibration"}
+          aria-controls="learning-calibration-panel"
+          className="min-w-40 border-r border-truss-line px-4 py-2.5 text-sm font-semibold text-truss-muted transition-colors data-[active=true]:bg-truss-accentSoft data-[active=true]:text-truss-text"
+          data-active={tab === "calibration"}
+          id="learning-calibration-tab"
+          onClick={() => setTab("calibration")}
+          role="tab"
+          type="button"
+        >
+          Calibracao
+        </button>
       </div>
 
       {error ? (
@@ -300,6 +313,8 @@ export function LearningCenter({ apiBaseUrl, onClose, onOpenEvidence }: Learning
             <div className="h-28 animate-pulse bg-truss-panel" />
           </div>
         </div>
+      ) : tab === "calibration" ? (
+        <CalibrationPanel apiBaseUrl={apiBaseUrl} />
       ) : tab === "preferences" ? (
         <div
           aria-labelledby="learning-preferences-tab"

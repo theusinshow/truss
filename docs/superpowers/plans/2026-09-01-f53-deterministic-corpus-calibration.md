@@ -2,7 +2,7 @@
 
 Data: 2026-09-01
 
-Status: proposta aguardando aprovacao do proprietario
+Status: aprovada, implementada e validada em 2026-09-02
 
 Escopo: medir o pipeline e os rule packs sobre o acervo local aprovado, produzir propostas
 auditaveis de calibracao e exportar feedback humano sem fine-tuning, sem alterar regras
@@ -377,24 +377,24 @@ validacao.
 
 ## Criterios de aceite
 
-- [ ] corpus aprovado possui manifesto versionado e identidade por hash;
-- [ ] medicao usa banco temporario e nao altera acervo nem estado de trabalho;
-- [ ] run e imutavel, reproduzivel e cacheado por todas as entradas relevantes;
-- [ ] todas as paginas aparecem nas metricas, inclusive sem view ou regra;
-- [ ] frequencias existem por tipo, escopo, view, elemento, regra e outcome;
-- [ ] findings brutos, suprimidos e efetivos nunca sao colapsados;
-- [ ] reducao por preferencia e demonstrada sem apagar cobertura bruta;
-- [ ] `approved` e `human_verified` permanecem semanticamente distintos;
-- [ ] propostas possuem politica, versoes, racional, amostras e contraexemplos;
-- [ ] proposta nunca altera regra ou preferencia automaticamente;
-- [ ] aprovacao e revogacao sao explicitas, justificadas e auditaveis;
-- [ ] proposta aprovada fica apenas pronta para implementacao posterior;
-- [ ] export portavel separa feedback, decisoes, evidencia e metricas;
-- [ ] memoria explicita, conversas, binarios, segredos e caminhos absolutos ficam fora do export;
-- [ ] central permite inspecionar e decidir sem virar dashboard generico;
-- [ ] suites completas, lint, typecheck e build ficam verdes;
-- [ ] medicao real e fluxo manual principal sao documentados;
-- [ ] nenhuma implementacao da F6 ou alteracao automatica de rule pack entra no milestone.
+- [x] corpus aprovado possui manifesto versionado e identidade por hash;
+- [x] medicao usa banco temporario e nao altera acervo nem estado de trabalho;
+- [x] run e imutavel, reproduzivel e cacheado por todas as entradas relevantes;
+- [x] todas as paginas aparecem nas metricas, inclusive sem view ou regra;
+- [x] frequencias existem por tipo, escopo, view, elemento, regra e outcome;
+- [x] findings brutos, suprimidos e efetivos nunca sao colapsados;
+- [x] reducao por preferencia e demonstrada sem apagar cobertura bruta;
+- [x] `approved` e `human_verified` permanecem semanticamente distintos;
+- [x] propostas possuem politica, versoes, racional, amostras e contraexemplos;
+- [x] proposta nunca altera regra ou preferencia automaticamente;
+- [x] aprovacao e revogacao sao explicitas, justificadas e auditaveis;
+- [x] proposta aprovada fica apenas pronta para implementacao posterior;
+- [x] export portavel separa feedback, decisoes, evidencia e metricas;
+- [x] memoria explicita, conversas, binarios, segredos e caminhos absolutos ficam fora do export;
+- [x] central permite inspecionar e decidir sem virar dashboard generico;
+- [x] suites completas, lint, typecheck e build ficam verdes;
+- [x] medicao real e fluxo manual principal sao documentados;
+- [x] nenhuma implementacao da F6 ou alteracao automatica de rule pack entra no milestone.
 
 ## Fora do escopo
 
@@ -410,5 +410,5 @@ validacao.
 
 ## Gate de aprovacao
 
-Este documento e uma proposta. Nenhuma migration, runner, rota ou interface da F5.3 deve ser
-implementada antes da aprovacao explicita do proprietario, conforme `docs/14-ROADMAP.md`.
+Aprovacao explicita recebida antes da implementacao. O milestone foi encerrado somente depois da
+medicao real, replay de cache, suites completas, build e verificacao manual da terceira aba.

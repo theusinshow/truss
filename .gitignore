@@ -21,6 +21,7 @@ data/originals/*
 data/renders/*
 data/cache/*
 data/geometry/*
+data/calibration/*
 data/knowledge-inbox/*
 data/db/*.bak
 !data/**/.gitkeep

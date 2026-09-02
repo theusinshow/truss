@@ -92,6 +92,22 @@ class Settings(BaseSettings):
     def geometry_dir(self) -> Path:
         return self.data_dir / "geometry"
 
+    @property
+    def calibration_dir(self) -> Path:
+        return self.data_dir / "calibration"
+
+    @property
+    def calibration_analyses_dir(self) -> Path:
+        return self.calibration_dir / "analyses"
+
+    @property
+    def calibration_runs_dir(self) -> Path:
+        return self.calibration_dir / "runs"
+
+    @property
+    def calibration_exports_dir(self) -> Path:
+        return self.calibration_dir / "exports"
+
     def model_post_init(self, __context: object) -> None:
         root_env = _read_root_env()
         truss_openai_api_key = os.getenv("TRUSS_OPENAI_API_KEY") or root_env.get("TRUSS_OPENAI_API_KEY")

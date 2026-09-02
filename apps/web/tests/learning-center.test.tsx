@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LearningCenter } from "@/components/learning/learning-center";
-import type { LearningProposal, RulePreference } from "@/lib/projects-api";
+import type { CalibrationRunDetail, LearningProposal, RulePreference } from "@/lib/projects-api";
 
 
 const source = {
@@ -246,5 +246,66 @@ describe("LearningCenter", () => {
       )
     );
     expect(await screen.findByText("Decisao aprovada")).toBeInTheDocument();
+  });
+
+  it("shows corpus metrics and keeps calibration proposals review-only", async () => {
+    const calibrationRun: CalibrationRunDetail = {
+      id: "run-1",
+      analysis_key: "analysis-key",
+      run_key: "run-key-1234567890",
+      corpus_manifest_hash: "manifest",
+      sheetmap_pipeline_version: "sheetmap-v0.8",
+      audit_pipeline_version: "audit-v0.5",
+      rule_pack_digest: "packs",
+      policy_version: "corpus-calibration-policy-v0.1",
+      preference_digest: "preferences",
+      document_count: 13,
+      page_count: 259,
+      sheet_map_count: 259,
+      evaluation_count: 500,
+      raw_finding_count: 24,
+      suppressed_finding_count: 4,
+      effective_finding_count: 20,
+      artifact_path: "calibration/runs/run-key/report.json",
+      created_at: "2026-09-01T14:00:00Z",
+      metrics: { outcomes: { PASS: 476, FAIL: 24 } },
+      proposals: [
+        {
+          id: "calibration-proposal-1",
+          run_id: "run-1",
+          stable_key: "cal:rule_noise:1",
+          proposal_kind: "rule_noise",
+          sheet_type: "formas",
+          technical_scope: "formas",
+          rule_id: "forms.sheet.has_main_view",
+          title: "Revisar ruido da regra forms.sheet.has_main_view",
+          rationale: "A regra apareceu em dois documentos entregues.",
+          payload: { rule_spec_status: "existing_rule_review" },
+          policy_version: "corpus-calibration-policy-v0.1",
+          created_at: "2026-09-01T14:00:00Z",
+          evidence: [],
+          decision: null,
+          state: "pending"
+        }
+      ]
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.endsWith("/calibration/runs")) return jsonResponse([{ ...calibrationRun, proposals: undefined, metrics: undefined }]);
+        if (url.endsWith("/calibration/runs/run-1")) return jsonResponse(calibrationRun);
+        return jsonResponse([]);
+      })
+    );
+
+    render(<LearningCenter apiBaseUrl="http://api" onClose={vi.fn()} onOpenEvidence={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Calibracao" }));
+
+    expect(await screen.findByText("13 PDF / 259 pag.")).toBeInTheDocument();
+    expect(screen.getAllByText("Revisar ruido da regra forms.sheet.has_main_view")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /Aplicar regra/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Aprovar" }));
+    expect(screen.getByRole("button", { name: "Salvar decisao" })).toBeDisabled();
   });
 });

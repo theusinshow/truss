@@ -1,5 +1,30 @@
 # Decisions
 
+## 2026-09-02 - F5.3 calibrates immutable runs without promoting rules
+
+The approved corpus is identified by `corpus-manifest-v0.1` and preserves two authority levels:
+`delivered_reference` is evidence of representative delivered work but never confirmed-zero
+ground truth; `human_verified_ground_truth` is authoritative only for its explicitly reviewed
+fields. Memories and conversations are not calibration evidence.
+
+Raw analysis is keyed by the corpus manifest, Sheet Map/audit versions, rule-pack digest and
+`corpus-calibration-policy-v0.1`. A derived run adds the active-preference digest, so preference
+changes can recompute raw/suppressed/effective findings without reopening PDFs. Each PDF runs
+through the production importer, Sheet Map and deterministic audit in disposable storage; only a
+complete report and its small immutable SQLite index are published.
+
+Noise proposals require failures in at least two distinct `delivered_reference` documents or
+explicit rejected feedback. Passing evaluations are retained as counterexamples. Approved F5.2
+`draft_rule` decisions may become `checklist_candidate` with `rule_spec_status=needs_design`, and
+approved `retain_rule` decisions may become retention proposals. An F5.3 approval only marks a
+proposal `ready_for_implementation`; it never edits YAML, findings, confidence, severity or
+preferences.
+
+The validated run measured 13 PDFs/259 pages, 1,626 evaluations, 140 raw findings, no active
+suppression and two eligible noise proposals. The portable ZIP contains only manifest, structured
+feedback, F5.1/F5.2/F5.3 decisions, evidence and metrics; it excludes PDFs, images, memories,
+conversations, secrets and absolute paths. An identical replay reused both cache layers.
+
 ## 2026-09-01 - F5.2 derives proposals and snapshots every explicit decision
 
 The learning center is a read model over persisted findings, not a second source of truth. Policy

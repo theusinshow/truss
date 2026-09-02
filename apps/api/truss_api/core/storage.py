@@ -12,6 +12,10 @@ def storage_directories(settings: Settings | None = None) -> tuple[Path, ...]:
         resolved.renders_dir,
         resolved.cache_dir,
         resolved.geometry_dir,
+        resolved.calibration_dir,
+        resolved.calibration_analyses_dir,
+        resolved.calibration_runs_dir,
+        resolved.calibration_exports_dir,
     )
 
 

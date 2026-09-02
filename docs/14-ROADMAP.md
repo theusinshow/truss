@@ -14,7 +14,7 @@ fase aqui nao autoriza mudanca arquitetural nem o avanco de varios milestones em
 | F2 - Vistas e checklist | implementada | vistas com escala e regras deterministicas localizadas | ampliar ground truth positivo para medir precisao e cobertura |
 | F3 - Cruzamento entre folhas | concluida e validada | registry por revisao, continuidade e secoes de pilares | nenhuma no escopo aprovado |
 | F4 - Visao por crops | concluida e validada | triagem multimodal, cache por conteudo e teto de custo | nenhuma no escopo aprovado |
-| F5 - Aprendizado explicito | em andamento | F5.1: preferencias explicitas; F5.2: central, propostas versionadas e snapshots de evidencia | completar calibracao deterministica pelo acervo na F5.3 |
+| F5 - Aprendizado explicito | concluida e validada | F5.1: preferencias; F5.2: propostas; F5.3: corpus versionado, runs imutaveis e export auditavel | nenhuma no escopo aprovado |
 | F6 - Solidez diaria | nao iniciada | - | lote real de 85 folhas do inicio ao fim sem falha |
 
 ## Sequencia de continuidade
@@ -37,6 +37,8 @@ aprendido, e nenhuma preferencia nasce sem aprovacao explicita.
 
 ### F5.3 - Calibracao deterministica pelo acervo aprovado
 
+Status: concluida e validada em 2026-09-02.
+
 Objetivo: usar projetos aprovados para medir e propor melhorias do checklist sem fine-tuning.
 
 - definir o contrato de acervo aprovado e sua separacao de memoria explicita e dataset;
@@ -48,6 +50,12 @@ Objetivo: usar projetos aprovados para medir e propor melhorias do checklist sem
 
 Criterio de aceite: um apontamento rejeitado e aprovado como preferencia nao volta por padrao, e
 as metricas demonstram reducao de falso-positivo sem perda silenciosa de cobertura.
+
+Resultado real: o manifesto reuniu 13 PDFs e 259 paginas; o pipeline produziu 1.626 avaliacoes,
+140 findings brutos, zero suprimidos e 140 efetivos na ausencia de preferencias ativas. As
+frequencias registraram 259 Sheet Maps, 721 views e 2.557 elementos de pilar. Duas propostas de
+ruido atingiram a politica `corpus-calibration-policy-v0.1`, sem alterar rule packs. O replay
+identico reutilizou `analysis_key` e `run_key` sem reprocessar PDFs.
 
 ### F6.1 - Recuperacao e operacao segura
 
@@ -80,5 +88,5 @@ cobranca, 3D decorativo e fine-tuning continuam fora do escopo.
 
 ## Proximo passo
 
-Elaborar e submeter o plano detalhado da F5.3 ao proprietario. Nao implementar a calibracao pelo
-acervo antes dessa aprovacao.
+Elaborar e submeter o plano detalhado da F6.1 ao proprietario. Nao implementar backup,
+restauracao, retomada ou reconstrucao arquitetural antes dessa aprovacao.

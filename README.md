@@ -237,6 +237,36 @@ decisao. `retain_rule` e `draft_rule` registram apenas calibracao futura. Toda d
 lista de evidencias; revogacoes preservam o historico e restauram os findings sem reescrever
 auditorias, PDFs ou Sheet Maps.
 
+## F5.3 - Calibracao deterministica pelo acervo
+
+A calibracao roda somente por comando explicito e processa cada PDF em armazenamento e SQLite
+temporarios. O manifesto `corpus-manifest-v0.1` separa projetos entregues de ground truth humano,
+usa hash de conteudo e combina as versoes de Sheet Map, auditoria, rule packs, politica e
+preferencias em duas chaves: uma para a analise bruta e outra para o run derivado.
+
+```powershell
+$env:PYTHONPATH="apps/api"
+.venv\Scripts\python -m truss_api.calibration.runner measure-approved
+```
+
+A medicao validada reuniu 13 PDFs/259 paginas, 259 Sheet Maps, 1.626 avaliacoes deterministicas,
+721 views e 2.557 pilares. Foram observados 140 findings brutos, zero suprimidos e 140 efetivos,
+com duas propostas de ruido elegiveis. O replay identico reutilizou analise e run sem reabrir os
+PDFs. Projetos entregues continuam sendo referencias de ruido, nao prova de erro zero.
+
+A terceira aba de `Aprendizado local` permite selecionar o run, comparar contagens brutas,
+suprimidas e efetivas, inspecionar crops de amostras/contraexemplos e aprovar, descartar ou reabrir
+uma proposta. Aprovar apenas marca `ready_for_implementation`; nenhum YAML ou rule pack e editado.
+O export portavel pode ser criado pela interface ou pela CLI:
+
+```powershell
+.venv\Scripts\python -m truss_api.calibration.runner export-feedback --run-id <id>
+```
+
+O ZIP contem manifesto, feedback, decisoes, evidencias e metricas. PDFs, imagens, memorias,
+conversas, segredos e caminhos absolutos ficam de fora. Artefatos permanecem locais em
+`data/calibration/` e nao sao versionados.
+
 ## Requisitos locais
 
 - Node.js 20 ou superior

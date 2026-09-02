@@ -194,6 +194,81 @@ export type LearningProposal = {
   decision: LearningDecision | null;
 };
 
+export type CalibrationDecisionValue = "approved" | "dismissed";
+export type CalibrationProposalKind = "rule_noise" | "checklist_candidate" | "rule_retention";
+
+export type CalibrationDecision = {
+  id: string;
+  stable_key: string;
+  proposal_id: string;
+  decision: CalibrationDecisionValue;
+  reason: string;
+  created_at: string;
+  revoked_at: string | null;
+};
+
+export type CalibrationEvidence = {
+  id: string;
+  proposal_id: string;
+  evidence_key: string;
+  evidence_kind: "sample" | "counterexample" | "feedback";
+  document_sha256: string | null;
+  page_index: number | null;
+  sheet_code: string | null;
+  bbox: BoundingBox | null;
+  source_finding_id: string | null;
+  description: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export type CalibrationProposal = {
+  id: string;
+  run_id: string;
+  stable_key: string;
+  proposal_kind: CalibrationProposalKind;
+  sheet_type: string | null;
+  technical_scope: string | null;
+  rule_id: string | null;
+  title: string;
+  rationale: string;
+  payload: Record<string, unknown>;
+  policy_version: string;
+  created_at: string;
+  evidence: CalibrationEvidence[];
+  decision: CalibrationDecision | null;
+  state: "pending" | "ready_for_implementation" | "dismissed";
+};
+
+export type CalibrationRun = {
+  id: string;
+  analysis_key: string;
+  run_key: string;
+  corpus_manifest_hash: string;
+  sheetmap_pipeline_version: string;
+  audit_pipeline_version: string;
+  rule_pack_digest: string;
+  policy_version: string;
+  preference_digest: string;
+  document_count: number;
+  page_count: number;
+  sheet_map_count: number;
+  evaluation_count: number;
+  raw_finding_count: number;
+  suppressed_finding_count: number;
+  effective_finding_count: number;
+  artifact_path: string;
+  created_at: string;
+};
+
+export type CalibrationRunDetail = CalibrationRun & {
+  metrics: {
+    outcomes?: Record<string, number>;
+    rules?: Array<Record<string, unknown>>;
+  };
+  proposals: CalibrationProposal[];
+};
+
 export type PillarLifecycleState = "morre" | "nasce" | "passa";
 
 export function findingLifecycleState(finding: Finding): PillarLifecycleState | null {
@@ -661,6 +736,53 @@ export function revokeLearningDecision(
     `/learning/proposal-decisions/${decisionId}`,
     { method: "DELETE" }
   );
+}
+
+export function listCalibrationRuns(apiBaseUrl: string): Promise<CalibrationRun[]> {
+  return request<CalibrationRun[]>(apiBaseUrl, "/calibration/runs");
+}
+
+export function getCalibrationRun(apiBaseUrl: string, runId: string): Promise<CalibrationRunDetail> {
+  return request<CalibrationRunDetail>(apiBaseUrl, `/calibration/runs/${runId}`);
+}
+
+export function decideCalibrationProposal(
+  apiBaseUrl: string,
+  proposalId: string,
+  decision: CalibrationDecisionValue,
+  reason: string
+): Promise<CalibrationProposal> {
+  return request<CalibrationProposal>(apiBaseUrl, `/calibration/proposals/${proposalId}/decisions`, {
+    method: "POST",
+    body: JSON.stringify({ decision, reason })
+  });
+}
+
+export function revokeCalibrationDecision(
+  apiBaseUrl: string,
+  decisionId: string
+): Promise<CalibrationProposal> {
+  return request<CalibrationProposal>(apiBaseUrl, `/calibration/proposal-decisions/${decisionId}`, {
+    method: "DELETE"
+  });
+}
+
+export function calibrationEvidencePreviewUrl(apiBaseUrl: string, evidenceId: string): string {
+  return `${apiBaseUrl}/calibration/evidence/${evidenceId}/preview`;
+}
+
+export async function downloadCalibrationExport(apiBaseUrl: string, runId: string): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/calibration/runs/${runId}/exports`, { method: "POST" });
+  if (!response.ok) {
+    throw new Error((await response.text()) || `Request failed with status ${response.status}`);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `truss-calibration-${runId}.zip`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 export function createManualFinding(
