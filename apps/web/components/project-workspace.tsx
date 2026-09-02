@@ -1,6 +1,6 @@
 "use client";
 
-import { DragEvent, useEffect, useMemo, useState } from "react";
+import { DragEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   BrainCircuit,
@@ -14,20 +14,23 @@ import {
 import {
   createProject,
   createRevision,
+  BatchCapabilities,
+  BatchRunSummary,
   DocumentDetail,
   getDocument,
+  getBatchCapabilities,
   getProject,
-  importRevisionDocument,
+  importRevisionBatch,
   listProjects,
   listRevisionDocuments,
   ProjectDetail,
   ProjectSummary,
-  runSheetAudit
 } from "@/lib/projects-api";
 import type { EvidenceLocator } from "@/lib/projects-api";
 import { LearningCenter } from "@/components/learning/learning-center";
 import { OperationalError } from "@/components/operations/operational-error";
 import { OperationalStatus } from "@/components/operations/operational-status";
+import { BatchProgress } from "@/components/operations/batch-progress";
 import { SheetViewer } from "@/components/sheet-viewer";
 import { resumeProcessingOperation } from "@/lib/diagnostics-api";
 import { SheetIcon } from "@/components/truss-icons";
@@ -60,12 +63,15 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
   const [workspaceMode, setWorkspaceMode] = useState<"viewer" | "learning">("viewer");
   const [viewerNavigationTarget, setViewerNavigationTarget] = useState<{
     sheetId: string;
-    findingId: string;
+    findingId?: string;
     nonce: number;
   } | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [isResumingOperation, setIsResumingOperation] = useState(false);
   const [operationsRefreshToken, setOperationsRefreshToken] = useState(0);
+  const [batchByRevision, setBatchByRevision] = useState<Record<string, BatchRunSummary>>({});
+  const [batchCapabilities, setBatchCapabilities] = useState<BatchCapabilities | null>(null);
+  const [includeVisualBatch, setIncludeVisualBatch] = useState(false);
 
   const selectedSummary = useMemo(
     () => projects.find((project) => project.id === selectedProject?.id),
@@ -170,6 +176,20 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
     };
   }, [apiBaseUrl]);
 
+  useEffect(() => {
+    let mounted = true;
+    getBatchCapabilities(apiBaseUrl)
+      .then((capabilities) => {
+        if (mounted) setBatchCapabilities(capabilities);
+      })
+      .catch(() => {
+        if (mounted) setBatchCapabilities(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [apiBaseUrl]);
+
   async function handleSelectProject(projectId: string) {
     setError(null);
     const detail = await getProject(apiBaseUrl, projectId);
@@ -224,8 +244,14 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
       });
     }
 
-    setQuickStatus("Importando PDF e extraindo folhas...");
-    const imported = await importRevisionDocument(apiBaseUrl, targetProject.id, targetRevision.id, file);
+    setQuickStatus("Importando PDF e preparando o lote local...");
+    const { document: imported, batch } = await importRevisionBatch(
+      apiBaseUrl,
+      targetProject.id,
+      targetRevision.id,
+      file,
+      includeVisualBatch
+    );
 
     setSelectedProject(await getProject(apiBaseUrl, targetProject.id));
     setSelectedRevisionId(targetRevision.id);
@@ -233,14 +259,23 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
       ...current,
       [targetRevision.id]: [imported, ...(current[targetRevision.id] ?? [])]
     }));
+    setBatchByRevision((current) => ({ ...current, [targetRevision.id]: batch }));
 
-    setQuickStatus(`Rodando verificacoes iniciais em ${imported.sheets.length} folha(s)...`);
-    await Promise.all(imported.sheets.map((sheet) => runSheetAudit(apiBaseUrl, sheet.id)));
-
-    setImportedAuditVersion((current) => current + 1);
-    setQuickStatus("PDF importado, folhas separadas e verificacoes concluidas.");
+    setQuickStatus(`PDF importado. ${imported.sheets.length} folha(s) entraram na fila local.`);
     await refreshProjects(targetProject.id);
   }
+
+  const handleBatchTerminal = useCallback((batch: BatchRunSummary) => {
+    setBatchByRevision((current) => ({ ...current, [batch.revision_id]: batch }));
+    setImportedAuditVersion((current) => current + 1);
+    setQuickStatus(
+      batch.status === "completed"
+        ? "Verificacoes locais concluidas."
+        : batch.status === "completed_with_errors"
+          ? "Verificacoes concluidas com pontos que exigem atencao."
+          : "Processamento interrompido pelo usuario."
+    );
+  }, []);
 
   async function handleQuickFile(file: File | null) {
     if (!file) {
@@ -447,6 +482,35 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
           </span>
         </label>
 
+        {batchCapabilities?.visual_enabled ? (
+          <div className="mb-4 border border-truss-line bg-truss-panel px-4 py-3">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                checked={includeVisualBatch}
+                className="mt-0.5 h-4 w-4 accent-[var(--red)]"
+                onChange={(event) => setIncludeVisualBatch(event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-truss-text">
+                  Incluir triagem visual nesta nova revisão
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-truss-muted">
+                  Opt-in externo: {batchCapabilities.provider} / {batchCapabilities.model} · até{" "}
+                  {batchCapabilities.vision_max_calls_per_revision} chamadas · teto de US${" "}
+                  {batchCapabilities.vision_budget_usd_per_revision.toFixed(2)} · até{" "}
+                  {batchCapabilities.vision_max_candidates_per_sheet} candidatos por folha.
+                </span>
+                {includeVisualBatch ? (
+                  <span className="mt-2 block font-mono text-[11px] uppercase tracking-[0.05em] text-truss-warning">
+                    Confirmado: parar o lote não desfaz uma chamada já enviada; falha visual nunca repete automaticamente.
+                  </span>
+                ) : null}
+              </span>
+            </label>
+          </div>
+        ) : null}
+
         {selectedProject ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border border-truss-line bg-truss-panel px-4 py-3">
@@ -501,12 +565,26 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                 onOpenEvidence={(evidence) => void handleOpenEvidence(evidence)}
               />
             ) : (
-              <SheetViewer
-                apiBaseUrl={apiBaseUrl}
-                documents={selectedDocuments}
-                key={importedAuditVersion}
-                navigationTarget={viewerNavigationTarget}
-              />
+              <>
+                {selectedRevision ? (
+                  <BatchProgress
+                    apiBaseUrl={apiBaseUrl}
+                    initialBatch={batchByRevision[selectedRevision.id] ?? null}
+                    key={`${selectedRevision.id}:${batchByRevision[selectedRevision.id]?.id ?? "latest"}`}
+                    onOpenSheet={(sheetId) =>
+                      setViewerNavigationTarget({ sheetId, nonce: Date.now() })
+                    }
+                    onTerminal={handleBatchTerminal}
+                    revisionId={selectedRevision.id}
+                  />
+                ) : null}
+                <SheetViewer
+                  apiBaseUrl={apiBaseUrl}
+                  documents={selectedDocuments}
+                  key={importedAuditVersion}
+                  navigationTarget={viewerNavigationTarget}
+                />
+              </>
             )}
           </div>
         ) : (

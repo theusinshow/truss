@@ -674,6 +674,127 @@ export async function importRevisionDocument(
   return response.json() as Promise<DocumentDetail>;
 }
 
+export type BatchMode = "local_deterministic" | "with_visual";
+export type BatchStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "completed_with_errors"
+  | "cancel_requested"
+  | "cancelled"
+  | "interrupted";
+export type BatchPhase =
+  | "sheet_map"
+  | "deterministic_audit"
+  | "visual_audit"
+  | "completed";
+
+export type BatchRunSummary = {
+  id: string;
+  project_id: string;
+  revision_id: string;
+  mode: BatchMode;
+  status: BatchStatus;
+  phase: BatchPhase;
+  config: Record<string, unknown>;
+  input_fingerprint: string;
+  pipeline_version: string;
+  total_sheets: number;
+  counts: Record<string, number>;
+  phase_counts: Record<string, Record<string, number>>;
+  cancel_requested_at: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  updated_at: string;
+};
+
+export type BatchItem = {
+  id: string;
+  batch_run_id: string;
+  sheet_id: string;
+  sheet_label: string;
+  sheet_number: number;
+  phase: Exclude<BatchPhase, "completed">;
+  sequence: number;
+  status: string;
+  operation_id: string | null;
+  attempt_count: number;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  updated_at: string;
+};
+
+export type BatchImportResult = {
+  document: DocumentDetail;
+  batch: BatchRunSummary;
+};
+
+export type BatchCapabilities = {
+  visual_enabled: boolean;
+  provider: string;
+  model: string;
+  vision_budget_usd_per_revision: number;
+  vision_max_calls_per_revision: number;
+  vision_max_candidates_per_sheet: number;
+  worker_concurrency: number;
+  visual_concurrency: number;
+};
+
+export function getBatchCapabilities(apiBaseUrl: string): Promise<BatchCapabilities> {
+  return request<BatchCapabilities>(apiBaseUrl, "/batch-capabilities");
+}
+
+export async function importRevisionBatch(
+  apiBaseUrl: string,
+  projectId: string,
+  revisionId: string,
+  file: File,
+  includeVisual = false
+): Promise<BatchImportResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("include_visual", String(includeVisual));
+  const response = await fetch(
+    `${apiBaseUrl}/projects/${projectId}/revisions/${revisionId}/batch-imports`,
+    { method: "POST", body: formData }
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response);
+  }
+  return response.json() as Promise<BatchImportResult>;
+}
+
+export function listRevisionBatchRuns(
+  apiBaseUrl: string,
+  revisionId: string
+): Promise<BatchRunSummary[]> {
+  return request<BatchRunSummary[]>(apiBaseUrl, `/revisions/${revisionId}/batch-runs`);
+}
+
+export function getBatchRun(apiBaseUrl: string, batchRunId: string): Promise<BatchRunSummary> {
+  return request<BatchRunSummary>(apiBaseUrl, `/batch-runs/${batchRunId}`);
+}
+
+export function listBatchItems(apiBaseUrl: string, batchRunId: string): Promise<BatchItem[]> {
+  return request<BatchItem[]>(apiBaseUrl, `/batch-runs/${batchRunId}/items?limit=500`);
+}
+
+export function cancelBatchRun(apiBaseUrl: string, batchRunId: string): Promise<BatchRunSummary> {
+  return request<BatchRunSummary>(apiBaseUrl, `/batch-runs/${batchRunId}/cancel`, {
+    method: "POST"
+  });
+}
+
+export function resumeBatchRun(apiBaseUrl: string, batchRunId: string): Promise<BatchRunSummary> {
+  return request<BatchRunSummary>(apiBaseUrl, `/batch-runs/${batchRunId}/resume`, {
+    method: "POST"
+  });
+}
+
 export function runSheetAudit(apiBaseUrl: string, sheetId: string): Promise<AuditRun> {
   return request<AuditRun>(apiBaseUrl, `/sheets/${sheetId}/audit-runs`, {
     method: "POST"

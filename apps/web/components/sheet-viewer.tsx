@@ -94,7 +94,7 @@ type SheetViewerProps = {
   documents: DocumentDetail[];
   navigationTarget?: {
     sheetId: string;
-    findingId: string;
+    findingId?: string;
     nonce: number;
   } | null;
 };
@@ -1868,6 +1868,7 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
   useEffect(() => {
     if (
       !navigationTarget ||
+      !navigationTarget.findingId ||
       navigationTarget.sheetId !== resolvedSheetId ||
       handledNavigationNonceRef.current === navigationTarget.nonce
     ) {
