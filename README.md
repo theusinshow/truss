@@ -220,6 +220,23 @@ resultados afetados aparecem no filtro `Silenciados`, preservando bbox, evidenci
 Reativar a regra grava a revogacao e faz os findings voltarem ao fluxo normal. Achados manuais,
 regras sem rastreabilidade e folhas nao classificadas nunca geram preferencia.
 
+## F5.2 - Central de preferencias e propostas
+
+A central `Aprendizado local` torna preferencias ativas e revogadas inspecionaveis, com regra,
+tipo de prancha, justificativa, datas e localizador exato do finding no PDF. A navegacao volta ao
+viewer, troca projeto/revisao/folha quando necessario e foca a bbox persistida em pontos PDF.
+
+Propostas sao derivadas deterministicamente dos feedbacks por `learning-policy-v0.1`: rejeicoes
+ou confirmacoes de uma regra automatica usam chave por tipo de prancha e `rule_id`; achados
+manuais exigem assinatura textual normalizada exata. Os limiares exigem folhas distintas e, para
+regras automaticas, razao minima de 75%. Abrir a central nao grava dados e nenhuma proposta entra
+em vigor sozinha.
+
+Somente a aprovacao explicita de `suppress_rule` cria uma preferencia, na mesma transacao da
+decisao. `retain_rule` e `draft_rule` registram apenas calibracao futura. Toda decisao congela sua
+lista de evidencias; revogacoes preservam o historico e restauram os findings sem reescrever
+auditorias, PDFs ou Sheet Maps.
+
 ## Requisitos locais
 
 - Node.js 20 ou superior

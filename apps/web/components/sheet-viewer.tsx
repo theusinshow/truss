@@ -92,6 +92,11 @@ import { ConfidenceBadge, Kbd, SeverityBadge, StatusBadge, TypeBadge } from "@/c
 type SheetViewerProps = {
   apiBaseUrl: string;
   documents: DocumentDetail[];
+  navigationTarget?: {
+    sheetId: string;
+    findingId: string;
+    nonce: number;
+  } | null;
 };
 
 type CanvasFinding = Finding & {
@@ -556,7 +561,7 @@ function FindingEvidence({ finding }: { finding: Finding }) {
   );
 }
 
-export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
+export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetViewerProps) {
   const sheets = useMemo(
     () =>
       documents.flatMap((document) =>
@@ -630,6 +635,7 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
   const pointersRef = useRef<Map<number, Point>>(new Map());
   const rafRef = useRef<number | null>(null);
   const chatAbortRef = useRef<AbortController | null>(null);
+  const handledNavigationNonceRef = useRef<number | null>(null);
 
   const activeSheet = sheets.find((sheet) => sheet.id === activeSheetId) ?? sheets[0] ?? null;
   const resolvedSheetId = activeSheet?.id ?? "";
@@ -1842,6 +1848,41 @@ export function SheetViewer({ apiBaseUrl, documents }: SheetViewerProps) {
     // resetView reads current canvas refs intentionally after the sheet render has settled.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSheet, apiBaseUrl]);
+
+  useEffect(() => {
+    if (!navigationTarget) {
+      return;
+    }
+    const targetSheet = sheets.find((sheet) => sheet.id === navigationTarget.sheetId);
+    if (targetSheet && targetSheet.id !== resolvedSheetId) {
+      const frame = window.requestAnimationFrame(() => setActiveSheetId(targetSheet.id));
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [navigationTarget, resolvedSheetId, sheets]);
+
+  useEffect(() => {
+    if (
+      !navigationTarget ||
+      navigationTarget.sheetId !== resolvedSheetId ||
+      handledNavigationNonceRef.current === navigationTarget.nonce
+    ) {
+      return;
+    }
+    const finding = findings.find((item) => item.id === navigationTarget.findingId);
+    if (!finding) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      handledNavigationNonceRef.current = navigationTarget.nonce;
+      if (finding.suppressed) {
+        setShowSuppressed(true);
+      }
+      focusFinding(finding);
+    });
+    return () => window.cancelAnimationFrame(frame);
+    // focusFinding intentionally reads the settled canvas refs after sheet and findings load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [findings, navigationTarget, resolvedSheetId]);
 
   useEffect(() => {
     let isMounted = true;

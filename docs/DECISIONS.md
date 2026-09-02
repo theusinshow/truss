@@ -1,5 +1,25 @@
 # Decisions
 
+## 2026-09-01 - F5.2 derives proposals and snapshots every explicit decision
+
+The learning center is a read model over persisted findings, not a second source of truth. Policy
+`learning-policy-v0.1` groups automatic feedback by classified sheet type and stable `rule_id`, and
+manual findings by an exact normalized signature. Suppression requires 2 rejected findings on 2
+distinct sheets and a rejection ratio of at least 75%; retention requires 3 confirmations on 2
+sheets and the same ratio; a manual draft requires 3 occurrences on 2 sheets. Below-threshold
+groups remain inspectable but are not ready proposals.
+
+Opening or filtering the center never writes data. An owner decision stores its reason, policy
+version and immutable evidence membership in `learning_proposal_decisions` and
+`learning_proposal_evidence`. If later finding status changes, the active decision remains visible
+from that snapshot. Revocation timestamps the decision instead of deleting its audit trail.
+
+Only explicit approval of `suppress_rule` changes runtime behavior, by creating the existing
+sheet-type rule preference in the same transaction. `retain_rule` and `draft_rule` are
+calibration-only records in F5.2; they do not edit findings, confidence, severity or rule packs.
+Every preference and proposal evidence exposes project, revision, document, sheet and canonical
+PDF-point bbox so the viewer can open and focus the exact source.
+
 ## 2026-09-01 - F5.1 learns only through explicit, revocable rule preferences
 
 A rejected finding remains feedback about one occurrence. It never changes audit behavior by

@@ -9,6 +9,7 @@ from truss_api.core.storage import ensure_storage_layout
 from truss_api.db.schema import initialize_database
 from truss_api.documents.routes import router as documents_router
 from truss_api.health.routes import router as health_router
+from truss_api.learning.routes import router as learning_router
 from truss_api.projects.routes import router as projects_router
 from truss_api.preferences.routes import router as preferences_router
 from truss_api.sheetmap.routes import router as sheetmap_router
@@ -48,3 +49,4 @@ app.include_router(sheetmap_router)
 app.include_router(audit_router)
 app.include_router(assistant_router)
 app.include_router(preferences_router)
+app.include_router(learning_router)

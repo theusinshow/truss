@@ -14,12 +14,14 @@ fase aqui nao autoriza mudanca arquitetural nem o avanco de varios milestones em
 | F2 - Vistas e checklist | implementada | vistas com escala e regras deterministicas localizadas | ampliar ground truth positivo para medir precisao e cobertura |
 | F3 - Cruzamento entre folhas | concluida e validada | registry por revisao, continuidade e secoes de pilares | nenhuma no escopo aprovado |
 | F4 - Visao por crops | concluida e validada | triagem multimodal, cache por conteudo e teto de custo | nenhuma no escopo aprovado |
-| F5 - Aprendizado explicito | em andamento | F5.1: supressao explicita, visivel e revogavel por tipo de prancha | completar propostas por evidencia e calibracao pelo acervo |
+| F5 - Aprendizado explicito | em andamento | F5.1: preferencias explicitas; F5.2: central, propostas versionadas e snapshots de evidencia | completar calibracao deterministica pelo acervo na F5.3 |
 | F6 - Solidez diaria | nao iniciada | - | lote real de 85 folhas do inicio ao fim sem falha |
 
 ## Sequencia de continuidade
 
 ### F5.2 - Central de preferencias e propostas
+
+Status: concluida e validada em 2026-09-01.
 
 Objetivo: tornar todas as decisoes aprendidas inspecionaveis sem transformar o produto em um
 painel administrativo generico.
@@ -78,5 +80,5 @@ cobranca, 3D decorativo e fine-tuning continuam fora do escopo.
 
 ## Proximo passo
 
-Depois do fechamento da F5.1, elaborar e submeter o plano detalhado da F5.2 ao proprietario. Nao
-implementar a F5.2 antes dessa aprovacao.
+Elaborar e submeter o plano detalhado da F5.3 ao proprietario. Nao implementar a calibracao pelo
+acervo antes dessa aprovacao.

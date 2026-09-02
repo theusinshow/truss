@@ -1,0 +1,1 @@
+"""Deterministic, explicit learning proposals."""

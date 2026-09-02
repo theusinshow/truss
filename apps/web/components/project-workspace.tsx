@@ -3,6 +3,7 @@
 import { DragEvent, useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  BrainCircuit,
   ClipboardCheck,
   Database,
   FileUp,
@@ -23,6 +24,8 @@ import {
   ProjectSummary,
   runSheetAudit
 } from "@/lib/projects-api";
+import type { EvidenceLocator } from "@/lib/projects-api";
+import { LearningCenter } from "@/components/learning/learning-center";
 import { SheetViewer } from "@/components/sheet-viewer";
 import { SheetIcon } from "@/components/truss-icons";
 
@@ -51,6 +54,12 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
   const [isDraggingPdf, setIsDraggingPdf] = useState(false);
   const [quickStatus, setQuickStatus] = useState("");
   const [importedAuditVersion, setImportedAuditVersion] = useState(0);
+  const [workspaceMode, setWorkspaceMode] = useState<"viewer" | "learning">("viewer");
+  const [viewerNavigationTarget, setViewerNavigationTarget] = useState<{
+    sheetId: string;
+    findingId: string;
+    nonce: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const selectedSummary = useMemo(
@@ -254,6 +263,39 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
     void handleQuickFile(file);
   }
 
+  async function handleOpenEvidence(evidence: EvidenceLocator) {
+    setError(null);
+    try {
+      const detail = await getProject(apiBaseUrl, evidence.project_id);
+      const documents = await listRevisionDocuments(
+        apiBaseUrl,
+        evidence.project_id,
+        evidence.revision_id
+      );
+      const documentDetails = await Promise.all(
+        documents.map((document) => getDocument(apiBaseUrl, document.id))
+      );
+      setSelectedProject(detail);
+      setSelectedRevisionId(evidence.revision_id);
+      setDocumentsByRevision((current) => ({
+        ...current,
+        [evidence.revision_id]: documentDetails
+      }));
+      setViewerNavigationTarget({
+        sheetId: evidence.sheet_id,
+        findingId: evidence.finding_id,
+        nonce: Date.now()
+      });
+      setWorkspaceMode("viewer");
+    } catch (navigationError) {
+      setError(
+        navigationError instanceof Error
+          ? navigationError.message
+          : "Falha ao localizar a evidencia no PDF."
+      );
+    }
+  }
+
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 bg-truss-base/70 lg:grid-cols-[296px_minmax(0,1fr)]">
       <aside className="border-b border-truss-line bg-truss-raised lg:border-b-0 lg:border-r">
@@ -386,6 +428,20 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                 </h2>
               </div>
               <div className="flex flex-wrap items-center gap-3">
+                <button
+                  aria-pressed={workspaceMode === "learning"}
+                  className="truss-button data-[active=true]:border-truss-accent/55 data-[active=true]:bg-truss-accentSoft data-[active=true]:text-truss-text"
+                  data-active={workspaceMode === "learning"}
+                  onClick={() =>
+                    setWorkspaceMode((current) =>
+                      current === "viewer" ? "learning" : "viewer"
+                    )
+                  }
+                  type="button"
+                >
+                  <BrainCircuit aria-hidden="true" className="truss-icon h-4 w-4" />
+                  {workspaceMode === "learning" ? "Voltar ao PDF" : "Aprendizado local"}
+                </button>
                 <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.06em] text-truss-subtle">
                   <Database aria-hidden="true" className="truss-icon h-4 w-4 text-truss-accent" />
                   {selectedSummary?.latest_revision_code ?? "Sem revisao"}
@@ -409,11 +465,20 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
               </div>
             </div>
 
-            <SheetViewer
-              apiBaseUrl={apiBaseUrl}
-              documents={selectedDocuments}
-              key={importedAuditVersion}
-            />
+            {workspaceMode === "learning" ? (
+              <LearningCenter
+                apiBaseUrl={apiBaseUrl}
+                onClose={() => setWorkspaceMode("viewer")}
+                onOpenEvidence={(evidence) => void handleOpenEvidence(evidence)}
+              />
+            ) : (
+              <SheetViewer
+                apiBaseUrl={apiBaseUrl}
+                documents={selectedDocuments}
+                key={importedAuditVersion}
+                navigationTarget={viewerNavigationTarget}
+              />
+            )}
           </div>
         ) : (
           <div className="flex min-h-[520px] items-center justify-center border border-dashed border-truss-line bg-truss-panel p-6 text-center">

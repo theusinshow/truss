@@ -28,6 +28,8 @@ def test_apply_migrations_creates_schema_and_is_idempotent(tmp_path: Path) -> No
         "sheet_map_scopes",
         "sheet_elements",
         "rule_preferences",
+        "learning_proposal_decisions",
+        "learning_proposal_evidence",
     } <= _table_names(settings)
     with transaction(settings) as connection:
         view_columns = {

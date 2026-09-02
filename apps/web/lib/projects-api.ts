@@ -116,6 +116,82 @@ export type RulePreference = {
   created_at: string;
   revoked_at: string | null;
   active: boolean;
+  source: PreferenceSource | null;
+};
+
+export type EvidenceLocator = {
+  finding_id: string;
+  project_id: string;
+  project_name: string;
+  revision_id: string;
+  revision_code: string;
+  document_id: string;
+  document_name: string;
+  sheet_id: string;
+  sheet_label: string;
+  sheet_number: number;
+  sheet_code: string | null;
+  bbox: BoundingBox;
+  description: string;
+  rejection_reason: string | null;
+};
+
+export type PreferenceSource = EvidenceLocator;
+
+export type LearningProposalKind = "suppress_rule" | "retain_rule" | "draft_rule";
+export type LearningProposalState = "insufficient" | "pending" | "approved" | "dismissed";
+export type LearningDecisionValue = "approved" | "dismissed";
+export type LearningSignalKind = "confirmed" | "rejected" | "manual";
+
+export type LearningEvidence = EvidenceLocator & {
+  signal_kind: LearningSignalKind;
+  sheet_type: string;
+  rule_id: string | null;
+  finding_status: string;
+  created_at: string;
+};
+
+export type LearningDecision = {
+  id: string;
+  stable_key: string;
+  proposal_kind: LearningProposalKind;
+  decision: LearningDecisionValue;
+  reason: string;
+  policy_version: string;
+  preference_id: string | null;
+  preference_active: boolean;
+  evidence_count: number;
+  created_at: string;
+  revoked_at: string | null;
+  active: boolean;
+};
+
+export type LearningProposal = {
+  stable_key: string;
+  proposal_kind: LearningProposalKind;
+  state: LearningProposalState;
+  effect: "suppresses_findings" | "calibration_only";
+  policy_version: string;
+  sheet_type: string;
+  rule_id: string | null;
+  normalized_description: string | null;
+  evidence_count: number;
+  confirmed_count: number;
+  rejected_count: number;
+  manual_count: number;
+  distinct_sheet_count: number;
+  distinct_revision_count: number;
+  distinct_project_count: number;
+  observed_ratio: number | null;
+  threshold: {
+    minimum_evidence: number;
+    minimum_sheets: number;
+    minimum_ratio: number | null;
+  };
+  threshold_reached: boolean;
+  active_preference_id: string | null;
+  evidence: LearningEvidence[];
+  decision: LearningDecision | null;
 };
 
 export type PillarLifecycleState = "morre" | "nasce" | "passa";
@@ -530,6 +606,61 @@ export function revokeRulePreference(
   return request<RulePreference>(apiBaseUrl, `/rule-preferences/${preferenceId}`, {
     method: "DELETE"
   });
+}
+
+export function listRulePreferences(
+  apiBaseUrl: string,
+  status: "active" | "revoked" | "all" = "all"
+): Promise<RulePreference[]> {
+  return request<RulePreference[]>(apiBaseUrl, `/rule-preferences?status=${status}`);
+}
+
+export function reactivateRulePreference(
+  apiBaseUrl: string,
+  preferenceId: string
+): Promise<RulePreference> {
+  return request<RulePreference>(
+    apiBaseUrl,
+    `/rule-preferences/${preferenceId}/reactivate`,
+    { method: "POST" }
+  );
+}
+
+export function listLearningProposals(
+  apiBaseUrl: string,
+  includeInsufficient = true
+): Promise<LearningProposal[]> {
+  return request<LearningProposal[]>(
+    apiBaseUrl,
+    `/learning/proposals?include_insufficient=${includeInsufficient}`
+  );
+}
+
+export function decideLearningProposal(
+  apiBaseUrl: string,
+  stableKey: string,
+  decision: LearningDecisionValue,
+  reason: string
+): Promise<LearningProposal> {
+  return request<LearningProposal>(
+    apiBaseUrl,
+    `/learning/proposals/${encodeURIComponent(stableKey)}/decisions`,
+    {
+      method: "POST",
+      body: JSON.stringify({ decision, reason })
+    }
+  );
+}
+
+export function revokeLearningDecision(
+  apiBaseUrl: string,
+  decisionId: string
+): Promise<LearningProposal> {
+  return request<LearningProposal>(
+    apiBaseUrl,
+    `/learning/proposal-decisions/${decisionId}`,
+    { method: "DELETE" }
+  );
 }
 
 export function createManualFinding(
