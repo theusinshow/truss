@@ -6,18 +6,16 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Copy,
   Eye,
   EyeOff,
   LayoutGrid,
   Maximize2,
+  MessageSquare,
   Minus,
+  MoreHorizontal,
   Plus,
-  Redo2,
-  RotateCcw,
-  ScanSearch,
-  Trash2,
-  Undo2,
+  SlidersHorizontal,
+  Sparkles,
   X
 } from "lucide-react";
 
@@ -41,6 +39,7 @@ import {
 } from "@/lib/canvas-navigation";
 import {
   AuditCoverage,
+  BatchItem,
   auditCoverageSummary,
   canProposeRulePreference,
   createMessageFeedback,
@@ -52,6 +51,7 @@ import {
   findingElementLabel,
   findingLevelTransition,
   findingLifecycleState,
+  findingOverlayPresentation,
   findingSectionTransition,
   findingSheetTransition,
   findingSourceLabel,
@@ -64,8 +64,7 @@ import {
   listSheetFindings,
   listSheetConversations,
   PersistedChatMessage,
-  runSheetAudit,
-  runSheetVisionAudit,
+  runSheetAIReview,
   revokeRulePreference,
   Sheet,
   sheetIdentityLabel,
@@ -92,6 +91,7 @@ import { ConfidenceBadge, Kbd, SeverityBadge, StatusBadge, TypeBadge } from "@/c
 type SheetViewerProps = {
   apiBaseUrl: string;
   documents: DocumentDetail[];
+  reviewItems?: BatchItem[];
   navigationTarget?: {
     sheetId: string;
     findingId?: string;
@@ -107,7 +107,7 @@ const INTRO_CHAT_TURN: ChatTurn = {
   id: "intro",
   role: "truss",
   text:
-    "Estou lendo a prancha ativa. Peca para revisar, explicar achados, navegar ou registrar uma suspeita manual."
+    "Posso explicar os achados da IA, responder sobre a prancha ativa ou ajudar a registrar uma suspeita manual."
 };
 
 type Interaction =
@@ -184,6 +184,15 @@ function findingSummary(findings: Finding[]) {
 
 function firstUnsuppressedFinding(findings: Finding[]): Finding | null {
   return findings.find((finding) => !finding.suppressed) ?? null;
+}
+
+function reviewStatusLabel(item?: BatchItem) {
+  if (!item) return "não iniciada";
+  if (item.status === "completed") return "concluída";
+  if (item.status === "running") return "analisando";
+  if (item.status === "failed") return "falhou";
+  if (item.status === "cancelled") return "cancelada";
+  return "na fila";
 }
 
 function chatTurnsFromPersistedMessages(messages: PersistedChatMessage[]): ChatTurn[] {
@@ -281,22 +290,12 @@ function cloneFinding(finding: CanvasFinding, offset: Point): CanvasFinding {
 }
 
 function ZoomControls({
-  canRedo,
-  canUndo,
   onFit,
-  onRedo,
-  onReset,
-  onUndo,
   onZoomIn,
   onZoomOut,
   zoom
 }: {
-  canRedo: boolean;
-  canUndo: boolean;
   onFit: () => void;
-  onRedo: () => void;
-  onReset: () => void;
-  onUndo: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   zoom: number;
@@ -324,20 +323,9 @@ function ZoomControls({
           <Plus aria-hidden="true" className="truss-icon h-4 w-4" />
         </button>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid">
         <button aria-label="Fit View, F" className="truss-button h-[34px] min-h-[34px] px-3 font-mono text-[10.5px]" onClick={onFit} title="Fit View, F" type="button">
           Fit
-        </button>
-        <button aria-label="Reset View, Ctrl+0" className="truss-button h-[34px] min-h-[34px] px-3 font-mono text-[10.5px]" onClick={onReset} title="Reset View, Ctrl+0" type="button">
-          Reset
-        </button>
-      </div>
-      <div className="truss-segment justify-self-end shadow-truss-panel">
-        <button aria-label="Undo, Ctrl+Z" className="truss-icon-button border-0 disabled:opacity-40" disabled={!canUndo} onClick={onUndo} title="Undo, Ctrl+Z" type="button">
-          <Undo2 aria-hidden="true" className="truss-icon h-4 w-4" />
-        </button>
-        <button aria-label="Redo, Ctrl+Shift+Z" className="truss-icon-button border-0 disabled:opacity-40" disabled={!canRedo} onClick={onRedo} title="Redo, Ctrl+Shift+Z" type="button">
-          <Redo2 aria-hidden="true" className="truss-icon h-4 w-4" />
         </button>
       </div>
     </div>
@@ -561,7 +549,7 @@ function FindingEvidence({ finding }: { finding: Finding }) {
   );
 }
 
-export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetViewerProps) {
+export function SheetViewer({ apiBaseUrl, documents, navigationTarget, reviewItems = [] }: SheetViewerProps) {
   const unavailableDocuments = documents.filter(
     (document) => document.source_status === "SOURCE_UNAVAILABLE"
   );
@@ -589,14 +577,15 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
   const [selectedIds, setSelectedIdsState] = useState<Set<string>>(new Set());
   const [activeFindingId, setActiveFindingId] = useState("");
   const [showFindings, setShowFindings] = useState(true);
-  const [showViews, setShowViews] = useState(true);
+  const [showViews, setShowViews] = useState(false);
   const [showSuppressed, setShowSuppressed] = useState(false);
+  const [showSupportFindings, setShowSupportFindings] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [auditCoverage, setAuditCoverage] = useState<AuditCoverage | null>(null);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
-  const [showMinimap, setShowMinimap] = useState(true);
+  const [showMinimap, setShowMinimap] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [isAuditing, setIsAuditing] = useState(false);
-  const [isVisionAuditing, setIsVisionAuditing] = useState(false);
-  const [visionCoverage, setVisionCoverage] = useState<AuditCoverage | null>(null);
   const [manualMode, setManualMode] = useState(false);
   const [statusFilter, setStatusFilter] = useState<FindingStatus | "all">("all");
   const [severityFilter, setSeverityFilter] = useState<FindingSeverity | "all">("all");
@@ -625,7 +614,7 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
   const [rejectFindingId, setRejectFindingId] = useState("");
   const [isSavingFeedback, setIsSavingFeedback] = useState(false);
   const [isSavingPreference, setIsSavingPreference] = useState(false);
-  const [historyState, setHistoryState] = useState({ canRedo: false, canUndo: false });
+  const [, setHistoryState] = useState({ canRedo: false, canUndo: false });
   const [canvasSizeState, setCanvasSizeState] = useState({ height: 1, width: 1 });
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef(viewport);
@@ -645,6 +634,12 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
   const activeSheet = sheets.find((sheet) => sheet.id === activeSheetId) ?? sheets[0] ?? null;
   const resolvedSheetId = activeSheet?.id ?? "";
   const activeIndex = activeSheet ? sheets.findIndex((sheet) => sheet.id === activeSheet.id) : -1;
+  const reviewItemBySheet = useMemo(
+    () => new Map(reviewItems.map((item) => [item.sheet_id, item])),
+    [reviewItems]
+  );
+  const activeReviewItem = activeSheet ? reviewItemBySheet.get(activeSheet.id) : undefined;
+  const completedReviewCount = reviewItems.filter((item) => item.status === "completed").length;
   const sheetBounds = activeSheet
     ? {
         x0: 0,
@@ -653,8 +648,15 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
         y1: activeSheet.height_pt
       }
     : null;
-  const suppressedCount = findings.filter((finding) => finding.suppressed).length;
-  const filteredFindings = findings.filter(
+  const hasAIReviewFindings = findings.some((finding) => finding.source_layer === "ai_review");
+  const supportFindingCount = hasAIReviewFindings
+    ? findings.filter((finding) => finding.source_layer !== "ai_review" && finding.origin !== "human").length
+    : 0;
+  const primaryFindings = hasAIReviewFindings && !showSupportFindings
+    ? findings.filter((finding) => finding.source_layer === "ai_review" || finding.origin === "human")
+    : findings;
+  const suppressedCount = primaryFindings.filter((finding) => finding.suppressed).length;
+  const filteredFindings = primaryFindings.filter(
     (finding) =>
       (showSuppressed || !finding.suppressed) &&
       (statusFilter === "all" || finding.status === statusFilter) &&
@@ -667,7 +669,7 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
     filteredFindings[0] ??
     null;
   const activeFindingIndex = activeFinding
-    ? findings.findIndex((finding) => finding.id === activeFinding.id)
+    ? filteredFindings.findIndex((finding) => finding.id === activeFinding.id)
     : -1;
   const marqueeRect =
     interaction?.type === "marquee" || interaction?.type === "manual"
@@ -754,23 +756,13 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
     );
   }
 
-  const chatActivity: AgentActivity = isVisionAuditing
+  const chatActivity: AgentActivity = isAuditing
     ? {
         state: "using-tool",
-        title: "Analisando crops visuais",
-        steps: [
-          { id: "candidates", label: "Candidatos geometricos preparados", state: "done" },
-          { id: "vision", label: "Avaliando crops dentro do teto", state: "active" },
-          { id: "findings", label: "Persistindo hipoteses localizadas", state: "queued" }
-        ]
-      }
-    : isAuditing
-    ? {
-        state: "using-tool",
-        title: "Auditando prancha",
+        title: "Revisando prancha com IA",
         steps: [
           { id: "sheet", label: "Folha ativa carregada", state: "done" },
-          { id: "audit", label: "Executando auditoria no backend", state: "active" },
+          { id: "audit", label: "Analisando imagem e contexto técnico", state: "active" },
           { id: "findings", label: "Atualizando achados", state: "queued" }
         ]
       }
@@ -928,7 +920,7 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
   }
 
   function startNewConversation() {
-    if (isChatting || isAuditing || isVisionAuditing) {
+    if (isChatting || isAuditing) {
       return;
     }
 
@@ -939,7 +931,7 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
   }
 
   async function loadConversationHistory(nextConversationId: string) {
-    if (isChatting || isAuditing || isVisionAuditing || nextConversationId === conversationId) {
+    if (isChatting || isAuditing || nextConversationId === conversationId) {
       return;
     }
 
@@ -1322,67 +1314,29 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
     setError(null);
 
     try {
-      const auditRun = await runSheetAudit(apiBaseUrl, activeSheet.id);
+      const auditRun = await runSheetAIReview(apiBaseUrl, activeSheet.id);
       const firstFinding = firstUnsuppressedFinding(auditRun.findings);
       findingsRef.current = auditRun.findings;
       setFindings(auditRun.findings);
       setAuditCoverage(auditRun.coverage ?? null);
-      setSelectedIds(new Set(firstFinding ? [firstFinding.id] : []));
+      setSelectedIds(new Set());
       setActiveFindingId(firstFinding?.id ?? "");
       setShowSuppressed(false);
       setShowFindings(true);
       appendTurn({
         role: "truss",
         tone: auditRun.findings.length > 0 ? "success" : "default",
-        text: [findingSummary(auditRun.findings), auditCoverageSummary(auditRun.coverage)]
+        text: ["Revisão por IA concluída.", findingSummary(auditRun.findings), auditCoverageSummary(auditRun.coverage)]
           .filter(Boolean)
           .join(" ")
       });
     } catch (auditError) {
       const message =
-        auditError instanceof Error ? auditError.message : "Falha ao executar auditoria.";
+        auditError instanceof Error ? auditError.message : "Falha ao executar revisão por IA.";
       setError(message);
       appendTurn({ role: "truss", tone: "error", text: message });
     } finally {
       setIsAuditing(false);
-    }
-  }
-
-  async function runVisionAuditFromToolbar() {
-    if (!activeSheet) {
-      return;
-    }
-
-    setIsVisionAuditing(true);
-    setError(null);
-    try {
-      const auditRun = await runSheetVisionAudit(apiBaseUrl, activeSheet.id);
-      const merged = new Map(findingsRef.current.map((finding) => [finding.id, finding]));
-      auditRun.findings.forEach((finding) => merged.set(finding.id, finding));
-      const nextFindings = Array.from(merged.values());
-      const firstFinding = firstUnsuppressedFinding(auditRun.findings);
-      findingsRef.current = nextFindings;
-      setFindings(nextFindings);
-      setVisionCoverage(auditRun.coverage ?? null);
-      if (firstFinding) {
-        setSelectedIds(new Set([firstFinding.id]));
-        setActiveFindingId(firstFinding.id);
-      }
-      setShowFindings(true);
-      appendTurn({
-        role: "truss",
-        tone: auditRun.findings.length > 0 ? "success" : "default",
-        text: `Visao por crops: ${[findingSummary(auditRun.findings), auditCoverageSummary(auditRun.coverage)]
-          .filter(Boolean)
-          .join(" ")}`
-      });
-    } catch (visionError) {
-      const message =
-        visionError instanceof Error ? visionError.message : "Falha ao executar analise visual.";
-      setError(message);
-      appendTurn({ role: "truss", tone: "error", text: message });
-    } finally {
-      setIsVisionAuditing(false);
     }
   }
 
@@ -1720,12 +1674,12 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
   }
 
   function moveFinding(offset: number) {
-    if (activeFindingIndex < 0 || findings.length === 0) {
+    if (activeFindingIndex < 0 || filteredFindings.length === 0) {
       return;
     }
 
-    const nextIndex = (activeFindingIndex + offset + findings.length) % findings.length;
-    focusFinding(findings[nextIndex]);
+    const nextIndex = (activeFindingIndex + offset + filteredFindings.length) % filteredFindings.length;
+    focusFinding(filteredFindings[nextIndex]);
   }
 
   useEffect(() => {
@@ -1829,14 +1783,16 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
           const firstFinding = firstUnsuppressedFinding(sheetFindings);
           findingsRef.current = sheetFindings;
           setFindings(sheetFindings);
-          setSelectedIds(new Set(firstFinding ? [firstFinding.id] : []));
+          setSelectedIds(new Set());
           setActiveFindingId(firstFinding?.id ?? "");
           setShowSuppressed(false);
+          setShowSupportFindings(false);
+          setFiltersOpen(false);
           setManualDraft(null);
           setCursorWorld(null);
           setMutedContextIds(new Set());
           setConversationId("");
-          window.requestAnimationFrame(() => resetView());
+          window.requestAnimationFrame(() => fitView());
         }
       } catch (loadError) {
         if (isMounted) {
@@ -1850,7 +1806,7 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
     return () => {
       isMounted = false;
     };
-    // resetView reads current canvas refs intentionally after the sheet render has settled.
+    // fitView reads current canvas refs intentionally after the sheet render has settled.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSheet, apiBaseUrl]);
 
@@ -2100,43 +2056,10 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            aria-label="Mostrar ou ocultar achados"
-            aria-pressed={showFindings}
-            className="truss-icon-button"
-            data-active={showFindings}
-            onClick={() => setShowFindings((current) => !current)}
-            title="Mostrar ou ocultar achados"
-            type="button"
-          >
-            {showFindings ? (
-              <Eye aria-hidden="true" className="truss-icon h-4 w-4" />
-            ) : (
-              <EyeOff aria-hidden="true" className="truss-icon h-4 w-4" />
-            )}
-          </button>
-          <button
-            aria-label="Mostrar ou ocultar views"
-            aria-pressed={showViews}
-            className="truss-icon-button"
-            data-active={showViews}
-            onClick={() => setShowViews((current) => !current)}
-            title="Mostrar ou ocultar views"
-            type="button"
-          >
-            <LayoutGrid aria-hidden="true" className="truss-icon h-4 w-4" />
-          </button>
-          <button
-            aria-label="Adicionar achado manual por selecao de area"
-            aria-pressed={manualMode}
-            className="truss-icon-button"
-            data-active={manualMode}
-            onClick={() => setManualMode((current) => !current)}
-            title="Adicionar achado manual"
-            type="button"
-          >
-            <RegionSelectIcon className="h-4 w-4" />
-          </button>
+          <span className="inline-flex h-[38px] items-center gap-2 border border-truss-line bg-truss-panel px-3 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle">
+            <Sparkles aria-hidden="true" className="h-3.5 w-3.5 text-truss-accent" />
+            IA / {isAuditing ? "analisando" : reviewStatusLabel(activeReviewItem)}
+          </span>
           <button className="truss-icon-button" onClick={() => moveSheet(-1)} title="Folha anterior" type="button">
             <ChevronLeft aria-hidden="true" className="truss-icon h-4 w-4" />
           </button>
@@ -2146,22 +2069,61 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
           <button className="truss-icon-button" onClick={() => moveSheet(1)} title="Proxima folha" type="button">
             <ChevronRight aria-hidden="true" className="truss-icon h-4 w-4" />
           </button>
-          <button className="truss-icon-button" onClick={() => void runAuditFromChat()} title="Reprocessar auditoria" type="button">
-            <RotateCcw aria-hidden="true" className={`truss-icon h-4 w-4 ${isAuditing ? "animate-spin text-truss-accent" : ""}`} />
-          </button>
           <button
-            aria-label="Executar analise visual por crops"
+            aria-label={assistantOpen ? "Voltar aos achados" : "Abrir assistente"}
+            aria-pressed={assistantOpen}
             className="truss-icon-button"
-            disabled={isAuditing || isVisionAuditing}
-            onClick={() => void runVisionAuditFromToolbar()}
-            title="Analisar legibilidade em crops"
+            data-active={assistantOpen}
+            onClick={() => setAssistantOpen((current) => !current)}
+            title={assistantOpen ? "Voltar aos achados" : "Abrir assistente"}
             type="button"
           >
-            <ScanSearch
-              aria-hidden="true"
-              className={`truss-icon h-4 w-4 ${isVisionAuditing ? "animate-pulse text-truss-accent" : ""}`}
-            />
+            <MessageSquare aria-hidden="true" className="truss-icon h-4 w-4" />
           </button>
+          <details className="group relative">
+            <summary className="truss-icon-button flex cursor-pointer list-none items-center justify-center" title="Ferramentas da prancha">
+              <MoreHorizontal aria-hidden="true" className="truss-icon h-4 w-4" />
+              <span className="sr-only">Ferramentas da prancha</span>
+            </summary>
+            <div className="absolute right-0 z-40 mt-2 grid min-w-56 gap-1 border border-truss-line bg-truss-raised p-2 shadow-truss-panel">
+              <button
+                aria-pressed={showFindings}
+                className="truss-button justify-start"
+                onClick={() => setShowFindings((current) => !current)}
+                type="button"
+              >
+                {showFindings ? <Eye aria-hidden="true" className="truss-icon h-4 w-4" /> : <EyeOff aria-hidden="true" className="truss-icon h-4 w-4" />}
+                {showFindings ? "Ocultar marcações" : "Mostrar marcações"}
+              </button>
+              <button
+                aria-pressed={showViews}
+                className="truss-button justify-start"
+                onClick={() => setShowViews((current) => !current)}
+                type="button"
+              >
+                <LayoutGrid aria-hidden="true" className="truss-icon h-4 w-4" />
+                {showViews ? "Ocultar views" : "Mostrar views"}
+              </button>
+              <button
+                aria-pressed={manualMode}
+                className="truss-button justify-start"
+                onClick={() => setManualMode((current) => !current)}
+                type="button"
+              >
+                <RegionSelectIcon className="h-4 w-4" />
+                Adicionar achado manual
+              </button>
+              <button
+                className="truss-button justify-start"
+                disabled={isAuditing}
+                onClick={() => void runAuditFromChat()}
+                type="button"
+              >
+                <Sparkles aria-hidden="true" className={`truss-icon h-4 w-4 ${isAuditing ? "animate-pulse" : ""}`} />
+                Revisar esta prancha com IA
+              </button>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -2174,7 +2136,51 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
         </div>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[minmax(0,1fr)_390px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[152px_minmax(0,1fr)_380px]">
+        <aside className="hidden min-h-0 flex-col border-r border-truss-line bg-truss-raised 2xl:flex">
+          <div className="border-b border-truss-line px-3 py-3">
+            <p className="truss-mono-label">Pranchas</p>
+            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.06em] text-truss-subtle">
+              {completedReviewCount}/{sheets.length} revisadas
+            </p>
+          </div>
+          <nav aria-label="Pranchas da revisão" className="min-h-0 flex-1 overflow-y-auto p-1.5">
+            {sheets.map((sheet, index) => {
+              const reviewItem = reviewItemBySheet.get(sheet.id);
+              const status = reviewItem?.status;
+              return (
+                <button
+                  className="flex w-full items-center gap-2 border border-transparent px-2 py-2 text-left transition-colors hover:border-truss-line hover:bg-truss-panel data-[active=true]:border-truss-accent/55 data-[active=true]:bg-truss-accentSoft"
+                  data-active={sheet.id === activeSheet.id}
+                  key={sheet.id}
+                  onClick={() => setActiveSheet(sheet)}
+                  type="button"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`h-1.5 w-1.5 shrink-0 ${
+                      status === "completed"
+                        ? "bg-truss-success"
+                        : status === "running"
+                          ? "animate-pulse bg-truss-accent"
+                          : status === "failed"
+                            ? "bg-truss-danger"
+                            : "bg-truss-subtle"
+                    }`}
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate font-mono text-[10px] uppercase tracking-[0.05em] text-truss-text">
+                      {String(index + 1).padStart(2, "0")} · {sheet.label}
+                    </span>
+                    <span className="mt-0.5 block truncate font-mono text-[9px] uppercase tracking-[0.05em] text-truss-subtle">
+                      {reviewStatusLabel(reviewItem)}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
         <div className="flex min-h-0 min-w-0 flex-col">
           <div
             aria-label="Canvas da prancha. Use roda para pan, Ctrl mais roda para zoom no cursor, Espaco mais arrasto para pan e F para Fit View."
@@ -2228,7 +2234,7 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
                   )}
             </div>
 
-            {isAuditing || isVisionAuditing ? (
+            {isAuditing ? (
               <div className="pointer-events-none absolute inset-y-7 left-0 z-20 w-1/2 animate-[truss-scan-sweep_1.55s_ease-in-out_infinite] truss-scan-sweep" />
             ) : null}
 
@@ -2260,15 +2266,21 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
                 />
               ) : null}
               {showFindings
-                ? filteredFindings.map((finding) => {
+                  ? filteredFindings.map((finding) => {
                     const severity = severityMeta[finding.severity];
                     const isActive = selectedIds.has(finding.id);
                     const lifecycleState = findingLifecycleState(finding);
+                    const presentation = findingOverlayPresentation(finding, activeSheet);
+                    const isScopeMarker = presentation === "scope";
 
                     return (
                       <button
                         aria-label={`Selecionar achado ${severity.label}: ${finding.description}`}
-                        className={`absolute border bg-truss-accent/10 text-left transition-colors ${severity.ring} data-[active=true]:shadow-truss-red data-[draft=true]:border-dashed data-[status=confirmed]:border-truss-success data-[status=confirmed]:bg-truss-success/10 data-[status=rejected]:border-truss-subtle data-[status=rejected]:bg-truss-base/20`}
+                        className={
+                          isScopeMarker
+                            ? `absolute grid h-7 w-7 place-items-center border bg-truss-panel text-left transition-colors ${severity.ring} data-[active=true]:shadow-truss-red`
+                            : `absolute border bg-truss-accent/5 text-left transition-colors ${severity.ring} data-[active=true]:bg-truss-accent/12 data-[active=true]:shadow-truss-red data-[draft=true]:border-dashed data-[status=confirmed]:border-truss-success data-[status=confirmed]:bg-truss-success/5 data-[status=rejected]:border-truss-subtle data-[status=rejected]:bg-transparent`
+                        }
                         data-active={isActive}
                         data-draft={finding.isDraft}
                         data-status={finding.status}
@@ -2283,21 +2295,31 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
                           selectFinding(finding, event.shiftKey);
                         }}
                         style={{
-                          height: (finding.bbox.y1 - finding.bbox.y0) * CANVAS_NAVIGATION.renderScale,
+                          height: isScopeMarker
+                            ? undefined
+                            : (finding.bbox.y1 - finding.bbox.y0) * CANVAS_NAVIGATION.renderScale,
                           left: finding.bbox.x0 * CANVAS_NAVIGATION.renderScale,
                           top: finding.bbox.y0 * CANVAS_NAVIGATION.renderScale,
-                          width: (finding.bbox.x1 - finding.bbox.x0) * CANVAS_NAVIGATION.renderScale
+                          transform: isScopeMarker ? `scale(${1 / viewport.zoom})` : undefined,
+                          transformOrigin: isScopeMarker ? "0 0" : undefined,
+                          width: isScopeMarker
+                            ? undefined
+                            : (finding.bbox.x1 - finding.bbox.x0) * CANVAS_NAVIGATION.renderScale
                         }}
                         title={`${finding.description} ${finding.isDraft ? "(draft local)" : ""}`}
                         type="button"
                       >
-                        <span className={`absolute -left-px -top-5 border px-1.5 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.08em] ${severity.ring} ${severity.tone}`}>
-                          {finding.isDraft
-                            ? "DRAFT"
-                            : finding.element_code
-                              ? `${finding.element_code}${lifecycleState ? `/${lifecycleState.toUpperCase()}` : ""} · ${severity.label}`
-                              : severity.label}
-                        </span>
+                        {isScopeMarker ? (
+                          <AlertTriangle aria-hidden="true" className={`h-3.5 w-3.5 ${severity.tone}`} />
+                        ) : (
+                          <span className={`absolute -left-px -top-5 border px-1.5 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.08em] ${severity.ring} ${severity.tone}`}>
+                            {finding.isDraft
+                              ? "DRAFT"
+                              : finding.element_code
+                                ? `${finding.element_code}${lifecycleState ? `/${lifecycleState.toUpperCase()}` : ""} · ${severity.label}`
+                                : severity.label}
+                          </span>
+                        )}
                       </button>
                     );
                   })
@@ -2333,12 +2355,7 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
             ) : null}
 
             <ZoomControls
-              canRedo={historyState.canRedo}
-              canUndo={historyState.canUndo}
               onFit={fitView}
-              onRedo={redo}
-              onReset={resetView}
-              onUndo={undo}
               onZoomIn={() => zoomByFactor(CANVAS_NAVIGATION.zoomStep)}
               onZoomOut={() => zoomByFactor(1 / CANVAS_NAVIGATION.zoomStep)}
               zoom={viewport.zoom}
@@ -2362,16 +2379,32 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
               <span>folha / {Math.round(activeSheet.width_pt)} x {Math.round(activeSheet.height_pt)} pt</span>
               <span>selecionados / {selectedIds.size}</span>
               <span className={isAuditing ? "text-truss-accent" : "text-truss-subtle"}>
-                auditoria / {isAuditing ? "varrendo" : "pronta"}
-              </span>
-              <span className={isVisionAuditing ? "text-truss-accent" : "text-truss-subtle"}>
-                visao / {isVisionAuditing ? "analisando" : visionCoverage ? `${visionCoverage.evaluated} crops` : "nao executada"}
+                revisão IA / {isAuditing ? "analisando" : reviewStatusLabel(activeReviewItem)}
               </span>
             </div>
           </div>
+        </div>
 
-          <FindingsDrawer count={filteredFindings.length}>
-            <div className="border-b border-truss-line px-3 py-3">
+        {!assistantOpen ? (
+          <FindingsDrawer
+            count={filteredFindings.length}
+            toolbar={(
+              <button
+                aria-expanded={filtersOpen}
+                className="ml-auto inline-flex h-10 items-center gap-2 px-2 font-mono text-[10px] uppercase tracking-[0.07em] text-truss-subtle transition-colors hover:text-truss-text"
+                onClick={() => setFiltersOpen((current) => !current)}
+                type="button"
+              >
+                <SlidersHorizontal aria-hidden="true" className="truss-icon h-3.5 w-3.5" />
+                filtros
+                {statusFilter !== "all" || severityFilter !== "all" || showSuppressed || showSupportFindings ? (
+                  <span className="text-truss-accent">ativos</span>
+                ) : null}
+              </button>
+            )}
+            variant="panel"
+          >
+            {filtersOpen ? <div className="border-b border-truss-line px-3 py-3">
               <div className="grid gap-2">
                 <div className="truss-segment overflow-x-auto">
                   {(["all", "pending", "confirmed", "rejected"] as const).map((status) => (
@@ -2410,22 +2443,20 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
                   <EyeOff aria-hidden="true" className="truss-icon h-3.5 w-3.5" />
                   Silenciados / {suppressedCount}
                 </button>
-                <div className="grid grid-cols-4 gap-2">
-                  <button className="truss-icon-button w-full" onClick={copySelection} title="Copiar selecionados, Ctrl+C" type="button">
-                    <Copy aria-hidden="true" className="truss-icon h-4 w-4" />
+                {supportFindingCount > 0 ? (
+                  <button
+                    aria-pressed={showSupportFindings}
+                    className="flex h-10 items-center justify-center gap-2 border border-truss-line bg-truss-raised px-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle transition-colors hover:bg-truss-panel2 hover:text-truss-text data-[active=true]:border-truss-info/55 data-[active=true]:bg-truss-info/10 data-[active=true]:text-truss-info"
+                    data-active={showSupportFindings}
+                    onClick={() => setShowSupportFindings((current) => !current)}
+                    type="button"
+                  >
+                    <Eye aria-hidden="true" className="truss-icon h-3.5 w-3.5" />
+                    Regras locais / {supportFindingCount}
                   </button>
-                  <button className="truss-icon-button w-full" onClick={duplicateSelection} title="Duplicar selecionados, Ctrl+D" type="button">
-                    <Plus aria-hidden="true" className="truss-icon h-4 w-4" />
-                  </button>
-                  <button className="truss-icon-button w-full" onClick={removeSelection} title="Remover selecionados da sessao, Delete" type="button">
-                    <Trash2 aria-hidden="true" className="truss-icon h-4 w-4" />
-                  </button>
-                  <button className="truss-icon-button w-full" onClick={() => setSelectedIds(new Set())} title="Limpar selecao, Esc" type="button">
-                    <X aria-hidden="true" className="truss-icon h-4 w-4" />
-                  </button>
-                </div>
+                ) : null}
               </div>
-            </div>
+            </div> : null}
 
             <div className="max-h-[34vh] overflow-y-auto border-b border-truss-line">
               {filteredFindings.length === 0 ? (
@@ -2571,7 +2602,7 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
                 <div className="border border-truss-accent/40 bg-truss-accentSoft p-3 text-sm text-truss-text">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="truss-mono-label mr-auto">
-                      Achado {activeFindingIndex + 1} de {findings.length}
+                      Achado {activeFindingIndex + 1} de {filteredFindings.length}
                     </p>
                     <StatusBadge status={activeFinding.status} />
                   </div>
@@ -2654,7 +2685,7 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
                   ) : null}
                   <div className="mt-3 grid gap-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-truss-subtle">
                     <span>Regiao / {formatBBox(activeFinding)}</span>
-                    <span>Origem / {activeFinding.origin}</span>
+                    <span>Origem / {findingSourceLabel(activeFinding) ?? activeFinding.origin}</span>
                     {activeFinding.registry_hash ? <span>Registry / {activeFinding.registry_hash}</span> : null}
                     {activeFinding.isDraft ? <span>Persistencia / draft local</span> : null}
                     {activeFinding.rejection_reason ? <span>Rejeicao / {activeFinding.rejection_reason}</span> : null}
@@ -2742,9 +2773,10 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
             ) : null}
 
           </FindingsDrawer>
-        </div>
+        ) : null}
 
-        <aside className="flex min-h-0 flex-col border-t border-truss-line bg-truss-raised xl:border-l xl:border-t-0">
+        {assistantOpen ? (
+        <aside className="flex min-h-0 flex-col border-t border-truss-line bg-truss-raised lg:border-l lg:border-t-0">
           <TrussChat
             activeFinding={activeFinding}
             activeConversationId={conversationId}
@@ -2753,7 +2785,7 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
             contextItems={visibleChatContextItems}
             documentName={"documentName" in activeSheet ? String(activeSheet.documentName) : ""}
             isLoadingConversations={isLoadingConversations}
-            isRunning={isChatting || isAuditing || isVisionAuditing || isLoadingChatHistory}
+            isRunning={isChatting || isAuditing || isLoadingChatHistory}
             message={chatMessage}
             messages={chatTurns}
             mode={chatMode}
@@ -2782,6 +2814,7 @@ export function SheetViewer({ apiBaseUrl, documents, navigationTarget }: SheetVi
             sheetLabel={activeSheet.label}
           />
         </aside>
+        ) : null}
       </div>
     </div>
   );

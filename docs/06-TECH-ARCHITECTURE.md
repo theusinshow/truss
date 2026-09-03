@@ -206,6 +206,25 @@ Detectores locais selecionam candidatos e bboxes. O backend renderiza crop com p
 aplica budget/call limit e usa o AI Provider. Crop, configuracao, modelo e prompt compoem o cache.
 O PDF completo nao e reenviado a cada pergunta.
 
+### Revisao IA-first RC2
+
+O lote RC2 executa a barreira de Sheet Map e, em seguida, uma revisao multimodal por folha. A
+entrada externa contem uma renderizacao global em `detail=low`, quatro tiles sobrepostos em
+`detail=high` e contexto compacto de folha, escopos, views e texto nativo com coordenadas. O PDF
+binario permanece local. A saida usa JSON Schema estrito, bbox normalizada `0..1000` e no maximo dez
+suspeitas; o backend valida, converte para pontos PDF e persiste um audit run imutavel.
+
+A chave de cache inclui hash do documento, indice da pagina, snapshot do Sheet Map, pipeline,
+prompt, provider/modelo, reasoning, limite de saida, dimensoes de render e overlap. O batch congela
+esses mesmos parametros. A IA decide os findings do RC2; regras deterministicas permanecem como
+apoio local auditavel e nao sao exibidas como camada primaria quando existe revisao IA.
+
+O gate de custo soma `vision.legibility` e `ai.sheet_review` por revisao. Antes de cada envio exige
+espaco para a reserva conservadora configurada; respostas validas registram tokens e custo
+estimado, e tentativas com erro de schema ou falha externa registram o uso recebido ou a reserva.
+Assim, uma resposta truncada nao desaparece do limite. O default RC2 usa teto de US$ 1, reserva de
+US$ 0,25, no maximo 30 chamadas e 3.000 tokens de saida.
+
 ### Calibracao
 
 Runner isolado mede corpus por manifesto e hashes. `delivered_reference` nao equivale a ground

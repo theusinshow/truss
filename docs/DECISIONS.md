@@ -1,5 +1,30 @@
 # Decisions
 
+## 2026-09-03 - V0.1-RC2 makes whole-sheet AI review the primary workflow
+
+The owner approved RC2 and a hard ceiling of USD 1 per revision after the previous local-only flow
+showed deterministic findings as if they were the intended AI review. Every sheet now receives one
+global render, four detail tiles and compact local text/Sheet Map context. OpenAI returns a strict
+schema with normalized coordinates; the backend validates it and persists PDF-point findings.
+Deterministic rules remain inspectable support but are hidden by default once AI review exists.
+
+The workspace has one primary action, `Revisar projeto com IA`. The PDF opens fitted in the center,
+findings occupy the right rail, filters and secondary tools are collapsed, and broad view/sheet
+observations use constant-size markers instead of red page-covering regions. The visual contract is
+recorded in `apps/web/DESIGN.md`.
+
+The first live response exhausted the former 1,200-token output limit and produced truncated JSON.
+Response usage is now captured before schema parsing; every attempted external review receives a
+ledger event, using actual usage when available and a conservative reserve otherwise. The frozen
+batch configuration includes output limit, reasoning effort and USD 0.25 reserve. The output limit
+is 3,000 tokens and current `gpt-5.6-sol` pricing is represented as USD 4/M input and USD 20/M
+output.
+
+The real `REV-005` gate completed all 9 Sheet Maps and all 9 AI reviews with 48 findings. The ledger
+contains 9 valid calls plus the initial failed attempt and totals USD 0.745744, including a USD 0.07
+conservative upper estimate for that failure. Evidence is stored in
+`docs/v01-rc2-ai-first-gate-2026-09-03.json`.
+
 ## 2026-09-03 - V0.1-RC1 hardens Windows paths and makes the real gate reproducible
 
 The owner approved a release-candidate hardening slice after the three approved structural PDFs

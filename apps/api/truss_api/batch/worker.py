@@ -6,6 +6,7 @@ from truss_api.core.settings import Settings, get_settings
 from truss_api.db.schema import initialize_database
 from truss_api.recovery.errors import TrussError
 from truss_api.recovery.operations import (
+    run_ai_sheet_review_operation,
     run_deterministic_audit_operation,
     run_sheet_map_operation,
     run_visual_audit_operation,
@@ -27,6 +28,12 @@ def _frozen_settings(item: dict[str, object], settings: Settings) -> Settings:
         "vision_budget_usd_per_revision",
         "vision_max_calls_per_revision",
         "vision_max_candidates_per_sheet",
+        "vision_cost_reserve_usd_per_call",
+        "vision_max_output_tokens",
+        "openai_reasoning_effort",
+        "ai_review_global_max_pixels",
+        "ai_review_tile_max_pixels",
+        "ai_review_tile_overlap_ratio",
     }
     aliases = {"provider": "ai_provider", "model": "openai_model"}
     updates = {
@@ -37,6 +44,12 @@ def _frozen_settings(item: dict[str, object], settings: Settings) -> Settings:
     return settings.model_copy(update=updates) if updates else settings
 
 
+def _batch_config(item: dict[str, object]) -> dict[str, object]:
+    batch = item.get("batch") or {}
+    config = batch.get("config") if isinstance(batch, dict) else {}
+    return config if isinstance(config, dict) else {}
+
+
 def process_next_item(settings: Settings) -> bool:
     item = repository.claim_next_item(settings)
     if item is None:
@@ -45,6 +58,7 @@ def process_next_item(settings: Settings) -> bool:
     token = str(item["run_token"])
     phase = str(item["phase"])
     sheet_id = str(item["sheet_id"])
+    config = _batch_config(item)
     operation_settings = _frozen_settings(item, settings)
     try:
         if phase == "sheet_map":
@@ -52,7 +66,10 @@ def process_next_item(settings: Settings) -> bool:
         elif phase == "deterministic_audit":
             run_deterministic_audit_operation(sheet_id, operation_settings)
         elif phase == "visual_audit":
-            run_visual_audit_operation(sheet_id, operation_settings)
+            if config.get("ai_review") is True:
+                run_ai_sheet_review_operation(sheet_id, operation_settings)
+            else:
+                run_visual_audit_operation(sheet_id, operation_settings)
         else:
             raise RuntimeError(f"unsupported batch phase: {phase}")
         repository.complete_item(item_id, token, settings)

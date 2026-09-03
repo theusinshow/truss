@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 
 from truss_api.batch.models import BatchCapabilities, BatchItem, BatchRunCreate, BatchRunSummary
 from truss_api.batch import repository
+from truss_api.ai.provider import get_ai_provider_status
 from truss_api.core.settings import Settings, get_settings
 from truss_api.documents import repository as documents_repository
 from truss_api.documents.models import DocumentDetail
@@ -12,16 +13,28 @@ from truss_api.recovery.operations import import_document
 router = APIRouter(tags=["batch"])
 
 
-def _config(include_visual: bool, settings: Settings) -> dict[str, object]:
+def _config(
+    *,
+    include_visual: bool,
+    ai_review: bool,
+    settings: Settings,
+) -> dict[str, object]:
     return {
         "include_visual": include_visual,
+        "ai_review": ai_review,
         "worker_concurrency": 1,
         "visual_concurrency": 1,
         "vision_budget_usd_per_revision": settings.vision_budget_usd_per_revision,
         "vision_max_calls_per_revision": settings.vision_max_calls_per_revision,
         "vision_max_candidates_per_sheet": settings.vision_max_candidates_per_sheet,
+        "vision_cost_reserve_usd_per_call": settings.vision_cost_reserve_usd_per_call,
+        "vision_max_output_tokens": settings.vision_max_output_tokens,
+        "openai_reasoning_effort": settings.openai_reasoning_effort,
         "provider": settings.ai_provider,
-        "model": settings.openai_model if include_visual else None,
+        "model": settings.openai_model if include_visual or ai_review else None,
+        "ai_review_global_max_pixels": settings.ai_review_global_max_pixels,
+        "ai_review_tile_max_pixels": settings.ai_review_tile_max_pixels,
+        "ai_review_tile_overlap_ratio": settings.ai_review_tile_overlap_ratio,
     }
 
 
@@ -35,11 +48,38 @@ def _validate_visual_request(include_visual: bool, settings: Settings) -> None:
         )
 
 
+def _validate_ai_review_request(ai_review: bool, settings: Settings) -> None:
+    if not ai_review:
+        return
+    status = get_ai_provider_status(settings)
+    if not settings.vision_enabled:
+        raise TrussError(
+            code="AI_REVIEW_DISABLED",
+            message="A revisao por IA esta desativada nesta instalacao.",
+            action="Ative TRUSS_VISION_ENABLED e confirme o teto de custo.",
+            status_code=409,
+        )
+    if status.resolved_provider != "openai" or not status.external_calls_enabled:
+        raise TrussError(
+            code="AI_PROVIDER_UNAVAILABLE",
+            message="A revisao por IA exige uma chave OpenAI ativa.",
+            action="Configure TRUSS_AI_PROVIDER=openai ou auto com uma chave valida.",
+            status_code=409,
+        )
+
+
 @router.get("/batch-capabilities", response_model=BatchCapabilities)
 def batch_capabilities(settings: Settings = Depends(get_settings)) -> dict[str, object]:
+    status = get_ai_provider_status(settings)
     return {
         "visual_enabled": settings.vision_enabled,
-        "provider": settings.ai_provider,
+        "ai_review_available": (
+            settings.vision_enabled
+            and status.resolved_provider == "openai"
+            and status.external_calls_enabled
+        ),
+        "external_calls_enabled": status.external_calls_enabled,
+        "provider": status.resolved_provider,
         "model": settings.openai_model,
         "vision_budget_usd_per_revision": settings.vision_budget_usd_per_revision,
         "vision_max_calls_per_revision": settings.vision_max_calls_per_revision,
@@ -58,9 +98,18 @@ async def batch_import(
     revision_id: str,
     file: UploadFile = File(...),
     include_visual: bool = Form(default=False),
+    ai_review: bool = Form(default=False),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
+    if include_visual and ai_review:
+        raise TrussError(
+            code="BATCH_MODE_CONFLICT",
+            message="Escolha somente um modo de analise externa.",
+            action="Use a revisao por IA para o fluxo principal.",
+            status_code=400,
+        )
     _validate_visual_request(include_visual, settings)
+    _validate_ai_review_request(ai_review, settings)
     if file.content_type not in {None, "application/pdf", "application/octet-stream"}:
         raise TrussError(
             code="PDF_UNREADABLE",
@@ -101,12 +150,16 @@ async def batch_import(
             status_code=409,
             detail="This PDF was already imported for the revision",
         ) from error
-    mode = "with_visual" if include_visual else "local_deterministic"
+    mode = "with_visual" if include_visual or ai_review else "local_deterministic"
     batch = repository.create_batch_run(
         project_id=project_id,
         revision_id=revision_id,
         mode=mode,
-        config=_config(include_visual, settings),
+        config=_config(
+            include_visual=include_visual,
+            ai_review=ai_review,
+            settings=settings,
+        ),
         settings=settings,
     )
     return {"document": DocumentDetail.model_validate(document), "batch": batch}
@@ -123,17 +176,29 @@ def create_batch_run(
     request: BatchRunCreate,
     settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
+    if request.include_visual and request.ai_review:
+        raise TrussError(
+            code="BATCH_MODE_CONFLICT",
+            message="Escolha somente um modo de analise externa.",
+            action="Use a revisao por IA para o fluxo principal.",
+            status_code=400,
+        )
     _validate_visual_request(request.include_visual, settings)
+    _validate_ai_review_request(request.ai_review, settings)
     try:
         documents_repository.ensure_revision_belongs_to_project(project_id, revision_id, settings)
     except documents_repository.RevisionNotFoundError as error:
         raise HTTPException(status_code=404, detail="Revision not found") from error
-    mode = "with_visual" if request.include_visual else "local_deterministic"
+    mode = "with_visual" if request.include_visual or request.ai_review else "local_deterministic"
     return repository.create_batch_run(
         project_id=project_id,
         revision_id=revision_id,
         mode=mode,
-        config=_config(request.include_visual, settings),
+        config=_config(
+            include_visual=request.include_visual,
+            ai_review=request.ai_review,
+            settings=settings,
+        ),
         settings=settings,
     )
 

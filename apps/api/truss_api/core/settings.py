@@ -49,17 +49,20 @@ class Settings(BaseSettings):
     openai_reasoning_effort: Literal["none", "low", "medium", "high", "xhigh", "max"] = "low"
     openai_max_output_tokens: int = 900
     vision_enabled: bool = False
-    vision_budget_usd_per_revision: float = Field(default=0.25, ge=0.0)
+    vision_budget_usd_per_revision: float = Field(default=1.0, ge=0.0)
     vision_max_calls_per_revision: int = Field(default=30, ge=1)
     vision_max_candidates_per_sheet: int = Field(default=8, ge=1, le=50)
-    vision_cost_reserve_usd_per_call: float = Field(default=0.05, gt=0.0)
+    vision_cost_reserve_usd_per_call: float = Field(default=0.25, gt=0.0)
     vision_small_text_threshold_pt: float = Field(default=5.5, gt=0.0)
     vision_min_confidence: float = Field(default=0.65, ge=0.0, le=1.0)
     vision_crop_padding_pt: float = Field(default=18.0, ge=0.0)
     vision_render_scale: float = Field(default=3.0, gt=0.0)
     vision_max_crop_pixels: int = Field(default=1600, ge=256, le=4096)
     vision_image_detail: Literal["low", "high", "original"] = "high"
-    vision_max_output_tokens: int = Field(default=600, ge=100, le=4000)
+    vision_max_output_tokens: int = Field(default=3000, ge=100, le=4000)
+    ai_review_global_max_pixels: int = Field(default=1600, ge=768, le=3072)
+    ai_review_tile_max_pixels: int = Field(default=1400, ge=768, le=3072)
+    ai_review_tile_overlap_ratio: float = Field(default=0.04, ge=0.0, le=0.2)
     batch_poll_interval_seconds: float = Field(default=0.5, ge=0.1, le=10.0)
 
     model_config = SettingsConfigDict(

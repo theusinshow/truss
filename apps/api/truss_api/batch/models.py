@@ -8,10 +8,13 @@ BatchMode = Literal["local_deterministic", "with_visual"]
 
 class BatchRunCreate(BaseModel):
     include_visual: bool = False
+    ai_review: bool = False
 
 
 class BatchCapabilities(BaseModel):
     visual_enabled: bool
+    ai_review_available: bool
+    external_calls_enabled: bool
     provider: str
     model: str
     vision_budget_usd_per_revision: float

@@ -34,7 +34,7 @@ def settings(tmp_path: Path) -> Settings:
         ai_provider="local",
         openai_api_key=None,
         vision_enabled=True,
-        vision_budget_usd_per_revision=0.25,
+        vision_budget_usd_per_revision=1.0,
         vision_max_candidates_per_sheet=1,
     )
     initialize_database(resolved)
@@ -303,7 +303,7 @@ def test_openai_vision_uses_image_input_and_strict_structured_output() -> None:
     )
 
     assert response.analysis.outcome == "pass"
-    assert response.estimated_cost_usd == 0.0008
+    assert response.estimated_cost_usd == 0.0006
     request = fake_responses.request
     assert request is not None
     assert request["store"] is False

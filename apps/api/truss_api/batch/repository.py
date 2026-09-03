@@ -120,9 +120,12 @@ def create_batch_run(
     fingerprint = batch_fingerprint(revision_id, sheet_ids, mode, config)
     batch_id = str(uuid4())
     now = _now()
-    phases = ["sheet_map", "deterministic_audit"]
-    if mode == "with_visual":
-        phases.append("visual_audit")
+    if mode == "with_visual" and config.get("ai_review") is True:
+        phases = ["sheet_map", "visual_audit"]
+    else:
+        phases = ["sheet_map", "deterministic_audit"]
+        if mode == "with_visual":
+            phases.append("visual_audit")
 
     with transaction(settings) as connection:
         revision = connection.execute(
@@ -279,12 +282,12 @@ def list_batch_items(
     return [_item_dict(row) for row in rows]
 
 
-def _phase_order(mode: str) -> list[str]:
-    return (
-        ["sheet_map", "deterministic_audit", "visual_audit"]
-        if mode == "with_visual"
-        else ["sheet_map", "deterministic_audit"]
-    )
+def _phase_order(mode: str, config: dict[str, object] | None = None) -> list[str]:
+    if mode == "with_visual" and (config or {}).get("ai_review") is True:
+        return ["sheet_map", "visual_audit"]
+    if mode == "with_visual":
+        return ["sheet_map", "deterministic_audit", "visual_audit"]
+    return ["sheet_map", "deterministic_audit"]
 
 
 def _advance_run(connection: sqlite3.Connection, batch_id: str) -> None:
@@ -330,7 +333,10 @@ def _advance_run(connection: sqlite3.Connection, batch_id: str) -> None:
     if active:
         return
 
-    phases = _phase_order(str(run["mode"]))
+    phases = _phase_order(
+        str(run["mode"]),
+        json.loads(str(run["config_json"] or "{}")),
+    )
     current_index = phases.index(phase)
     if current_index + 1 < len(phases):
         next_phase = phases[current_index + 1]

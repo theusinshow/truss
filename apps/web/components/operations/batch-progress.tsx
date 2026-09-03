@@ -28,6 +28,7 @@ type BatchProgressProps = {
   refreshToken?: number;
   onTerminal?: (batch: BatchRunSummary) => void;
   onOpenSheet?: (sheetId: string) => void;
+  onItemsChange?: (items: BatchItem[]) => void;
 };
 
 const TERMINAL_BATCH = new Set(["completed", "completed_with_errors", "cancelled"]);
@@ -97,6 +98,7 @@ export function BatchProgress({
   refreshToken = 0,
   onTerminal,
   onOpenSheet,
+  onItemsChange,
 }: BatchProgressProps) {
   const [batch, setBatch] = useState<BatchRunSummary | null>(initialBatch);
   const [items, setItems] = useState<BatchItem[]>([]);
@@ -165,13 +167,16 @@ export function BatchProgress({
   }, [batch, onTerminal]);
 
   useEffect(() => {
-    if (!expanded || !batchId) {
+    if (!batchId || (!expanded && !onItemsChange)) {
       return;
     }
     void listBatchItems(apiBaseUrl, batchId)
-      .then(setItems)
+      .then((nextItems) => {
+        setItems(nextItems);
+        onItemsChange?.(nextItems);
+      })
       .catch(() => setLoadError("Não foi possível abrir os detalhes do lote."));
-  }, [apiBaseUrl, batchId, batchUpdatedAt, expanded]);
+  }, [apiBaseUrl, batchId, batchUpdatedAt, expanded, onItemsChange]);
 
   const phase = batch ? displayPhase(batch) : "sheet_map";
   const phaseCounts = batch?.phase_counts[phase] ?? {};
@@ -232,9 +237,13 @@ export function BatchProgress({
               )}
             </span>
             <span className="min-w-0">
-              <span className="truss-mono-label block">Processamento local</span>
+              <span className="truss-mono-label block">
+                {batch.config.ai_review === true ? "Revisão do projeto" : "Processamento local"}
+              </span>
               <span className="mt-1 block truncate text-sm font-semibold text-truss-text">
-                {PHASE_LABELS[batch.phase]}
+                {batch.phase === "visual_audit" && batch.config.ai_review === true
+                  ? "Revisão por IA"
+                  : PHASE_LABELS[batch.phase]}
               </span>
             </span>
           </div>

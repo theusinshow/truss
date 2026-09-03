@@ -21,6 +21,7 @@ from truss_api.sheetmap.builder import build_sheet_map_for_document, build_sheet
 from truss_api.sheetmap.elements.registry import build_revision_registry
 from truss_api.sheetmap.snapshot import SHEET_MAP_PIPELINE
 from truss_api.vision.orchestrator import VISION_PIPELINE_VERSION, run_visual_audit
+from truss_api.vision.sheet_review import AI_REVIEW_PIPELINE_VERSION, run_ai_sheet_review
 
 
 IMPORT_PIPELINE_VERSION = "document-import-v0.2"
@@ -64,6 +65,9 @@ def _vision_identity_context(settings: Settings) -> dict[str, object]:
         "image_detail": settings.vision_image_detail,
         "max_output_tokens": settings.vision_max_output_tokens,
         "min_confidence": settings.vision_min_confidence,
+        "ai_review_global_max_pixels": settings.ai_review_global_max_pixels,
+        "ai_review_tile_max_pixels": settings.ai_review_tile_max_pixels,
+        "ai_review_tile_overlap_ratio": settings.ai_review_tile_overlap_ratio,
     }
 
 
@@ -321,14 +325,23 @@ def _audit_operation(
     sheet_id: str,
     settings: Settings,
     *,
-    vision: bool,
+    audit_mode: str,
 ) -> dict[str, object]:
     sheet_map = sheetmap_repository.get_sheet_map(sheet_id, settings)
-    kind = "vision_audit" if vision else "deterministic_audit"
-    pipeline = VISION_PIPELINE_VERSION if vision else AUDIT_PIPELINE_VERSION
+    external = audit_mode in {"vision", "ai_review"}
+    kind = {
+        "deterministic": "deterministic_audit",
+        "vision": "vision_audit",
+        "ai_review": "vision_audit",
+    }[audit_mode]
+    pipeline = {
+        "deterministic": AUDIT_PIPELINE_VERSION,
+        "vision": VISION_PIPELINE_VERSION,
+        "ai_review": AI_REVIEW_PIPELINE_VERSION,
+    }[audit_mode]
     registry_hash = ""
     rule_packs = ""
-    if not vision:
+    if audit_mode == "deterministic":
         rule_packs, needs_registry = _deterministic_identity_context(sheet_map)
         if needs_registry:
             registry_hash = str(
@@ -344,7 +357,7 @@ def _audit_operation(
         pipeline=pipeline,
         registry_hash=registry_hash,
         rule_packs=rule_packs,
-        vision_settings=_vision_identity_context(settings) if vision else None,
+        vision_settings=_vision_identity_context(settings) if external else None,
     )
     operation = repository.create_operation(
         identity_key=identity,
@@ -360,7 +373,7 @@ def _audit_operation(
     result_id = dict(operation["payload"]).get("result_audit_run_id")
     if operation["status"] == "completed" and result_id:
         return audit_repository.get_audit_run(str(result_id), settings)
-    if operation["status"] == "manual_retry_required" and vision:
+    if operation["status"] == "manual_retry_required" and external:
         raise TrussError(
             code="EXTERNAL_RETRY_REQUIRES_CONFIRMATION",
             message="A analise visual anterior foi interrompida e pode ter gerado custo.",
@@ -370,7 +383,12 @@ def _audit_operation(
         )
     repository.claim_operation(str(operation["id"]), settings)
     try:
-        result = run_visual_audit(sheet_id, settings) if vision else run_deterministic_audit(sheet_id, settings)
+        if audit_mode == "vision":
+            result = run_visual_audit(sheet_id, settings)
+        elif audit_mode == "ai_review":
+            result = run_ai_sheet_review(sheet_id, settings)
+        else:
+            result = run_deterministic_audit(sheet_id, settings)
         repository.complete_operation(
             str(operation["id"]),
             settings,
@@ -389,21 +407,27 @@ def _audit_operation(
             settings,
             code=code,
             message=message,
-            retryable=not vision,
-            manual_retry=vision,
+            retryable=not external,
+            manual_retry=external,
         )
         raise
 
 
 def run_deterministic_audit_operation(sheet_id: str, settings: Settings) -> dict[str, object]:
-    return _audit_operation(sheet_id, settings, vision=False)
+    return _audit_operation(sheet_id, settings, audit_mode="deterministic")
 
 
 def run_visual_audit_operation(sheet_id: str, settings: Settings) -> dict[str, object]:
     if not settings.vision_enabled:
         # Preserva o contrato: configuracao e validada antes da existencia da folha.
         return run_visual_audit(sheet_id, settings)
-    return _audit_operation(sheet_id, settings, vision=True)
+    return _audit_operation(sheet_id, settings, audit_mode="vision")
+
+
+def run_ai_sheet_review_operation(sheet_id: str, settings: Settings) -> dict[str, object]:
+    if not settings.vision_enabled:
+        return run_ai_sheet_review(sheet_id, settings)
+    return _audit_operation(sheet_id, settings, audit_mode="ai_review")
 
 
 def resume_operation(operation_id: str, settings: Settings) -> dict[str, object]:

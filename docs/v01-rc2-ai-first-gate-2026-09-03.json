@@ -1,0 +1,60 @@
+{
+  "milestone": "V0.1-RC2",
+  "validated_at": "2026-09-03",
+  "scope": "whole-sheet AI-first review",
+  "approval": {
+    "owner_approved": true,
+    "budget_usd_per_revision": 1.0
+  },
+  "real_gate": {
+    "project": "45 - Rancho Queimado",
+    "revision": "REV-005",
+    "revision_id": "70a81e00-a917-4acc-95c1-19aafba6845e",
+    "batch_id": "22de24d5-fb49-4e23-8943-1c3ae2ccaf4d",
+    "batch_status": "completed",
+    "sheets": 9,
+    "sheet_maps_completed": 9,
+    "ai_reviews_completed": 9,
+    "failed_items": 0,
+    "findings": {
+      "total": 48,
+      "localized": 34,
+      "broad_scope": 14,
+      "per_sheet": [7, 6, 3, 6, 4, 6, 7, 4, 5]
+    }
+  },
+  "usage": {
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "ledger_events": 10,
+    "valid_responses": 9,
+    "failed_responses": 1,
+    "input_tokens_from_valid_responses": 83296,
+    "output_tokens_from_valid_responses": 17128,
+    "valid_response_cost_usd": 0.675744,
+    "failed_response_conservative_estimate_usd": 0.07,
+    "total_ledger_cost_usd": 0.745744,
+    "remaining_budget_usd": 0.254256,
+    "failure_estimate_note": "The failed call had the same 9323-token input as its replay and a 1200-token output cap; USD 0.07 is above the calculated USD 0.061292 upper estimate."
+  },
+  "ui_gate": {
+    "viewport": {"width": 1249, "height": 1187},
+    "visible_buttons_before_final_collapse": 56,
+    "visible_buttons_after_final_collapse": 37,
+    "horizontal_overflow": false,
+    "primary_ai_findings_on_sheet_1": 7,
+    "hidden_local_support_findings_on_sheet_1": 5,
+    "sheet_2_navigation_verified": true,
+    "sheet_2_primary_ai_findings": 6,
+    "fit_view_on_sheet_change": true,
+    "broad_scope_uses_page_fill": false,
+    "known_external_warning": "Chrome extension injected cz-shortcut-listen before hydration."
+  },
+  "automated_validation": {
+    "api": "299 passed, 1 skipped",
+    "web": "62 passed",
+    "lint": "passed",
+    "typecheck": "passed",
+    "build": "passed with Next.js 16.2.12"
+  }
+}

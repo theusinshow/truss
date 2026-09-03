@@ -8,7 +8,14 @@ from typing import Any, Iterator, Protocol
 from pydantic import ValidationError
 
 from truss_api.core.settings import Settings, _read_root_env
-from truss_api.vision.models import VisionAnalysis, VisionCropInput, VisionProviderResponse
+from truss_api.vision.models import (
+    SheetReviewAnalysis,
+    SheetReviewInput,
+    SheetReviewProviderResponse,
+    VisionAnalysis,
+    VisionCropInput,
+    VisionProviderResponse,
+)
 
 
 @dataclass(frozen=True)
@@ -75,16 +82,35 @@ class AIProvider(Protocol):
     def analyze_crop(self, *, crop: VisionCropInput) -> VisionProviderResponse:
         ...
 
+    def analyze_sheet(self, *, review: SheetReviewInput) -> SheetReviewProviderResponse:
+        ...
+
 
 class AIProviderConfigError(Exception):
     pass
 
 
 class AIProviderUnavailableError(Exception):
-    def __init__(self, message: str, *, public_message: str | None = None, provider_code: str | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        public_message: str | None = None,
+        provider_code: str | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        estimated_cost_usd: float | None = None,
+    ) -> None:
         super().__init__(message)
         self.public_message = public_message or message
         self.provider_code = provider_code
+        self.provider = provider
+        self.model = model
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.estimated_cost_usd = estimated_cost_usd
 
 
 class LocalHeuristicProvider:
@@ -188,10 +214,20 @@ class LocalHeuristicProvider:
             provider_code="vision_provider_unavailable",
         )
 
+    def analyze_sheet(self, *, review: SheetReviewInput) -> SheetReviewProviderResponse:
+        raise AIProviderUnavailableError(
+            "Local provider does not support sheet image analysis.",
+            public_message=(
+                "A revisao da prancha exige provider OpenAI configurado; "
+                "o provider local nao simula analise visual."
+            ),
+            provider_code="sheet_review_provider_unavailable",
+        )
+
 
 OPENAI_MODEL_PRICING_PER_MILLION: dict[str, tuple[float, float]] = {
-    "gpt-5.6": (5.0, 30.0),
-    "gpt-5.6-sol": (5.0, 30.0),
+    "gpt-5.6": (4.0, 20.0),
+    "gpt-5.6-sol": (4.0, 20.0),
 }
 
 
@@ -583,6 +619,213 @@ class OpenAIProvider:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             estimated_cost_usd=_estimate_openai_cost(self.model, input_tokens, output_tokens),
+        )
+
+    def analyze_sheet(self, *, review: SheetReviewInput) -> SheetReviewProviderResponse:
+        client = self._get_client()
+        bbox_schema = {
+            "type": "object",
+            "properties": {
+                "x0": {"type": "number", "minimum": 0, "maximum": 1000},
+                "y0": {"type": "number", "minimum": 0, "maximum": 1000},
+                "x1": {"type": "number", "minimum": 0, "maximum": 1000},
+                "y1": {"type": "number", "minimum": 0, "maximum": 1000},
+            },
+            "required": ["x0", "y0", "x1", "y1"],
+            "additionalProperties": False,
+        }
+        finding_schema = {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "enum": [
+                        "drawing_consistency",
+                        "dimensions",
+                        "identification",
+                        "coordination",
+                        "detailing",
+                        "legibility",
+                        "missing_information",
+                        "other",
+                    ],
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "inconsistency",
+                        "attention",
+                        "missing_information",
+                        "unverifiable",
+                    ],
+                },
+                "severity": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high", "critical"],
+                },
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "description": {"type": "string", "minLength": 1, "maxLength": 900},
+                "scope": {
+                    "type": "string",
+                    "enum": ["localized", "view", "sheet"],
+                },
+                "bbox": bbox_schema,
+                "evidence": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "maxItems": 6,
+                },
+            },
+            "required": [
+                "category",
+                "type",
+                "severity",
+                "confidence",
+                "description",
+                "scope",
+                "bbox",
+                "evidence",
+            ],
+            "additionalProperties": False,
+        }
+        schema = {
+            "type": "object",
+            "properties": {
+                "sheet_id": {"type": "string", "const": review.sheet_id},
+                "summary": {"type": "string", "minLength": 1, "maxLength": 900},
+                "findings": {
+                    "type": "array",
+                    "items": finding_schema,
+                    "maxItems": 10,
+                },
+            },
+            "required": ["sheet_id", "summary", "findings"],
+            "additionalProperties": False,
+        }
+        content: list[dict[str, object]] = [
+            {
+                "type": "input_text",
+                "text": (
+                    "Revise graficamente esta prancha estrutural inteira. A primeira imagem e a "
+                    "visao global; as demais sao tiles de detalhe identificados no contexto. Procure "
+                    "inconsistencias visuais ou documentais, referencias conflitantes, identificacoes "
+                    "duvidosas, informacoes ausentes, problemas de cotas, chamadas, detalhamento e "
+                    "legibilidade. Nao calcule dimensionamento estrutural, nao declare conformidade "
+                    "normativa e nao apresente hipotese como erro confirmado. Para cada achado use a "
+                    "menor bbox que contenha a evidencia, no sistema normalizado 0..1000 da prancha "
+                    "inteira. Use scope=view ou scope=sheet somente quando a observacao realmente nao "
+                    "puder ser localizada; nesses casos a bbox deve cobrir o escopo mencionado. Se a "
+                    "evidencia nao for suficiente, use type=unverifiable. Responda em pt-BR e limite-se "
+                    "a dez achados sustentados pelas imagens ou pelo contexto estruturado.\n\n"
+                    f"Contexto local auditavel:\n{json.dumps(review.context, ensure_ascii=False, default=str)}"
+                ),
+            }
+        ]
+        for index, image in enumerate(review.images):
+            content.append(
+                {
+                    "type": "input_text",
+                    "text": (
+                        f"Imagem {index + 1}: {image.role}; bbox em pontos PDF "
+                        f"{image.bbox_pt[0]:.2f},{image.bbox_pt[1]:.2f} -> "
+                        f"{image.bbox_pt[2]:.2f},{image.bbox_pt[3]:.2f}."
+                    ),
+                }
+            )
+            content.append(
+                {
+                    "type": "input_image",
+                    "image_url": (
+                        "data:image/png;base64,"
+                        f"{base64.b64encode(image.image_bytes).decode('ascii')}"
+                    ),
+                    "detail": image.detail,
+                }
+            )
+
+        try:
+            response = client.responses.create(
+                model=self.model,
+                reasoning={"effort": self.reasoning_effort},
+                max_output_tokens=self.vision_max_output_tokens,
+                store=False,
+                input=[
+                    {
+                        "role": "developer",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": (
+                                    "Voce e o revisor visual principal do Truss Agent. Trabalhe "
+                                    "sobre o PDF estrutural como desenho tecnico, mantenha severidade "
+                                    "separada de confianca e produza somente achados rastreaveis."
+                                ),
+                            }
+                        ],
+                    },
+                    {"role": "user", "content": content},
+                ],
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "truss_sheet_review",
+                        "strict": True,
+                        "schema": schema,
+                    }
+                },
+            )
+        except Exception as error:
+            public_message, provider_code = _openai_public_error(error)
+            raise AIProviderUnavailableError(
+                "OpenAI sheet review request failed.",
+                public_message=public_message,
+                provider_code=provider_code,
+            ) from error
+
+        usage = _extract_value(response, "usage")
+        input_tokens = _extract_value(usage, "input_tokens")
+        output_tokens = _extract_value(usage, "output_tokens")
+        estimated_cost_usd = _estimate_openai_cost(self.model, input_tokens, output_tokens)
+        usage_context = {
+            "provider": self.provider,
+            "model": self.model,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "estimated_cost_usd": estimated_cost_usd,
+        }
+
+        try:
+            analysis = SheetReviewAnalysis.model_validate(json.loads(_extract_output_text(response)))
+        except (json.JSONDecodeError, ValidationError) as error:
+            raise AIProviderUnavailableError(
+                "OpenAI sheet review response did not match the required schema.",
+                public_message="A resposta da revisao por IA veio fora do contrato estruturado.",
+                provider_code="sheet_review_schema_invalid",
+                **usage_context,
+            ) from error
+        except AIProviderUnavailableError as error:
+            raise AIProviderUnavailableError(
+                str(error),
+                public_message=error.public_message,
+                provider_code=error.provider_code,
+                **usage_context,
+            ) from error
+
+        if analysis.sheet_id != review.sheet_id:
+            raise AIProviderUnavailableError(
+                "OpenAI sheet review referenced another sheet.",
+                public_message="A resposta da IA nao corresponde a prancha enviada.",
+                provider_code="sheet_review_mismatch",
+                **usage_context,
+            )
+
+        return SheetReviewProviderResponse(
+            provider=self.provider,
+            model=self.model,
+            analysis=analysis,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost_usd=estimated_cost_usd,
         )
 
 

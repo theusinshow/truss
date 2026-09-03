@@ -2,9 +2,10 @@
 
 Atualizado em: 2026-09-03
 
-Status do produto: V0.1 local concluida ate F7.2. A comparacao grafica combina regioes raster com
-deltas deterministas de texto nativo e vetor. As F7.1 e F7.2 foram validadas com fixtures
-isoladas; nao existe alegacao de validacao sobre um par real relacionado.
+Status do produto: V0.1 local concluida ate o RC2. A revisao IA-first cobre todas as pranchas com
+visao global, tiles e contexto extraido localmente, preservando cache, coordenadas e teto de custo.
+A comparacao grafica continua combinando regioes raster com deltas deterministas de texto nativo e
+vetor; nao existe alegacao de validacao sobre um par real relacionado.
 
 ## Missao
 
@@ -95,7 +96,8 @@ entram em exports de calibracao ou backups de runtime quando nao pertencem ao da
 3. importar um ou mais PDFs;
 4. extrair folhas, texto, geometria e Sheet Maps;
 5. navegar pelo PDF e executar auditoria deterministica;
-6. opcionalmente executar analise visual localizada dentro de limites de custo;
+6. opcionalmente revisar todas as pranchas por IA com visao global, tiles e contexto local, dentro
+   de limites de custo;
 7. inspecionar cada finding sobre a evidencia;
 8. confirmar, rejeitar com justificativa ou criar finding manual;
 9. revisar preferencias e propostas de aprendizado/calibracao;
@@ -146,6 +148,8 @@ Divergencias devem ser registradas. Mudanca arquitetural relevante segue
   limites honestos e filtros por camada; concluida com gate sintetico e sem classificacao de erro.
 - V0.1-RC1: robustez de caminhos no Windows, testes isolados da configuracao local e repeticao do
   gate integral sobre os tres PDFs/84 folhas agora versionados; concluido e validado.
+- V0.1-RC2: revisao IA-first de todas as pranchas, UI centrada no PDF, marcadores honestos para
+  escopos amplos e ledger fail-closed sob teto de US$ 1; concluido e validado em 9 folhas reais.
 
 O acervo recebido nao possui duas exportacoes reais relacionadas que possam sustentar o gate
 visual antes/depois das F7.1/F7.2. `REV-005` e `REV-006` sao conjuntos distintos e nao devem ser

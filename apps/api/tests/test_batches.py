@@ -5,6 +5,7 @@ from pathlib import Path
 import fitz
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from truss_api.batch import repository as batch_repository
 from truss_api.batch.worker import process_next_item
@@ -261,15 +262,44 @@ def test_visual_batch_requires_explicitly_enabled_vision(
     assert response.json()["detail"]["code"] == "VISION_DISABLED"
 
 
+def test_ai_review_import_creates_only_sheet_map_and_ai_review_phases(
+    client: TestClient,
+    settings: Settings,
+    revision: tuple[str, str],
+) -> None:
+    settings.ai_provider = "openai"
+    settings.openai_api_key = SecretStr("sk-test")
+    settings.vision_enabled = True
+    project_id, revision_id = revision
+
+    response = client.post(
+        f"/projects/{project_id}/revisions/{revision_id}/batch-imports",
+        files={"file": ("ai-review.pdf", make_pdf(2), "application/pdf")},
+        data={"ai_review": "true"},
+    )
+
+    assert response.status_code == 202, response.text
+    batch = response.json()["batch"]
+    assert batch["mode"] == "with_visual"
+    assert set(batch["phase_counts"]) == {"sheet_map", "visual_audit"}
+    assert batch["config"]["ai_review"] is True
+    assert batch["config"]["vision_budget_usd_per_revision"] == 1.0
+    assert batch["config"]["vision_cost_reserve_usd_per_call"] == 0.25
+    assert batch["config"]["vision_max_output_tokens"] == 3000
+    assert batch["config"]["openai_reasoning_effort"] == "low"
+
+
 def test_batch_capabilities_publish_frozen_local_limits(client: TestClient) -> None:
     response = client.get("/batch-capabilities")
 
     assert response.status_code == 200
     assert response.json() == {
         "visual_enabled": False,
+        "ai_review_available": False,
+        "external_calls_enabled": False,
         "provider": "local",
         "model": "gpt-5.6-sol",
-        "vision_budget_usd_per_revision": 0.25,
+        "vision_budget_usd_per_revision": 1.0,
         "vision_max_calls_per_revision": 30,
         "vision_max_candidates_per_sheet": 8,
         "worker_concurrency": 1,
@@ -370,3 +400,66 @@ def test_visual_worker_uses_configuration_frozen_on_batch_creation(
         "candidates": 3,
     }
     assert batch_repository.get_batch_run(str(visual["id"]), settings)["status"] == "completed"
+
+
+def test_ai_review_batch_skips_deterministic_phase_and_reviews_every_sheet(
+    client: TestClient,
+    settings: Settings,
+    revision: tuple[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    imported = create_batch(client, revision, pages=2)
+    while process_next_item(settings):
+        pass
+    assert batch_repository.get_batch_run(imported["batch"]["id"], settings)["status"] == "completed"
+
+    review = batch_repository.create_batch_run(
+        project_id=revision[0],
+        revision_id=revision[1],
+        mode="with_visual",
+        config={
+            "ai_review": True,
+            "provider": "openai",
+            "model": "frozen-ai-review",
+            "vision_budget_usd_per_revision": 1.0,
+            "vision_max_calls_per_revision": 20,
+            "vision_cost_reserve_usd_per_call": 0.18,
+            "vision_max_output_tokens": 2800,
+            "openai_reasoning_effort": "none",
+            "ai_review_global_max_pixels": 1500,
+            "ai_review_tile_max_pixels": 1200,
+            "ai_review_tile_overlap_ratio": 0.03,
+        },
+        settings=settings,
+    )
+    assert set(review["phase_counts"]) == {"sheet_map", "visual_audit"}
+    assert process_next_item(settings)
+    assert process_next_item(settings)
+    captured: list[tuple[str, str, float, float, int, str]] = []
+
+    def fake_review(sheet_id: str, operation_settings: Settings) -> dict[str, object]:
+        captured.append(
+            (
+                sheet_id,
+                operation_settings.openai_model,
+                operation_settings.vision_budget_usd_per_revision,
+                operation_settings.vision_cost_reserve_usd_per_call,
+                operation_settings.vision_max_output_tokens,
+                operation_settings.openai_reasoning_effort,
+            )
+        )
+        return {"id": f"review-{sheet_id}"}
+
+    monkeypatch.setattr("truss_api.batch.worker.run_ai_sheet_review_operation", fake_review)
+    assert process_next_item(settings)
+    assert process_next_item(settings)
+    assert not process_next_item(settings)
+
+    completed = batch_repository.get_batch_run(str(review["id"]), settings)
+    assert completed["status"] == "completed"
+    assert len(captured) == 2
+    assert {model for _, model, _, _, _, _ in captured} == {"frozen-ai-review"}
+    assert {budget for _, _, budget, _, _, _ in captured} == {1.0}
+    assert {reserve for _, _, _, reserve, _, _ in captured} == {0.18}
+    assert {tokens for _, _, _, _, tokens, _ in captured} == {2800}
+    assert {effort for _, _, _, _, _, effort in captured} == {"none"}

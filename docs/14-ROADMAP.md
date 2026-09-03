@@ -19,6 +19,7 @@ fase aqui nao autoriza mudanca arquitetural nem o avanco de varios milestones em
 | F7.1 - Comparacao grafica | concluida por aceite explicito | matcher honesto, diff local em pontos PDF, cache/run imutavel e viewer comparativo | gate real dispensado pelo proprietario; limite preservado na evidencia |
 | F7.2 - Deltas por camada | concluida e validada sinteticamente | texto/vetor deterministas, evidencia antes/depois, cache imutavel e filtros no viewer | par real relacionado continua indisponivel; nenhuma validacao real alegada |
 | V0.1-RC1 - Hardening local | concluido e validado | caminhos Windows curtos, testes hermeticos e gate versionado de 84 folhas | nenhuma no escopo aprovado |
+| V0.1-RC2 - Revisao IA-first | concluido e validado | 9/9 folhas reais, UI PDF-first, ledger de falhas e teto de US$ 1 | nenhuma no escopo aprovado |
 
 ## Sequencia de continuidade
 
@@ -169,6 +170,27 @@ achados e chat, sem overlay de erro. O Chrome registrou apenas um aviso de hidra
 atributo `cz-shortcut-listen` injetado por extensao externa.
 Relatorio: [`docs/v01-rc1-gate-2026-09-03.json`](v01-rc1-gate-2026-09-03.json).
 
+### V0.1-RC2 - Revisao IA-first
+
+Status: concluido e validado em 2026-09-03.
+
+Objetivo: tornar a IA a revisora grafica principal de todas as pranchas, mantendo extracao,
+coordenadas, cache, validacao e limite de custo deterministas e auditaveis.
+
+- revisar cada folha com uma visao global, quatro tiles e contexto textual/vetorial local;
+- persistir somente saida estruturada valida e converter bboxes para pontos PDF;
+- contabilizar tambem chamadas que falhem depois de receber resposta externa;
+- limitar cada revisao a US$ 1, com configuracao congelada no batch;
+- reduzir o chrome da interface, recolher ferramentas avancadas e manter o PDF central;
+- substituir overlays amplos por marcadores de escopo sem preenchimento de pagina.
+
+Resultado: o lote real `REV-005` concluiu 9 Sheet Maps e 9 revisoes IA sem falha, gerando 48
+achados. O ledger registrou 10 tentativas (9 respostas validas e 1 truncada), 83.296 tokens de
+entrada, 17.128 de saida e US$ 0,745744 no total, incluindo uma estimativa conservadora de US$ 0,07
+para a chamada truncada. No viewport 1249 x 1187, a UI caiu de 56 para 37 botoes visiveis com
+filtros recolhidos, 7 achados IA primarios, Fit View e zero overflow horizontal.
+Relatorio: [`docs/v01-rc2-ai-first-gate-2026-09-03.json`](v01-rc2-ai-first-gate-2026-09-03.json).
+
 ## Depois da V0.1
 
 Comparacao semantica de engenharia, alinhamento geometrico avancado e qualquer classificacao
@@ -177,5 +199,5 @@ cobranca, 3D decorativo e fine-tuning continuam fora do escopo.
 
 ## Proximo passo
 
-Nao ha proximo milestone aprovado. Qualquer continuidade deve receber analise, proposta e
+Nao ha milestone posterior ao RC2 aprovado. Qualquer continuidade deve receber analise, proposta e
 aprovacao explicita antes de implementacao.

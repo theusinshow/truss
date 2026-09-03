@@ -480,7 +480,24 @@ export function shouldShowHypothesisNotice(finding: Finding): boolean {
 }
 
 export function findingSourceLabel(finding: Finding): string | null {
-  return finding.source_layer === "vision" ? "VISAO / CROP" : null;
+  if (finding.origin === "human") return "HUMANO";
+  if (finding.source_layer === "ai_review") return "IA / PRANCHA";
+  if (finding.source_layer === "vision") return "IA / CROP";
+  if (finding.source_layer === "deterministic") return "REGRA LOCAL";
+  return "AUTOMATICO";
+}
+
+export function findingOverlayPresentation(
+  finding: Finding,
+  sheet: Pick<Sheet, "width_pt" | "height_pt">
+): "localized" | "scope" {
+  const width = Math.max(0, finding.bbox.x1 - finding.bbox.x0);
+  const height = Math.max(0, finding.bbox.y1 - finding.bbox.y0);
+  const sheetArea = Math.max(1, sheet.width_pt * sheet.height_pt);
+  const areaRatio = (width * height) / sheetArea;
+  return finding.rule_scope === "sheet" || finding.rule_scope === "view" || areaRatio >= 0.25
+    ? "scope"
+    : "localized";
 }
 
 export function canProposeRulePreference(finding: Finding): boolean {
@@ -887,6 +904,8 @@ export type BatchImportResult = {
 
 export type BatchCapabilities = {
   visual_enabled: boolean;
+  ai_review_available: boolean;
+  external_calls_enabled: boolean;
   provider: string;
   model: string;
   vision_budget_usd_per_revision: number;
@@ -905,11 +924,13 @@ export async function importRevisionBatch(
   projectId: string,
   revisionId: string,
   file: File,
-  includeVisual = false
+  includeVisual = false,
+  aiReview = false
 ): Promise<BatchImportResult> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("include_visual", String(includeVisual));
+  formData.append("ai_review", String(aiReview));
   const response = await fetch(
     `${apiBaseUrl}/projects/${projectId}/revisions/${revisionId}/batch-imports`,
     { method: "POST", body: formData }
@@ -918,6 +939,21 @@ export async function importRevisionBatch(
     throw await apiErrorFromResponse(response);
   }
   return response.json() as Promise<BatchImportResult>;
+}
+
+export function startRevisionAIReview(
+  apiBaseUrl: string,
+  projectId: string,
+  revisionId: string
+): Promise<BatchRunSummary> {
+  return request<BatchRunSummary>(
+    apiBaseUrl,
+    `/projects/${projectId}/revisions/${revisionId}/batch-runs`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ai_review: true })
+    }
+  );
 }
 
 export function listRevisionBatchRuns(
@@ -955,6 +991,12 @@ export function runSheetAudit(apiBaseUrl: string, sheetId: string): Promise<Audi
 
 export function runSheetVisionAudit(apiBaseUrl: string, sheetId: string): Promise<AuditRun> {
   return request<AuditRun>(apiBaseUrl, `/sheets/${sheetId}/vision-audit-runs`, {
+    method: "POST"
+  });
+}
+
+export function runSheetAIReview(apiBaseUrl: string, sheetId: string): Promise<AuditRun> {
+  return request<AuditRun>(apiBaseUrl, `/sheets/${sheetId}/ai-review-runs`, {
     method: "POST"
   });
 }

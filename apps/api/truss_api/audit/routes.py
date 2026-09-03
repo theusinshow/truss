@@ -7,6 +7,7 @@ from truss_api.core.settings import Settings, get_settings
 from truss_api.documents.repository import SheetNotFoundError
 from truss_api.sheetmap.repository import SheetMapNotFoundError
 from truss_api.recovery.operations import (
+    run_ai_sheet_review_operation,
     run_deterministic_audit_operation,
     run_visual_audit_operation,
 )
@@ -39,6 +40,26 @@ def create_vision_audit_run(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sheet not found") from error
     except VisionDisabledError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    except AIProviderUnavailableError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=error.public_message,
+        ) from error
+
+
+@router.post(
+    "/sheets/{sheet_id}/ai-review-runs",
+    response_model=AuditRun,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_ai_review_run(
+    sheet_id: str,
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    try:
+        return run_ai_sheet_review_operation(sheet_id, settings)
+    except (SheetNotFoundError, SheetMapNotFoundError) as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sheet not found") from error
     except AIProviderUnavailableError as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

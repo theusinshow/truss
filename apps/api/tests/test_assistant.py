@@ -503,7 +503,7 @@ def test_openai_provider_uses_responses_api_and_estimates_cost() -> None:
     assert response.model == "gpt-5.6-sol"
     assert response.input_tokens == 100
     assert response.output_tokens == 10
-    assert response.estimated_cost_usd == 0.0008
+    assert response.estimated_cost_usd == 0.0006
     assert fake_client.responses.request is not None
     assert fake_client.responses.request["model"] == "gpt-5.6-sol"
     assert fake_client.responses.request["reasoning"] == {"effort": "low"}

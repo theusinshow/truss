@@ -6,6 +6,7 @@ import {
   findingElementLabel,
   findingLevelTransition,
   findingLifecycleState,
+  findingOverlayPresentation,
   findingSectionTransition,
   findingSheetTransition,
   findingSourceLabel,
@@ -123,9 +124,27 @@ describe("apresentacao de findings F3", () => {
     expect(shouldShowHypothesisNotice(finding({ origin: "human" }))).toBe(false);
   });
 
-  it("distingue findings produzidos por crop visual", () => {
-    expect(findingSourceLabel(finding({ source_layer: "vision" }))).toBe("VISAO / CROP");
-    expect(findingSourceLabel(finding({ source_layer: "deterministic" }))).toBeNull();
+  it("distingue a fonte real de cada finding automatico", () => {
+    expect(findingSourceLabel(finding({ source_layer: "ai_review" }))).toBe("IA / PRANCHA");
+    expect(findingSourceLabel(finding({ source_layer: "vision" }))).toBe("IA / CROP");
+    expect(findingSourceLabel(finding({ source_layer: "deterministic" }))).toBe("REGRA LOCAL");
+  });
+
+  it("usa marcador de escopo para regioes amplas em vez de preencher a prancha", () => {
+    const sheet = { width_pt: 1000, height_pt: 1000 };
+    expect(
+      findingOverlayPresentation(
+        finding({ bbox: { x0: 0, y0: 0, x1: 800, y1: 800 } }),
+        sheet
+      )
+    ).toBe("scope");
+    expect(
+      findingOverlayPresentation(
+        finding({ bbox: { x0: 10, y0: 20, x1: 30, y1: 40 }, rule_scope: "view" }),
+        sheet
+      )
+    ).toBe("scope");
+    expect(findingOverlayPresentation(finding(), sheet)).toBe("localized");
   });
 
   it("so propoe preferencia para achado automatico rejeitado e rastreavel", () => {

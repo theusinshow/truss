@@ -11,12 +11,15 @@ import {
   FolderOpen,
   GitCompare,
   Loader2,
+  MoreHorizontal,
   RefreshCcw,
+  Sparkles,
 } from "lucide-react";
 import {
   createProject,
   createRevision,
   BatchCapabilities,
+  BatchItem,
   BatchRunSummary,
   DocumentDetail,
   getDocument,
@@ -27,6 +30,7 @@ import {
   listRevisionDocuments,
   ProjectDetail,
   ProjectSummary,
+  startRevisionAIReview,
 } from "@/lib/projects-api";
 import type { EvidenceLocator } from "@/lib/projects-api";
 import { LearningCenter } from "@/components/learning/learning-center";
@@ -87,8 +91,9 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
   const [isResumingOperation, setIsResumingOperation] = useState(false);
   const [operationsRefreshToken, setOperationsRefreshToken] = useState(0);
   const [batchByRevision, setBatchByRevision] = useState<Record<string, BatchRunSummary>>({});
+  const [batchItemsByRevision, setBatchItemsByRevision] = useState<Record<string, BatchItem[]>>({});
   const [batchCapabilities, setBatchCapabilities] = useState<BatchCapabilities | null>(null);
-  const [includeVisualBatch, setIncludeVisualBatch] = useState(false);
+  const [isStartingAIReview, setIsStartingAIReview] = useState(false);
 
   const selectedSummary = useMemo(
     () => projects.find((project) => project.id === selectedProject?.id),
@@ -261,13 +266,14 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
       });
     }
 
-    setQuickStatus("Importando PDF e preparando o lote local...");
+    setQuickStatus("Importando PDF e preparando a revisão por IA...");
     const { document: imported, batch } = await importRevisionBatch(
       apiBaseUrl,
       targetProject.id,
       targetRevision.id,
       file,
-      includeVisualBatch
+      false,
+      true
     );
 
     setSelectedProject(await getProject(apiBaseUrl, targetProject.id));
@@ -278,8 +284,31 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
     }));
     setBatchByRevision((current) => ({ ...current, [targetRevision.id]: batch }));
 
-    setQuickStatus(`PDF importado. ${imported.sheets.length} folha(s) entraram na fila local.`);
+    setQuickStatus(`PDF importado. A IA vai revisar ${imported.sheets.length} folha(s).`);
     await refreshProjects(targetProject.id);
+  }
+
+  async function handleStartAIReview() {
+    if (!selectedProject || !selectedRevision) return;
+    setIsStartingAIReview(true);
+    setError(null);
+    try {
+      const batch = await startRevisionAIReview(
+        apiBaseUrl,
+        selectedProject.id,
+        selectedRevision.id
+      );
+      setBatchByRevision((current) => ({ ...current, [selectedRevision.id]: batch }));
+      setQuickStatus(`Revisão por IA iniciada para ${batch.total_sheets} folha(s).`);
+    } catch (reviewError) {
+      setError(
+        reviewError instanceof Error
+          ? reviewError
+          : new Error("Não foi possível iniciar a revisão por IA.")
+      );
+    } finally {
+      setIsStartingAIReview(false);
+    }
   }
 
   const handleBatchTerminal = useCallback((batch: BatchRunSummary) => {
@@ -287,12 +316,22 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
     setImportedAuditVersion((current) => current + 1);
     setQuickStatus(
       batch.status === "completed"
-        ? "Verificacoes locais concluidas."
+        ? batch.config.ai_review === true
+          ? `Revisão por IA concluída em ${batch.total_sheets} folha(s).`
+          : "Verificações locais concluídas."
         : batch.status === "completed_with_errors"
-          ? "Verificacoes concluidas com pontos que exigem atencao."
-          : "Processamento interrompido pelo usuario."
+          ? "Revisão concluída com folhas que exigem atenção."
+          : "Processamento interrompido pelo usuário."
     );
   }, []);
+
+  const handleBatchItemsChange = useCallback(
+    (items: BatchItem[]) => {
+      if (!selectedRevisionId) return;
+      setBatchItemsByRevision((current) => ({ ...current, [selectedRevisionId]: items }));
+    },
+    [selectedRevisionId]
+  );
 
   async function handleQuickFile(file: File | null) {
     if (!file) {
@@ -479,11 +518,11 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
               </span>
               <span>
                 <span className="block text-sm font-semibold text-truss-text">
-                  Arraste um PDF aqui para revisar
+                  Importe um PDF para revisar com IA
                 </span>
                 <span className="mt-1 block max-w-2xl text-sm leading-6 text-truss-muted">
-                  O Truss cria projeto e revisão quando necessário, separa as folhas e roda as
-                  verificações iniciais automaticamente.
+                  O Truss cria uma revisão imutável e envia cada prancha à IA dentro do teto
+                  configurado. O PDF original permanece no disco local.
                 </span>
                 {quickStatus ? (
                   <span className="mt-3 inline-flex items-center gap-2 border border-truss-line bg-truss-raised px-3 py-2 font-mono text-[11px] text-truss-muted">
@@ -494,37 +533,28 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
               </span>
             </span>
             <span className="truss-button">
-              Escolher PDF
+              Escolher PDF e revisar
             </span>
           </span>
         </label>
 
-        {batchCapabilities?.visual_enabled ? (
-          <div className="mb-4 border border-truss-line bg-truss-panel px-4 py-3">
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                checked={includeVisualBatch}
-                className="mt-0.5 h-4 w-4 accent-[var(--red)]"
-                onChange={(event) => setIncludeVisualBatch(event.target.checked)}
-                type="checkbox"
-              />
-              <span>
-                <span className="block text-sm font-semibold text-truss-text">
-                  Incluir triagem visual nesta nova revisão
-                </span>
-                <span className="mt-1 block text-xs leading-5 text-truss-muted">
-                  Opt-in externo: {batchCapabilities.provider} / {batchCapabilities.model} · até{" "}
-                  {batchCapabilities.vision_max_calls_per_revision} chamadas · teto de US${" "}
-                  {batchCapabilities.vision_budget_usd_per_revision.toFixed(2)} · até{" "}
-                  {batchCapabilities.vision_max_candidates_per_sheet} candidatos por folha.
-                </span>
-                {includeVisualBatch ? (
-                  <span className="mt-2 block font-mono text-[11px] uppercase tracking-[0.05em] text-truss-warning">
-                    Confirmado: parar o lote não desfaz uma chamada já enviada; falha visual nunca repete automaticamente.
-                  </span>
-                ) : null}
-              </span>
-            </label>
+        {batchCapabilities ? (
+          <div
+            className={`mb-3 flex items-center justify-between gap-3 border px-3 py-2 text-xs ${
+              batchCapabilities.ai_review_available
+                ? "border-truss-success/35 bg-truss-success/5 text-truss-muted"
+                : "border-truss-warning/40 bg-truss-warning/10 text-truss-warning"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Sparkles aria-hidden="true" className="h-4 w-4 shrink-0" />
+              {batchCapabilities.ai_review_available
+                ? `IA pronta: ${batchCapabilities.provider} / ${batchCapabilities.model}`
+                : "IA indisponível. Configure OpenAI e habilite a revisão visual."}
+            </span>
+            <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.06em]">
+              teto US$ {batchCapabilities.vision_budget_usd_per_revision.toFixed(2)} / revisão
+            </span>
           </div>
         ) : null}
 
@@ -539,32 +569,48 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <button
-                  aria-pressed={workspaceMode === "learning"}
-                  className="truss-button data-[active=true]:border-truss-accent/55 data-[active=true]:bg-truss-accentSoft data-[active=true]:text-truss-text"
-                  data-active={workspaceMode === "learning"}
-                  onClick={() =>
-                    setWorkspaceMode((current) =>
-                      current === "viewer" ? "learning" : "viewer"
-                    )
+                  className="truss-button truss-button-primary"
+                  disabled={
+                    isStartingAIReview
+                    || !selectedRevision
+                    || selectedDocuments.length === 0
+                    || !batchCapabilities?.ai_review_available
                   }
+                  onClick={() => void handleStartAIReview()}
                   type="button"
                 >
-                  <BrainCircuit aria-hidden="true" className="truss-icon h-4 w-4" />
-                  {workspaceMode === "learning" ? "Voltar ao PDF" : "Aprendizado local"}
+                  {isStartingAIReview ? (
+                    <Loader2 aria-hidden="true" className="truss-icon h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles aria-hidden="true" className="truss-icon h-4 w-4" />
+                  )}
+                  Revisar projeto com IA
                 </button>
-                <button
-                  aria-pressed={workspaceMode === "compare"}
-                  className="truss-button data-[active=true]:border-truss-accent/55 data-[active=true]:bg-truss-accentSoft data-[active=true]:text-truss-text"
-                  data-active={workspaceMode === "compare"}
-                  disabled={selectedProject.revisions.length < 2}
-                  onClick={() =>
-                    setWorkspaceMode((current) => (current === "compare" ? "viewer" : "compare"))
-                  }
-                  type="button"
-                >
-                  <GitCompare aria-hidden="true" className="truss-icon h-4 w-4" />
-                  {workspaceMode === "compare" ? "Voltar ao PDF" : "Comparar revisões"}
-                </button>
+                <details className="group relative">
+                  <summary className="truss-icon-button flex cursor-pointer list-none items-center justify-center" title="Mais ferramentas">
+                    <MoreHorizontal aria-hidden="true" className="truss-icon h-4 w-4" />
+                    <span className="sr-only">Mais ferramentas</span>
+                  </summary>
+                  <div className="absolute right-0 z-40 mt-2 grid min-w-52 gap-1 border border-truss-line bg-truss-raised p-2 shadow-truss-panel">
+                    <button
+                      className="truss-button justify-start"
+                      onClick={() => setWorkspaceMode(workspaceMode === "learning" ? "viewer" : "learning")}
+                      type="button"
+                    >
+                      <BrainCircuit aria-hidden="true" className="truss-icon h-4 w-4" />
+                      {workspaceMode === "learning" ? "Voltar ao PDF" : "Aprendizado local"}
+                    </button>
+                    <button
+                      className="truss-button justify-start"
+                      disabled={selectedProject.revisions.length < 2}
+                      onClick={() => setWorkspaceMode(workspaceMode === "compare" ? "viewer" : "compare")}
+                      type="button"
+                    >
+                      <GitCompare aria-hidden="true" className="truss-icon h-4 w-4" />
+                      {workspaceMode === "compare" ? "Voltar ao PDF" : "Comparar revisões"}
+                    </button>
+                  </div>
+                </details>
                 <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.06em] text-truss-subtle">
                   <Database aria-hidden="true" className="truss-icon h-4 w-4 text-truss-accent" />
                   {selectedSummary?.latest_revision_code ?? "Sem revisao"}
@@ -612,6 +658,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                     onOpenSheet={(sheetId) =>
                       setViewerNavigationTarget({ sheetId, nonce: Date.now() })
                     }
+                    onItemsChange={handleBatchItemsChange}
                     onTerminal={handleBatchTerminal}
                     revisionId={selectedRevision.id}
                   />
@@ -621,6 +668,13 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                   documents={selectedDocuments}
                   key={importedAuditVersion}
                   navigationTarget={viewerNavigationTarget}
+                  reviewItems={
+                    selectedRevision
+                      ? batchItemsByRevision[selectedRevision.id]?.filter(
+                          (item) => item.phase === "visual_audit"
+                        ) ?? []
+                      : []
+                  }
                 />
               </>
             )}

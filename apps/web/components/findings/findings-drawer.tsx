@@ -35,11 +35,13 @@ function readStoredHeight(): DrawerHeight {
 type FindingsDrawerProps = {
   children: ReactNode;
   count: number;
+  variant?: "drawer" | "panel";
   toolbar?: ReactNode;
 };
 
-export function FindingsDrawer({ children, count, toolbar }: FindingsDrawerProps) {
+export function FindingsDrawer({ children, count, variant = "drawer", toolbar }: FindingsDrawerProps) {
   const [height, setHeight] = useState<DrawerHeight>("default");
+  const isPanel = variant === "panel";
 
   useEffect(() => {
     // Ler no efeito (e nao no inicializador) evita divergencia de hidratacao,
@@ -78,30 +80,40 @@ export function FindingsDrawer({ children, count, toolbar }: FindingsDrawerProps
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const isClosed = height === "closed";
+  const isClosed = !isPanel && height === "closed";
 
   return (
     <section
       aria-label="Achados da prancha"
-      className={`flex shrink-0 flex-col border-t border-truss-line bg-truss-raised transition-[height] duration-200 motion-reduce:transition-none ${HEIGHT_CLASS[height]}`}
+      className={
+        isPanel
+          ? "flex min-h-0 min-w-0 flex-col border-l border-truss-line bg-truss-raised"
+          : `flex shrink-0 flex-col border-t border-truss-line bg-truss-raised transition-[height] duration-200 motion-reduce:transition-none ${HEIGHT_CLASS[height]}`
+      }
     >
       <div className="flex h-10 shrink-0 items-center gap-3 border-b border-truss-line px-3">
-        <button
-          aria-expanded={!isClosed}
-          className="flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.09em] text-truss-subtle transition-colors hover:text-truss-text"
-          onClick={() => setHeight((current) => NEXT_HEIGHT[current])}
-          title="Alternar altura dos achados (A)"
-          type="button"
-        >
-          <ChevronDown
-            aria-hidden="true"
-            className={`truss-icon h-3.5 w-3.5 transition-transform duration-200 motion-reduce:transition-none ${
-              isClosed ? "-rotate-90" : ""
-            }`}
-          />
-          achados
-          <span className="text-truss-text">({count})</span>
-        </button>
+        {isPanel ? (
+          <p className="font-mono text-[10.5px] uppercase tracking-[0.09em] text-truss-subtle">
+            achados <span className="text-truss-text">({count})</span>
+          </p>
+        ) : (
+          <button
+            aria-expanded={!isClosed}
+            className="flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.09em] text-truss-subtle transition-colors hover:text-truss-text"
+            onClick={() => setHeight((current) => NEXT_HEIGHT[current])}
+            title="Alternar altura dos achados (A)"
+            type="button"
+          >
+            <ChevronDown
+              aria-hidden="true"
+              className={`truss-icon h-3.5 w-3.5 transition-transform duration-200 motion-reduce:transition-none ${
+                isClosed ? "-rotate-90" : ""
+              }`}
+            />
+            achados
+            <span className="text-truss-text">({count})</span>
+          </button>
+        )}
 
         {isClosed ? null : <div className="flex min-w-0 flex-1 items-center gap-2">{toolbar}</div>}
       </div>

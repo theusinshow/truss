@@ -194,10 +194,11 @@ Para habilitar com OpenAI e um limite operacional por revisao:
 ```powershell
 setx TRUSS_AI_PROVIDER "openai"
 setx TRUSS_VISION_ENABLED "true"
-setx TRUSS_VISION_BUDGET_USD_PER_REVISION "0.25"
+setx TRUSS_VISION_BUDGET_USD_PER_REVISION "1.00"
 setx TRUSS_VISION_MAX_CALLS_PER_REVISION "30"
 setx TRUSS_VISION_MAX_CANDIDATES_PER_SHEET "8"
-setx TRUSS_VISION_COST_RESERVE_USD_PER_CALL "0.05"
+setx TRUSS_VISION_COST_RESERVE_USD_PER_CALL "0.25"
+setx TRUSS_VISION_MAX_OUTPUT_TOKENS "3000"
 ```
 
 O cache visual usa o hash do crop, pipeline, prompt, modelo, reasoning e detalhe da imagem. A
@@ -374,6 +375,30 @@ folhas: 84 Sheet Maps, 84 auditorias, 14 findings, replay sem duplicar artefatos
 feedback reaberto, backup verificado, restore integro e falha sintetica isolada. Os arquivos sao
 projetos distintos e continuam sem constituir um par real para F7.1/F7.2. Evidencia:
 [`docs/v01-rc1-gate-2026-09-03.json`](docs/v01-rc1-gate-2026-09-03.json).
+
+## V0.1-RC2 - Revisao IA-first
+
+O RC2 transforma a revisao integral por IA na acao principal do workspace. Cada prancha recebe uma
+visao global, quatro tiles de detalhe e contexto textual/vetorial local; o modelo devolve achados em
+schema estrito e bboxes normalizadas, convertidas para pontos PDF antes da persistencia. Regras
+deterministicas continuam como apoio auditavel, recolhidas por padrao quando uma revisao IA existe.
+
+O viewer abre a prancha em Fit View, mantem o PDF no centro e os achados no painel direito. Filtros,
+chat, aprendizado, comparacao e ferramentas manuais ficam secundarios. Achados de escopo amplo usam
+marcador de tamanho constante, nunca preenchimento vermelho sobre a folha inteira.
+
+Chamadas externas exigem `TRUSS_VISION_ENABLED=true`, provider OpenAI e teto positivo. O limite
+padrao e US$ 1 por revisao, com reserva conservadora de US$ 0,25 antes de cada chamada. Tentativas
+que recebem resposta invalida tambem entram no ledger; `max_output_tokens=3000` evita o truncamento
+observado com respostas estruturadas e reasoning.
+
+O gate real de `REV-005` concluiu 9/9 Sheet Maps e 9/9 revisoes IA, com 48 achados. Foram registrados
+83.296 tokens de entrada, 17.128 de saida e US$ 0,745744, incluindo US$ 0,07 conservadores para uma
+tentativa inicial truncada. Evidencia:
+[`docs/v01-rc2-ai-first-gate-2026-09-03.json`](docs/v01-rc2-ai-first-gate-2026-09-03.json).
+
+O fechamento automatizado passou com 299 testes de API, 1 skip previsto, 62 testes web, lint,
+typecheck e build Next.js 16.2.12.
 
 ## Requisitos locais
 

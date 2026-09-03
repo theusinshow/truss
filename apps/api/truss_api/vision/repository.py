@@ -4,11 +4,16 @@ from uuid import uuid4
 
 from truss_api.core.settings import Settings
 from truss_api.db.connection import transaction
-from truss_api.vision.models import VisionAnalysis, VisionProviderResponse
+from truss_api.vision.models import (
+    SheetReviewProviderResponse,
+    VisionAnalysis,
+    VisionProviderResponse,
+)
 
 
 VISION_CACHE_NAMESPACE = "vision"
 VISION_USAGE_OPERATION = "vision.legibility"
+AI_REVIEW_USAGE_OPERATION = "ai.sheet_review"
 
 
 def _now() -> str:
@@ -71,9 +76,68 @@ def revision_usage(revision_id: str, settings: Settings) -> tuple[int, float]:
     return int(row["calls"]), float(row["cost"])
 
 
+def revision_external_usage(revision_id: str, settings: Settings) -> tuple[int, float]:
+    with transaction(settings) as connection:
+        row = connection.execute(
+            """
+            SELECT COUNT(*) AS calls, COALESCE(SUM(estimated_cost_usd), 0) AS cost
+            FROM ai_usage_events
+            WHERE revision_id = ? AND operation IN (?, ?)
+            """,
+            (revision_id, VISION_USAGE_OPERATION, AI_REVIEW_USAGE_OPERATION),
+        ).fetchone()
+    return int(row["calls"]), float(row["cost"])
+
+
 def record_usage(
     response: VisionProviderResponse,
     *,
+    project_id: str,
+    revision_id: str,
+    sheet_id: str,
+    settings: Settings,
+) -> None:
+    record_external_usage(
+        response,
+        operation=VISION_USAGE_OPERATION,
+        project_id=project_id,
+        revision_id=revision_id,
+        sheet_id=sheet_id,
+        settings=settings,
+    )
+
+
+def record_external_usage(
+    response: VisionProviderResponse | SheetReviewProviderResponse,
+    *,
+    operation: str,
+    project_id: str,
+    revision_id: str,
+    sheet_id: str,
+    settings: Settings,
+) -> None:
+    record_external_usage_values(
+        provider=response.provider,
+        model=response.model,
+        input_tokens=response.input_tokens,
+        output_tokens=response.output_tokens,
+        estimated_cost_usd=response.estimated_cost_usd,
+        operation=operation,
+        project_id=project_id,
+        revision_id=revision_id,
+        sheet_id=sheet_id,
+        settings=settings,
+    )
+
+
+def record_external_usage_values(
+    *,
+    provider: str,
+    model: str,
+    input_tokens: int | None,
+    output_tokens: int | None,
+    estimated_cost_usd: float,
+    operation: str,
     project_id: str,
     revision_id: str,
     sheet_id: str,
@@ -89,15 +153,15 @@ def record_usage(
             """,
             (
                 str(uuid4()),
-                response.provider,
-                response.model,
-                VISION_USAGE_OPERATION,
+                provider,
+                model,
+                operation,
                 project_id,
                 revision_id,
                 sheet_id,
-                response.input_tokens,
-                response.output_tokens,
-                response.estimated_cost_usd,
+                input_tokens,
+                output_tokens,
+                estimated_cost_usd,
                 _now(),
             ),
         )
