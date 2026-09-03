@@ -2,7 +2,8 @@
 
 Atualizado em: 2026-09-02
 
-Status do produto: V0.1 local concluida ate F6.2. F7 permanece candidata e exige novo gate.
+Status do produto: V0.1 local concluida ate F6.2. F7.1 esta implementada e validada em fixture
+isolada; o gate definitivo aguarda um par real antes/depois do mesmo conjunto estrutural.
 
 ## Missao
 
@@ -138,8 +139,12 @@ Divergencias devem ser registradas. Mudanca arquitetural relevante segue
 - F6.1: recuperacao e operacao local segura, concluida;
 - F6.2: fila e worker locais, lote de 84 folhas reais, fixture separada de falha, progresso,
   cancelamento cooperativo e recovery, concluidos e validados.
+- F7.1: comparacao grafica deterministica entre revisoes, runs e regioes imutaveis, pareamento
+  auditavel e interface PDF-first; implementada, com gate sintetico aprovado e gate real pendente.
 
-F7, comparacao grafica entre revisoes, e apenas candidata e exige novo gate.
+O acervo recebido nao possui duas exportacoes reais relacionadas que possam sustentar o gate
+visual antes/depois da F7.1. `REV-005` e `REV-006` sao conjuntos distintos e nao devem ser
+pareados por nome de arquivo ou numero da pagina.
 
 ## Fora do escopo
 
@@ -151,7 +156,7 @@ F7, comparacao grafica entre revisoes, e apenas candidata e exige novo gate.
 - prompt monolitico responsavel por toda a revisao;
 - 3D decorativo;
 - alteracao automatica de regra a partir de proposta;
-- comparacao entre revisoes antes de aprovacao da F7.
+- comparacao semantica de engenharia ou classificacao automatica de diferenca como erro;
 
 ## Definicao de concluido
 

@@ -63,6 +63,81 @@ export type DocumentDetail = ImportedDocument & {
   sheets: Sheet[];
 };
 
+export type ComparisonStatus =
+  | "identical"
+  | "changed"
+  | "added"
+  | "removed"
+  | "ambiguous"
+  | "unavailable";
+
+export type ComparisonMatchMethod = "manual" | "sheet_code" | "exact_content" | "unmatched";
+
+export type ComparisonSheet = {
+  id: string;
+  document_id: string;
+  revision_id: string;
+  sheet_number: number;
+  page_index: number;
+  label: string;
+  sheet_code: string | null;
+  sheet_code_raw: string | null;
+  width_pt: number;
+  height_pt: number;
+  rotation: number;
+  source_status: "AVAILABLE" | "SOURCE_UNAVAILABLE" | "SOURCE_RESTORED";
+};
+
+export type ComparisonRegion = {
+  id: string;
+  region_index: number;
+  base_bbox: BoundingBox;
+  target_bbox: BoundingBox;
+  changed_pixel_count: number;
+  changed_ratio: number;
+};
+
+export type ComparisonSheetPair = {
+  id: string;
+  sequence: number;
+  base_sheet: ComparisonSheet | null;
+  target_sheet: ComparisonSheet | null;
+  status: ComparisonStatus;
+  match_method: ComparisonMatchMethod;
+  match_confidence: number;
+  pairing_override_id: string | null;
+  summary: string;
+  changed_ratio: number;
+  regions: ComparisonRegion[];
+};
+
+export type RevisionComparison = {
+  id: string;
+  project_id: string;
+  base_revision_id: string;
+  target_revision_id: string;
+  base_revision_code: string;
+  target_revision_code: string;
+  input_fingerprint: string;
+  pipeline_version: string;
+  status: "completed" | "completed_with_limits";
+  counts: Record<ComparisonStatus | "total", number>;
+  created_at: string;
+  pairs: ComparisonSheetPair[];
+};
+
+export type ComparisonPairing = {
+  id: string;
+  project_id: string;
+  base_revision_id: string;
+  target_revision_id: string;
+  base_sheet_id: string;
+  target_sheet_id: string;
+  created_at: string;
+  revoked_at: string | null;
+  active: boolean;
+};
+
 export type FindingStatus = "pending" | "confirmed" | "rejected";
 export type FindingSeverity = "low" | "medium" | "high" | "critical";
 export type FindingType = "inconsistency" | "attention" | "missing_information" | "unverifiable";
@@ -648,6 +723,50 @@ export function listRevisionDocuments(
 
 export function getDocument(apiBaseUrl: string, documentId: string): Promise<DocumentDetail> {
   return request<DocumentDetail>(apiBaseUrl, `/documents/${documentId}`);
+}
+
+export function createRevisionComparison(
+  apiBaseUrl: string,
+  projectId: string,
+  baseRevisionId: string,
+  targetRevisionId: string
+): Promise<RevisionComparison> {
+  return request<RevisionComparison>(
+    apiBaseUrl,
+    `/projects/${projectId}/revision-comparisons`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        base_revision_id: baseRevisionId,
+        target_revision_id: targetRevisionId
+      })
+    }
+  );
+}
+
+export function createComparisonPairing(
+  apiBaseUrl: string,
+  projectId: string,
+  input: {
+    base_revision_id: string;
+    target_revision_id: string;
+    base_sheet_id: string;
+    target_sheet_id: string;
+  }
+): Promise<ComparisonPairing> {
+  return request<ComparisonPairing>(apiBaseUrl, `/projects/${projectId}/comparison-pairings`, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function revokeComparisonPairing(
+  apiBaseUrl: string,
+  pairingId: string
+): Promise<ComparisonPairing> {
+  return request<ComparisonPairing>(apiBaseUrl, `/comparison-pairings/${pairingId}`, {
+    method: "DELETE"
+  });
 }
 
 export async function importRevisionDocument(

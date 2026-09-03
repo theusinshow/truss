@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from truss_api.audit.routes import router as audit_router
 from truss_api.calibration.routes import router as calibration_router
+from truss_api.comparisons.routes import router as comparisons_router
 from truss_api.assistant.routes import router as assistant_router
 from truss_api.batch.routes import router as batch_router
 from truss_api.core.storage import ensure_storage_layout
@@ -70,4 +71,5 @@ app.include_router(batch_router)
 app.include_router(preferences_router)
 app.include_router(learning_router)
 app.include_router(calibration_router)
+app.include_router(comparisons_router)
 app.include_router(recovery_router)

@@ -1,5 +1,23 @@
 # Decisions
 
+## 2026-09-02 - F7.1 compares immutable revisions without inventing sheet identity
+
+The owner approved F7.1 as a deterministic, local comparison slice. Sheet identity follows active
+manual pairing, a unique exact canonical `sheet_code`, then exact document hash plus page index for
+same-content replay. Filename and page number never establish identity. Missing identity stays
+ambiguous; one-sided coded sheets are additions or removals; missing sources are unavailable.
+
+Raster differences are computed locally, grouped into regions, and stored as base/target PDF-point
+bboxes. A page-size or rotation change is a full-page difference and disables registered overlay
+and blink views. A graphic difference is evidence for inspection, never a confirmed engineering
+error. Only an explicit owner action promotes a region to a manual finding.
+
+Comparison runs, pairs and regions are immutable and cached by source, Sheet Map, active-pairing
+and pipeline fingerprints. Manual pairings retain revoked history. The synthetic browser gate
+passed all three display modes and finding promotion. The milestone remains open until two related
+real exports are available; the current `REV-005` and `REV-006` are distinct sets and remain
+honestly unpaired.
+
 ## 2026-09-02 - F5.3 calibrates immutable runs without promoting rules
 
 The approved corpus is identified by `corpus-manifest-v0.1` and preserves two authority levels:

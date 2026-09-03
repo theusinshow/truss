@@ -16,6 +16,7 @@ fase aqui nao autoriza mudanca arquitetural nem o avanco de varios milestones em
 | F4 - Visao por crops | concluida e validada | triagem multimodal, cache por conteudo e teto de custo | nenhuma no escopo aprovado |
 | F5 - Aprendizado explicito | concluida e validada | F5.1: preferencias; F5.2: propostas; F5.3: corpus versionado, runs imutaveis e export auditavel | nenhuma no escopo aprovado |
 | F6 - Solidez diaria | concluida e validada | F6.1 recovery + F6.2 lote real de 84 folhas e fixture isolada | nenhuma no escopo aprovado |
+| F7.1 - Comparacao grafica | implementada; gate real pendente | matcher honesto, diff local em pontos PDF, cache/run imutavel e viewer comparativo | validar com duas exportacoes reais relacionadas |
 
 ## Sequencia de continuidade
 
@@ -100,13 +101,34 @@ permaneceu apos reabertura e o backup restaurado preservou todas as contagens. A
 produziu uma falha, uma dependencia ignorada e duas etapas concluidas. Relatorio:
 [`docs/f62-batch-gate-2026-09-02.json`](f62-batch-gate-2026-09-02.json).
 
+### F7.1 - Comparacao grafica entre revisoes
+
+Status: implementada e validada em fixture isolada; gate real pendente.
+
+Objetivo: comparar duas revisoes imutaveis do mesmo projeto sem presumir identidade de folha nem
+transformar diferenca grafica em erro tecnico confirmado.
+
+- pareamento por decisao humana, codigo canonico unico ou conteudo identico;
+- estados explicitos para alterada, identica, adicionada, removida, ambigua e indisponivel;
+- diff raster local com bboxes base/alvo em pontos PDF e cache por fingerprint;
+- runs, pares e regioes imutaveis; pareamentos humanos revogaveis sem apagar historico;
+- viewer lado a lado, sobreposto e em alternancia, com pan/zoom sincronizados;
+- promocao de regiao para achado somente por acao humana explicita.
+
+Resultado sintetico: o par `R01 -> R02`, com codigo `EST-0010-A`, gerou uma alteracao localizada
+de `0,115%`, bbox `220,220 -> 356,260 pt`, e foi inspecionado nos tres modos e promovido a achado
+manual. O replay reutilizou o mesmo fingerprint. `REV-005` e `REV-006` do acervo real foram
+mantidas como conjuntos distintos: 30 folhas removidas e 25 ambiguas, sem pareamento inventado.
+Relatorio: [`docs/f71-comparison-gate-2026-09-02.json`](f71-comparison-gate-2026-09-02.json).
+
 ## Depois da V0.1
 
-F7 permanece apenas candidata: comparacao grafica entre revisoes imutaveis. Ela exige analise,
-proposta e aprovacao explicita antes de entrar em planejamento. SaaS, multiusuario, autenticacao,
+Comparacao semantica de engenharia, alinhamento geometrico avancado e qualquer classificacao
+automatica de diferenca como erro permanecem fora da F7.1. SaaS, multiusuario, autenticacao,
 cobranca, 3D decorativo e fine-tuning continuam fora do escopo.
 
 ## Proximo passo
 
-F7 continua apenas candidata. Comparacao grafica entre revisoes exige analise, proposta e
-aprovacao explicita antes de qualquer implementacao.
+Fornecer duas exportacoes reais relacionadas do mesmo conjunto estrutural e executar o gate F7.1
+sem relaxar o pareamento honesto. Ate essa evidencia existir, a implementacao permanece disponivel,
+mas o milestone nao e registrado como concluido.

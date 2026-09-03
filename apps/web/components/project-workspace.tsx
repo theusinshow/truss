@@ -1,6 +1,7 @@
 "use client";
 
 import { DragEvent, useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   Activity,
   BrainCircuit,
@@ -8,6 +9,7 @@ import {
   Database,
   FileUp,
   FolderOpen,
+  GitCompare,
   Loader2,
   RefreshCcw,
 } from "lucide-react";
@@ -35,6 +37,21 @@ import { SheetViewer } from "@/components/sheet-viewer";
 import { resumeProcessingOperation } from "@/lib/diagnostics-api";
 import { SheetIcon } from "@/components/truss-icons";
 
+const RevisionComparisonPanel = dynamic(
+  () =>
+    import("@/components/comparisons/revision-comparison").then(
+      (module) => module.RevisionComparisonPanel
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[520px] items-center justify-center border border-truss-line bg-truss-panel text-sm text-truss-muted">
+        Preparando comparação gráfica...
+      </div>
+    ),
+  }
+);
+
 type ProjectWorkspaceProps = {
   apiBaseUrl: string;
 };
@@ -60,7 +77,7 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
   const [isDraggingPdf, setIsDraggingPdf] = useState(false);
   const [quickStatus, setQuickStatus] = useState("");
   const [importedAuditVersion, setImportedAuditVersion] = useState(0);
-  const [workspaceMode, setWorkspaceMode] = useState<"viewer" | "learning">("viewer");
+  const [workspaceMode, setWorkspaceMode] = useState<"viewer" | "learning" | "compare">("viewer");
   const [viewerNavigationTarget, setViewerNavigationTarget] = useState<{
     sheetId: string;
     findingId?: string;
@@ -535,6 +552,19 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                   <BrainCircuit aria-hidden="true" className="truss-icon h-4 w-4" />
                   {workspaceMode === "learning" ? "Voltar ao PDF" : "Aprendizado local"}
                 </button>
+                <button
+                  aria-pressed={workspaceMode === "compare"}
+                  className="truss-button data-[active=true]:border-truss-accent/55 data-[active=true]:bg-truss-accentSoft data-[active=true]:text-truss-text"
+                  data-active={workspaceMode === "compare"}
+                  disabled={selectedProject.revisions.length < 2}
+                  onClick={() =>
+                    setWorkspaceMode((current) => (current === "compare" ? "viewer" : "compare"))
+                  }
+                  type="button"
+                >
+                  <GitCompare aria-hidden="true" className="truss-icon h-4 w-4" />
+                  {workspaceMode === "compare" ? "Voltar ao PDF" : "Comparar revisões"}
+                </button>
                 <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.06em] text-truss-subtle">
                   <Database aria-hidden="true" className="truss-icon h-4 w-4 text-truss-accent" />
                   {selectedSummary?.latest_revision_code ?? "Sem revisao"}
@@ -563,6 +593,14 @@ export function ProjectWorkspace({ apiBaseUrl }: ProjectWorkspaceProps) {
                 apiBaseUrl={apiBaseUrl}
                 onClose={() => setWorkspaceMode("viewer")}
                 onOpenEvidence={(evidence) => void handleOpenEvidence(evidence)}
+              />
+            ) : workspaceMode === "compare" && selectedRevision ? (
+              <RevisionComparisonPanel
+                apiBaseUrl={apiBaseUrl}
+                initialTargetRevisionId={selectedRevision.id}
+                key={`${selectedProject.id}:${selectedRevision.id}`}
+                projectId={selectedProject.id}
+                revisions={selectedProject.revisions}
               />
             ) : (
               <>

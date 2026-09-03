@@ -1,0 +1,67 @@
+{
+  "gate": "F7.1-revision-comparison",
+  "executed_at": "2026-09-02",
+  "status": "implementation_validated_real_pair_pending",
+  "pipeline_version": "revision-comparison-v0.1",
+  "automated": {
+    "api": {
+      "collected": 285,
+      "passed": 284,
+      "skipped": 1,
+      "note": "Final full-suite values; the skipped test is the pre-existing optional provider case."
+    },
+    "web": {
+      "files": 13,
+      "passed": 60
+    },
+    "lint": "passed",
+    "typecheck": "passed",
+    "next_build": "passed"
+  },
+  "real_storage_diagnostic": {
+    "database": "ok",
+    "applied_migrations": "001-014",
+    "pending_migrations": 0,
+    "operations": "ok",
+    "batches": "ok",
+    "overall": "degraded_expected",
+    "reason": "Four historical PDF sources were already declared SOURCE_UNAVAILABLE; no available source is missing or corrupt."
+  },
+  "synthetic_fixture": {
+    "storage": "isolated_disposable_directory",
+    "base_revision": "R01",
+    "target_revision": "R02",
+    "sheet_code": "EST-0010-A",
+    "match_method": "sheet_code",
+    "comparison_status": "changed",
+    "changed_ratio": 0.00115,
+    "region_count": 1,
+    "base_bbox_pt": {
+      "x0": 220.0,
+      "y0": 220.0,
+      "x1": 356.0,
+      "y1": 260.0
+    },
+    "manual_browser_checks": [
+      "split view rendered both immutable revisions",
+      "overlay rendered both aligned pages and the detected region",
+      "blink exposed automatic and manual before/after switching",
+      "region was explicitly promoted to a manual finding in the target revision"
+    ]
+  },
+  "current_real_inventory": {
+    "base_revision": "REV-005",
+    "target_revision": "REV-006",
+    "relationship": "different structural sets; not a trustworthy before/after pair",
+    "result": {
+      "changed": 0,
+      "identical": 0,
+      "added": 0,
+      "removed": 30,
+      "ambiguous": 25,
+      "unavailable": 0
+    },
+    "interpretation": "No pairing was inferred from filenames or page numbers."
+  },
+  "remaining_gate": "Run the same flow with two related real exports from the same structural set."
+}

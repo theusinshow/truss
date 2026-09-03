@@ -249,6 +249,40 @@ marca o restante como `cancelled`. A web consulta a cada 1 s em primeiro plano e
 para no estado terminal e mantem o viewer navegavel. Progresso e contagens sao derivados dos itens,
 nunca de timer ou contador duplicado.
 
+## Comparacao grafica F7.1
+
+`truss_api.comparisons` executa a comparacao no backend local. O matcher recebe snapshots das
+folhas e aplica, nesta ordem, pareamento manual ativo, `sheet_code` canonico exato e unico e mesmo
+hash/indice para replay de conteudo. Numero da pagina e nome de arquivo servem somente para
+apresentacao e ordenacao, nunca para afirmar identidade.
+
+O detector raster usa PyMuPDF em tons de cinza e escala reduzida. Pixels acima do limiar sao
+agregados em tiles e componentes conexos; cada componente volta ao sistema canonico de pontos PDF
+como `base_bbox` e `target_bbox`. Mudanca de dimensao ou rotacao produz uma regiao de pagina
+inteira e impede sobreposicao/blink na web. Falha ou ausencia da fonte produz `unavailable` e nao
+e convertida em igualdade.
+
+A migration `014_revision_comparisons.sql` adiciona:
+
+- `revision_comparisons`, run imutavel e unico por fingerprint;
+- `revision_comparison_pairs`, snapshot imutavel do pareamento e estado de cada folha;
+- `revision_comparison_regions`, regioes imutaveis nos dois sistemas PDF;
+- `comparison_pair_overrides`, decisoes humanas com revogacao por timestamp.
+
+O fingerprint inclui fontes, Sheet Maps, pareamentos ativos e `revision-comparison-v0.1`. Um replay
+identico devolve o mesmo run; mudar ou revogar um pareamento cria outro snapshot e preserva o
+anterior. A web carrega o painel sob demanda e reutiliza o endpoint existente de finding manual
+somente apos acao explicita do proprietario.
+
+Rotas aditivas:
+
+```text
+POST   /projects/{project_id}/revision-comparisons
+GET    /revision-comparisons/{comparison_id}
+POST   /projects/{project_id}/comparison-pairings
+DELETE /comparison-pairings/{pairing_id}
+```
+
 ## Backup e restore F6.1
 
 `truss-backup-v0.1` e um ZIP local com:

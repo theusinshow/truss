@@ -320,6 +320,24 @@ $env:PYTHONPATH="apps/api"
 .venv\Scripts\python -m truss_api.batch.gate --report docs/f62-batch-gate-2026-09-02.json
 ```
 
+## F7.1 - Comparacao grafica implementada
+
+A comparacao local aceita duas revisoes imutaveis do mesmo projeto e pareia folhas somente por
+vinculo humano ativo, codigo canonico unico ou replay do mesmo conteudo. Ausencia de evidencia
+fica explicita como folha adicionada, removida ou ambigua; fonte ausente fica `unavailable`.
+
+O diff raster deterministico gera regioes em pontos PDF e runs imutaveis cacheados por conteudo,
+Sheet Maps, pareamentos e versao do pipeline. No viewer, o PDF continua dominante, com navegacao
+por estado, pan/zoom sincronizados, lado a lado, sobreposicao, alternancia e promocao humana de
+uma regiao para achado manual. Paginas com formato ou rotacao diferentes permanecem lado a lado,
+sem sobreposicao enganosa.
+
+O gate automatizado e a verificacao manual passaram com um par sintetico isolado: uma alteracao
+localizada, pareada por `EST-0010-A`, produziu uma bbox `220,220 -> 356,260 pt` e foi promovida a
+achado na revisao-alvo. O acervo atual nao contem duas exportacoes reais relacionadas; por isso o
+fechamento definitivo da F7.1 aguarda esse par real. Evidencia:
+[`docs/f71-comparison-gate-2026-09-02.json`](docs/f71-comparison-gate-2026-09-02.json).
+
 ## Requisitos locais
 
 - Node.js 20 ou superior

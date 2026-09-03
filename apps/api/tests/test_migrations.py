@@ -43,6 +43,10 @@ def test_apply_migrations_creates_schema_and_is_idempotent(tmp_path: Path) -> No
         "batch_runs",
         "batch_items",
         "batch_run_events",
+        "revision_comparisons",
+        "revision_comparison_pairs",
+        "revision_comparison_regions",
+        "comparison_pair_overrides",
     } <= _table_names(settings)
     with transaction(settings) as connection:
         view_columns = {
