@@ -1,6 +1,6 @@
 # Roadmap do Truss Agent
 
-Atualizado em: 2026-09-02
+Atualizado em: 2026-09-03
 
 Este documento e o mapa de continuidade do produto. Cada fase deve receber plano proprio,
 implementacao, testes automatizados e verificacao manual antes da fase seguinte. Registrar uma
@@ -17,6 +17,7 @@ fase aqui nao autoriza mudanca arquitetural nem o avanco de varios milestones em
 | F5 - Aprendizado explicito | concluida e validada | F5.1: preferencias; F5.2: propostas; F5.3: corpus versionado, runs imutaveis e export auditavel | nenhuma no escopo aprovado |
 | F6 - Solidez diaria | concluida e validada | F6.1 recovery + F6.2 lote real de 84 folhas e fixture isolada | nenhuma no escopo aprovado |
 | F7.1 - Comparacao grafica | concluida por aceite explicito | matcher honesto, diff local em pontos PDF, cache/run imutavel e viewer comparativo | gate real dispensado pelo proprietario; limite preservado na evidencia |
+| F7.2 - Deltas por camada | concluida e validada sinteticamente | texto/vetor deterministas, evidencia antes/depois, cache imutavel e filtros no viewer | par real relacionado continua indisponivel; nenhuma validacao real alegada |
 
 ## Sequencia de continuidade
 
@@ -123,14 +124,34 @@ O proprietario aceitou a fase com essa evidencia e dispensou o par real, sem con
 em alegacao de validacao sobre projeto real.
 Relatorio: [`docs/f71-comparison-gate-2026-09-02.json`](f71-comparison-gate-2026-09-02.json).
 
+### F7.2 - Deltas explicaveis por camada PDF
+
+Status: concluida e validada com fixture isolada em 2026-09-03.
+
+Objetivo: explicar mudancas observadas em texto nativo e primitivas vetoriais dos pares confiaveis
+da F7.1, mantendo bboxes canonicas e sem classificar a diferenca como erro de engenharia.
+
+- classificacao deterministica `added`, `removed`, `modified` e `moved`;
+- correspondencia conservadora, sem promover ambiguidades silenciosamente;
+- valores e bboxes antes/depois persistidos em registros imutaveis;
+- fingerprint com versao do extrator e pipeline `revision-comparison-v0.2`;
+- limite de 500 deltas persistidos por camada com contagem completa e truncamento explicito;
+- filtros `Raster`, `Texto` e `Vetor`, foco visual e painel de evidencia;
+- compatibilidade de leitura com comparacoes F7.1 anteriores.
+
+Resultado sintetico: o par `R01 -> R02`, `EST-0010-A`, produziu 3 deltas de texto e 7 vetoriais.
+Texto registrou 2 modificacoes e 1 deslocamento; vetor registrou 4 adicoes, 1 remocao, 1
+modificacao e 1 deslocamento. A verificacao no navegador cobriu desktop, viewport de 900 px,
+rolagem da composicao e desligamento do filtro de texto. A fixture nao substitui um gate real.
+Relatorio: [`docs/f72-layer-delta-gate-2026-09-03.json`](f72-layer-delta-gate-2026-09-03.json).
+
 ## Depois da V0.1
 
 Comparacao semantica de engenharia, alinhamento geometrico avancado e qualquer classificacao
-automatica de diferenca como erro permanecem fora da F7.1. SaaS, multiusuario, autenticacao,
+automatica de diferenca como erro permanecem fora da F7.1/F7.2. SaaS, multiusuario, autenticacao,
 cobranca, 3D decorativo e fine-tuning continuam fora do escopo.
 
 ## Proximo passo
 
-Nao ha F7.2 ou F8 aprovado. Qualquer continuidade deve receber analise, proposta e aprovacao
-explicita antes de implementacao. A candidata imediata e enriquecer a comparacao com deltas
-deterministicos de texto nativo e vetores, sem classificacao automatica de erro.
+Nao ha proximo milestone aprovado. Qualquer continuidade deve receber analise, proposta e
+aprovacao explicita antes de implementacao.

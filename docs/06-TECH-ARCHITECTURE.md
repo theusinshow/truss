@@ -283,6 +283,29 @@ POST   /projects/{project_id}/comparison-pairings
 DELETE /comparison-pairings/{pairing_id}
 ```
 
+## Deltas de camadas PDF F7.2
+
+A F7.2 preserva o pareamento e o run imutavel da F7.1 e adiciona comparacao local de texto nativo
+e primitivas vetoriais. A extracao reutiliza `extract_page` e `EXTRACTOR_VERSION`; o fingerprint
+inclui essa versao e `revision-comparison-v0.2`, de modo que um replay identico reutiliza pares e
+deltas sem reabrir os PDFs.
+
+Texto e vetor passam primeiro por consumo de igualdade exata. `moved` exige conteudo ou geometria
+estavel e correspondencia unica; `modified` exige correspondencia espacial mutua e unica. Uma
+evidencia ambigua nunca e forçada para esses tipos: as primitivas observadas permanecem
+`added`/`removed`. A classificacao descreve somente a mudanca extraida, nao significado tecnico,
+conformidade ou erro de engenharia.
+
+A migration `015_comparison_layer_deltas.sql` acrescenta estado, contagens completas, resumo e
+truncamento aos pares e cria `revision_comparison_deltas`. Cada registro guarda camada, tipo,
+metodo/similaridade, payload antes/depois, detalhes estruturados e bboxes base/alvo em pontos PDF.
+Triggers impedem update e delete. Runs F7.1 anteriores sao lidos como `not_run`.
+
+Cada camada persiste ate 500 deltas, depois de calcular as contagens totais. Fonte ausente, falha
+de extracao e dimensao/rotacao incompativel produzem estados explicitos em vez de igualdade vazia.
+Na web, os filtros `Raster`, `Texto` e `Vetor` controlam overlays independentes; a selecao de um
+delta foca a bbox disponivel e abre evidencia antes/depois no painel direito.
+
 ## Backup e restore F6.1
 
 `truss-backup-v0.1` e um ZIP local com:

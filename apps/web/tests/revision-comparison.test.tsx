@@ -64,7 +64,7 @@ function comparison(overrides: Partial<RevisionComparison> = {}): RevisionCompar
     base_revision_code: "R01",
     target_revision_code: "R02",
     input_fingerprint: "abcdef1234567890",
-    pipeline_version: "revision-comparison-v0.1",
+    pipeline_version: "revision-comparison-v0.2",
     status: "completed",
     counts: {
       total: 1,
@@ -96,6 +96,42 @@ function comparison(overrides: Partial<RevisionComparison> = {}): RevisionCompar
             target_bbox: { x0: 100, y0: 120, x1: 240, y1: 260 },
             changed_pixel_count: 120,
             changed_ratio: 0.25,
+          },
+        ],
+        delta_status: "completed",
+        delta_counts: {
+          total: 2,
+          text: { total: 1, added: 0, removed: 0, modified: 1, moved: 0 },
+          vector: { total: 1, added: 0, removed: 0, modified: 0, moved: 1 },
+        },
+        delta_truncated: false,
+        delta_summary: "1 delta de texto e 1 delta vetorial.",
+        deltas: [
+          {
+            id: "delta-text-1",
+            delta_index: 0,
+            layer: "text",
+            change_type: "modified",
+            match_evidence: "mutual_spatial_text_similarity",
+            similarity: 0.94,
+            before_value: "VIGA V1 20x40",
+            after_value: "VIGA V1 20x45",
+            base_bbox: { x0: 300, y0: 200, x1: 390, y1: 215 },
+            target_bbox: { x0: 300, y0: 200, x1: 390, y1: 215 },
+            details: {},
+          },
+          {
+            id: "delta-vector-1",
+            delta_index: 1,
+            layer: "vector",
+            change_type: "moved",
+            match_evidence: "unique_vector_geometry_and_style",
+            similarity: 1,
+            before_value: "linha · 1.00 pt",
+            after_value: "linha · 1.00 pt",
+            base_bbox: { x0: 420, y0: 300, x1: 520, y1: 301 },
+            target_bbox: { x0: 440, y0: 300, x1: 540, y1: 301 },
+            details: {},
           },
         ],
       },
@@ -174,6 +210,7 @@ describe("RevisionComparisonPanel", () => {
       />
     );
 
+    fireEvent.click((await screen.findAllByRole("button", { name: "Alteração 1" }))[0]);
     const createButton = await screen.findByRole("button", { name: "Criar achado manual" });
     await waitFor(() => expect(createButton).toBeEnabled());
     fireEvent.click(createButton);
@@ -185,6 +222,31 @@ describe("RevisionComparisonPanel", () => {
         body: expect.stringContaining('"category":"revision_comparison"'),
       })
     );
+  });
+
+  it("filters native layers and shows before/after evidence", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(comparison(), 201)));
+
+    render(
+      <RevisionComparisonPanel
+        apiBaseUrl="http://api"
+        initialTargetRevisionId="revision-target"
+        projectId="project-1"
+        revisions={revisions}
+      />
+    );
+
+    expect(await screen.findByText("VIGA V1 20x40")).toBeInTheDocument();
+    expect(screen.getByText("VIGA V1 20x45")).toBeInTheDocument();
+    expect(screen.getByText("Texto / Modificado")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Texto" })).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Texto" }));
+    expect(screen.queryByRole("button", { name: /Inspecionar Texto modificado/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Texto" })).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: /Inspecionar Vetor movido/ }));
+    expect(screen.getByText("Vetor / Movido")).toBeInTheDocument();
   });
 
   it("does not render missing sources or register incompatible page geometry", async () => {
@@ -286,6 +348,11 @@ describe("RevisionComparisonPanel", () => {
           summary: "Identidade inconclusiva.",
           changed_ratio: 0,
           regions: [],
+          delta_status: "not_applicable",
+          delta_counts: {},
+          delta_truncated: false,
+          delta_summary: "Sem par confiável.",
+          deltas: [],
         },
         {
           id: "target-only",
@@ -299,6 +366,11 @@ describe("RevisionComparisonPanel", () => {
           summary: "Identidade inconclusiva.",
           changed_ratio: 0,
           regions: [],
+          delta_status: "not_applicable",
+          delta_counts: {},
+          delta_truncated: false,
+          delta_summary: "Sem par confiável.",
+          deltas: [],
         },
       ],
     });

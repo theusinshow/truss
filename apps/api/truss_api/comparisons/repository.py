@@ -69,7 +69,8 @@ def list_revision_sheets(revision_id: str, settings: Settings) -> list[dict[str,
                 s.sheet_number, s.width_pt, s.height_pt, s.rotation, s.label,
                 d.content_hash AS document_hash, d.stored_file_path,
                 COALESCE(source_event.status, 'AVAILABLE') AS source_status,
-                sm.id AS sheet_map_id, sm.snapshot_hash, sm.sheet_code, sm.sheet_code_raw
+                sm.id AS sheet_map_id, sm.snapshot_hash, sm.extractor_version,
+                sm.sheet_code, sm.sheet_code_raw
             FROM sheets s
             JOIN documents d ON d.id = s.document_id
             LEFT JOIN document_source_events source_event
@@ -172,8 +173,9 @@ def save_comparison(
                         id, comparison_id, sequence, base_sheet_id, target_sheet_id,
                         status, match_method, match_confidence, pairing_override_id,
                         summary, changed_ratio, base_identity_json, target_identity_json,
+                        delta_status, delta_counts_json, delta_truncated, delta_summary,
                         created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         pair_id,
@@ -193,6 +195,10 @@ def save_comparison(
                         json.dumps(pair["target_identity"], sort_keys=True)
                         if pair["target_identity"] is not None
                         else None,
+                        pair["delta_status"],
+                        json.dumps(pair["delta_counts"], sort_keys=True),
+                        int(pair["delta_truncated"]),
+                        pair["delta_summary"],
                         created_at,
                     ),
                 )
@@ -225,6 +231,41 @@ def save_comparison(
                             created_at,
                         ),
                     )
+                for delta_index, delta in enumerate(pair["deltas"]):
+                    base_bbox = delta["base_bbox"]
+                    target_bbox = delta["target_bbox"]
+                    connection.execute(
+                        """
+                        INSERT INTO revision_comparison_deltas (
+                            id, pair_id, delta_index, layer, change_type,
+                            match_evidence, similarity, before_value, after_value,
+                            base_x0, base_y0, base_x1, base_y1,
+                            target_x0, target_y0, target_x1, target_y1,
+                            details_json, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            str(uuid4()),
+                            pair_id,
+                            delta_index,
+                            delta["layer"],
+                            delta["change_type"],
+                            delta["match_evidence"],
+                            delta["similarity"],
+                            delta["before_value"],
+                            delta["after_value"],
+                            base_bbox["x0"] if base_bbox else None,
+                            base_bbox["y0"] if base_bbox else None,
+                            base_bbox["x1"] if base_bbox else None,
+                            base_bbox["y1"] if base_bbox else None,
+                            target_bbox["x0"] if target_bbox else None,
+                            target_bbox["y0"] if target_bbox else None,
+                            target_bbox["x1"] if target_bbox else None,
+                            target_bbox["y1"] if target_bbox else None,
+                            json.dumps(delta["details"], ensure_ascii=False, sort_keys=True),
+                            created_at,
+                        ),
+                    )
     except sqlite3.IntegrityError:
         existing = get_by_fingerprint(input_fingerprint, settings)
         if existing is not None:
@@ -251,6 +292,33 @@ def _region_payload(row: sqlite3.Row) -> dict[str, Any]:
         },
         "changed_pixel_count": int(row["changed_pixel_count"]),
         "changed_ratio": float(row["changed_ratio"]),
+    }
+
+
+def _nullable_bbox_payload(row: sqlite3.Row, prefix: str) -> dict[str, float] | None:
+    if row[f"{prefix}_x0"] is None:
+        return None
+    return {
+        "x0": float(row[f"{prefix}_x0"]),
+        "y0": float(row[f"{prefix}_y0"]),
+        "x1": float(row[f"{prefix}_x1"]),
+        "y1": float(row[f"{prefix}_y1"]),
+    }
+
+
+def _delta_payload(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": str(row["id"]),
+        "delta_index": int(row["delta_index"]),
+        "layer": str(row["layer"]),
+        "change_type": str(row["change_type"]),
+        "match_evidence": str(row["match_evidence"]),
+        "similarity": float(row["similarity"]),
+        "before_value": row["before_value"],
+        "after_value": row["after_value"],
+        "base_bbox": _nullable_bbox_payload(row, "base"),
+        "target_bbox": _nullable_bbox_payload(row, "target"),
+        "details": json.loads(str(row["details_json"])),
     }
 
 
@@ -282,6 +350,10 @@ def get_comparison(comparison_id: str, settings: Settings) -> dict[str, Any]:
                 "SELECT * FROM revision_comparison_regions WHERE pair_id = ? ORDER BY region_index",
                 (pair_row["id"],),
             ).fetchall()
+            delta_rows = connection.execute(
+                "SELECT * FROM revision_comparison_deltas WHERE pair_id = ? ORDER BY delta_index",
+                (pair_row["id"],),
+            ).fetchall()
             pairs.append(
                 {
                     "id": str(pair_row["id"]),
@@ -299,6 +371,11 @@ def get_comparison(comparison_id: str, settings: Settings) -> dict[str, Any]:
                     "summary": str(pair_row["summary"]),
                     "changed_ratio": float(pair_row["changed_ratio"]),
                     "regions": [_region_payload(region) for region in region_rows],
+                    "delta_status": str(pair_row["delta_status"]),
+                    "delta_counts": json.loads(str(pair_row["delta_counts_json"])),
+                    "delta_truncated": bool(pair_row["delta_truncated"]),
+                    "delta_summary": str(pair_row["delta_summary"]),
+                    "deltas": [_delta_payload(delta) for delta in delta_rows],
                 }
             )
     return {

@@ -7,6 +7,16 @@ ComparisonStatus = Literal[
     "identical", "changed", "added", "removed", "ambiguous", "unavailable"
 ]
 MatchMethod = Literal["manual", "sheet_code", "exact_content", "unmatched"]
+DeltaLayer = Literal["text", "vector"]
+DeltaChangeType = Literal["added", "removed", "modified", "moved"]
+DeltaStatus = Literal[
+    "not_run",
+    "completed",
+    "completed_with_limits",
+    "not_comparable",
+    "unavailable",
+    "not_applicable",
+]
 
 
 class RevisionComparisonCreate(BaseModel):
@@ -61,6 +71,20 @@ class ComparisonRegion(BaseModel):
     changed_ratio: float
 
 
+class ComparisonDelta(BaseModel):
+    id: str
+    delta_index: int
+    layer: DeltaLayer
+    change_type: DeltaChangeType
+    match_evidence: str
+    similarity: float
+    before_value: str | None
+    after_value: str | None
+    base_bbox: dict[str, float] | None
+    target_bbox: dict[str, float] | None
+    details: dict[str, object]
+
+
 class ComparisonSheetPair(BaseModel):
     id: str
     sequence: int
@@ -73,6 +97,11 @@ class ComparisonSheetPair(BaseModel):
     summary: str
     changed_ratio: float
     regions: list[ComparisonRegion]
+    delta_status: DeltaStatus
+    delta_counts: dict[str, object]
+    delta_truncated: bool
+    delta_summary: str
+    deltas: list[ComparisonDelta]
 
 
 class RevisionComparison(BaseModel):

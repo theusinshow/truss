@@ -9,7 +9,10 @@ import {
   Loader2,
   Plus,
   RefreshCcw,
+  ScanLine,
+  Type as TextIcon,
   Unlink,
+  Waypoints,
 } from "lucide-react";
 import {
   PointerEvent as ReactPointerEvent,
@@ -21,6 +24,9 @@ import {
   useState,
 } from "react";
 import {
+  ComparisonDelta,
+  ComparisonDeltaChangeType,
+  ComparisonDeltaLayer,
   ComparisonRegion,
   ComparisonSheet,
   ComparisonSheetPair,
@@ -50,6 +56,7 @@ type RevisionComparisonProps = {
 };
 
 type DisplayMode = "split" | "overlay" | "blink";
+type VisibleLayers = Record<"raster" | ComparisonDeltaLayer, boolean>;
 
 const STATUS: Record<ComparisonStatus, { label: string; className: string }> = {
   changed: { label: "Alterada", className: "text-truss-danger" },
@@ -66,6 +73,37 @@ const MATCH_METHOD = {
   exact_content: "conteúdo idêntico",
   unmatched: "sem pareamento",
 } as const;
+
+const CHANGE_TYPE: Record<
+  ComparisonDeltaChangeType,
+  { label: string; className: string; outlineClassName: string }
+> = {
+  added: {
+    label: "Adicionado",
+    className: "text-truss-success",
+    outlineClassName: "border-truss-success bg-truss-success/10",
+  },
+  removed: {
+    label: "Removido",
+    className: "text-truss-danger",
+    outlineClassName: "border-truss-danger bg-truss-accent/10",
+  },
+  modified: {
+    label: "Modificado",
+    className: "text-truss-warning",
+    outlineClassName: "border-truss-warning bg-truss-warning/10",
+  },
+  moved: {
+    label: "Movido",
+    className: "text-truss-info",
+    outlineClassName: "border-truss-info bg-truss-info/10",
+  },
+};
+
+const DELTA_LAYER_LABEL: Record<ComparisonDeltaLayer, string> = {
+  text: "Texto",
+  vector: "Vetor",
+};
 
 function sheetName(sheet: ComparisonSheet | null) {
   if (!sheet) return "—";
@@ -92,6 +130,11 @@ function hasCompatibleGeometry(pair: ComparisonSheetPair | null) {
   );
 }
 
+function bboxLabel(bbox: ComparisonDelta["base_bbox"]) {
+  if (!bbox) return "—";
+  return `${Math.round(bbox.x0)},${Math.round(bbox.y0)} → ${Math.round(bbox.x1)},${Math.round(bbox.y1)} pt`;
+}
+
 function defaultFindingDescription(
   pair: ComparisonSheetPair | null,
   comparison: RevisionComparison | null
@@ -105,23 +148,29 @@ function ComparisonCanvas({
   label,
   layers,
   regions,
+  deltas,
   regionSide,
   selectedRegionId,
+  selectedDeltaId,
   viewport,
   onViewportChange,
   onCanvasSize,
   onSelectRegion,
+  onSelectDelta,
 }: {
   apiBaseUrl: string;
   label: string;
   layers: Array<{ sheet: ComparisonSheet; opacity: number; className?: string }>;
   regions: ComparisonRegion[];
+  deltas: ComparisonDelta[];
   regionSide: "base" | "target";
   selectedRegionId: string | null;
+  selectedDeltaId: string | null;
   viewport: Viewport;
   onViewportChange: (viewport: Viewport) => void;
   onCanvasSize: (size: { width: number; height: number }) => void;
   onSelectRegion: (region: ComparisonRegion) => void;
+  onSelectDelta: (delta: ComparisonDelta) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ pointerId: number; x: number; y: number; viewport: Viewport } | null>(null);
@@ -256,6 +305,38 @@ function ComparisonCanvas({
                 );
               })
             : null}
+          {index === layers.length - 1
+            ? deltas.map((delta) => {
+                const bbox = regionSide === "base" ? delta.base_bbox : delta.target_bbox;
+                if (!bbox) return null;
+                const selected = selectedDeltaId === delta.id;
+                const visual = CHANGE_TYPE[delta.change_type];
+                return (
+                  <button
+                    aria-label={`${DELTA_LAYER_LABEL[delta.layer]} ${visual.label.toLowerCase()} ${delta.delta_index + 1}`}
+                    className={`absolute border transition-colors hover:brightness-125 data-[selected=true]:shadow-[inset_0_0_0_1px_var(--red)] ${visual.outlineClassName}`}
+                    data-selected={selected}
+                    key={delta.id}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectDelta(delta);
+                    }}
+                    style={{
+                      height: Math.max(3, (bbox.y1 - bbox.y0) * CANVAS_NAVIGATION.renderScale),
+                      left: bbox.x0 * CANVAS_NAVIGATION.renderScale,
+                      top: bbox.y0 * CANVAS_NAVIGATION.renderScale,
+                      width: Math.max(3, (bbox.x1 - bbox.x0) * CANVAS_NAVIGATION.renderScale),
+                    }}
+                    type="button"
+                  >
+                    <span className="sr-only">
+                      {delta.before_value ?? "sem valor anterior"} para {delta.after_value ?? "sem valor posterior"}
+                    </span>
+                  </button>
+                );
+              })
+            : null}
         </div>
       ))}
     </div>
@@ -280,6 +361,12 @@ export function RevisionComparisonPanel({
   const [statusFilter, setStatusFilter] = useState<ComparisonStatus | "all">("all");
   const [selectedPairId, setSelectedPairId] = useState<string | null>(null);
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
+  const [selectedDeltaId, setSelectedDeltaId] = useState<string | null>(null);
+  const [visibleLayers, setVisibleLayers] = useState<VisibleLayers>({
+    raster: true,
+    text: true,
+    vector: true,
+  });
   const [displayMode, setDisplayMode] = useState<DisplayMode>("split");
   const [blinkTarget, setBlinkTarget] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -297,7 +384,9 @@ export function RevisionComparisonPanel({
       result.pairs.find((pair) => pair.status === "changed") ?? result.pairs[0] ?? null;
     setComparison(result);
     setSelectedPairId(nextPair?.id ?? null);
-    setSelectedRegionId(nextPair?.regions[0]?.id ?? null);
+    setSelectedDeltaId(nextPair?.deltas[0]?.id ?? null);
+    setSelectedRegionId(nextPair?.deltas.length ? null : nextPair?.regions[0]?.id ?? null);
+    setVisibleLayers({ raster: true, text: true, vector: true });
     setFindingDescription(defaultFindingDescription(nextPair, result));
     setFindingStatus("");
     setDisplayMode("split");
@@ -363,7 +452,14 @@ export function RevisionComparisonPanel({
   const selectedPair =
     comparison?.pairs.find((pair) => pair.id === selectedPairId) ?? comparison?.pairs[0] ?? null;
   const selectedRegion =
-    selectedPair?.regions.find((region) => region.id === selectedRegionId) ?? selectedPair?.regions[0] ?? null;
+    selectedPair?.regions.find((region) => region.id === selectedRegionId) ?? null;
+  const selectedDelta =
+    selectedPair?.deltas.find((delta) => delta.id === selectedDeltaId) ?? null;
+  const visibleDeltas = useMemo(
+    () =>
+      selectedPair?.deltas.filter((delta) => visibleLayers[delta.layer]) ?? [],
+    [selectedPair, visibleLayers]
+  );
   const geometryCompatible = hasCompatibleGeometry(selectedPair);
   const baseSheets = useMemo(
     () => uniqueSheets(comparison?.pairs.map((pair) => pair.base_sheet) ?? []),
@@ -416,13 +512,33 @@ export function RevisionComparisonPanel({
   function focusRegion(region: ComparisonRegion) {
     const bbox = region.base_bbox;
     setSelectedRegionId(region.id);
+    setSelectedDeltaId(null);
     setViewport(viewportForBounds(bbox, canvasSize, { paddingPx: 72, maxZoom: 1.6 }));
+  }
+
+  function focusDelta(delta: ComparisonDelta) {
+    const bbox = delta.base_bbox ?? delta.target_bbox;
+    setSelectedDeltaId(delta.id);
+    setSelectedRegionId(null);
+    if (bbox) {
+      setViewport(viewportForBounds(bbox, canvasSize, { paddingPx: 72, maxZoom: 1.6 }));
+    }
+  }
+
+  function toggleLayer(layer: keyof VisibleLayers) {
+    setVisibleLayers((current) => ({ ...current, [layer]: !current[layer] }));
+    if (layer === "raster" && selectedRegion) setSelectedRegionId(null);
+    if ((layer === "text" || layer === "vector") && selectedDelta?.layer === layer) {
+      setSelectedDeltaId(null);
+    }
   }
 
   function handleSelectPair(pair: ComparisonSheetPair) {
     const sheet = pair.base_sheet ?? pair.target_sheet;
+    const nextDelta = pair.deltas.find((delta) => visibleLayers[delta.layer]);
     setSelectedPairId(pair.id);
-    setSelectedRegionId(pair.regions[0]?.id ?? null);
+    setSelectedDeltaId(nextDelta?.id ?? null);
+    setSelectedRegionId(nextDelta ? null : pair.regions[0]?.id ?? null);
     setFindingDescription(defaultFindingDescription(pair, comparison));
     setFindingStatus("");
     if (!hasCompatibleGeometry(pair)) setDisplayMode("split");
@@ -496,7 +612,11 @@ export function RevisionComparisonPanel({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col border border-truss-line bg-truss-panel">
+    <div
+      aria-label="Comparação de revisões"
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto border border-truss-line bg-truss-panel xl:overflow-hidden"
+      role="region"
+    >
       <div className="flex flex-wrap items-end gap-3 border-b border-truss-line bg-truss-raised p-3">
         <label className="min-w-40 flex-1">
           <span className="truss-mono-label">Revisão-base</span>
@@ -570,8 +690,8 @@ export function RevisionComparisonPanel({
             </span>
           </div>
 
-          <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)_286px]">
-            <aside className="max-h-[720px] overflow-y-auto border-b border-truss-line xl:border-b-0 xl:border-r">
+          <div className="grid min-h-0 flex-none grid-cols-1 grid-rows-[auto_auto_auto] xl:flex-1 xl:grid-cols-[260px_minmax(0,1fr)_286px] xl:grid-rows-1">
+            <aside className="max-h-72 overflow-y-auto border-b border-truss-line xl:max-h-[720px] xl:border-b-0 xl:border-r">
               <div className="sticky top-0 z-10 border-b border-truss-line bg-truss-raised p-2">
                 <select
                   aria-label="Filtrar folhas por estado"
@@ -619,19 +739,32 @@ export function RevisionComparisonPanel({
               {selectedPair?.base_sheet && selectedPair.target_sheet && selectedPair.status !== "unavailable" ? (
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-truss-line bg-truss-raised p-2">
-                    <div className="truss-segment">
-                      <button aria-pressed={displayMode === "split"} className="truss-icon-button border-0" onClick={() => setDisplayMode("split")} title="Lado a lado" type="button">
-                        <Columns2 aria-hidden="true" className="truss-icon h-4 w-4" />
-                        <span className="sr-only">Lado a lado</span>
-                      </button>
-                      <button aria-pressed={displayMode === "overlay"} className="truss-icon-button border-0" disabled={!geometryCompatible} onClick={() => setDisplayMode("overlay")} title={geometryCompatible ? "Sobrepor revisões" : "Sobreposição indisponível: formato ou rotação diferente"} type="button">
-                        <Layers aria-hidden="true" className="truss-icon h-4 w-4" />
-                        <span className="sr-only">Sobrepor revisões</span>
-                      </button>
-                      <button aria-pressed={displayMode === "blink"} className="truss-icon-button border-0" disabled={!geometryCompatible} onClick={() => setDisplayMode("blink")} title={geometryCompatible ? "Alternar antes e depois" : "Alternância indisponível: formato ou rotação diferente"} type="button">
-                        <Eye aria-hidden="true" className="truss-icon h-4 w-4" />
-                        <span className="sr-only">Alternar antes e depois</span>
-                      </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="truss-segment">
+                        <button aria-pressed={displayMode === "split"} className="truss-icon-button border-0" onClick={() => setDisplayMode("split")} title="Lado a lado" type="button">
+                          <Columns2 aria-hidden="true" className="truss-icon h-4 w-4" />
+                          <span className="sr-only">Lado a lado</span>
+                        </button>
+                        <button aria-pressed={displayMode === "overlay"} className="truss-icon-button border-0" disabled={!geometryCompatible} onClick={() => setDisplayMode("overlay")} title={geometryCompatible ? "Sobrepor revisões" : "Sobreposição indisponível: formato ou rotação diferente"} type="button">
+                          <Layers aria-hidden="true" className="truss-icon h-4 w-4" />
+                          <span className="sr-only">Sobrepor revisões</span>
+                        </button>
+                        <button aria-pressed={displayMode === "blink"} className="truss-icon-button border-0" disabled={!geometryCompatible} onClick={() => setDisplayMode("blink")} title={geometryCompatible ? "Alternar antes e depois" : "Alternância indisponível: formato ou rotação diferente"} type="button">
+                          <Eye aria-hidden="true" className="truss-icon h-4 w-4" />
+                          <span className="sr-only">Alternar antes e depois</span>
+                        </button>
+                      </div>
+                      <div aria-label="Camadas de comparação" className="truss-segment" role="group">
+                        <button aria-pressed={visibleLayers.raster} className="truss-button border-0 px-2" onClick={() => toggleLayer("raster")} type="button">
+                          <ScanLine aria-hidden="true" className="truss-icon h-3.5 w-3.5" /> Raster
+                        </button>
+                        <button aria-pressed={visibleLayers.text} className="truss-button border-0 px-2" onClick={() => toggleLayer("text")} type="button">
+                          <TextIcon aria-hidden="true" className="truss-icon h-3.5 w-3.5" /> Texto
+                        </button>
+                        <button aria-pressed={visibleLayers.vector} className="truss-button border-0 px-2" onClick={() => toggleLayer("vector")} type="button">
+                          <Waypoints aria-hidden="true" className="truss-icon h-3.5 w-3.5" /> Vetor
+                        </button>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {displayMode === "blink" ? (
@@ -655,19 +788,20 @@ export function RevisionComparisonPanel({
                   <div className={`flex min-h-0 flex-1 ${displayMode === "split" ? "divide-x divide-truss-line" : ""}`}>
                     {displayMode === "split" ? (
                       <>
-                        <ComparisonCanvas apiBaseUrl={apiBaseUrl} label={`Antes · ${comparison.base_revision_code}`} layers={[{ sheet: selectedPair.base_sheet, opacity: 1 }]} onCanvasSize={updateCanvasSize} onSelectRegion={focusRegion} onViewportChange={setViewport} regionSide="base" regions={selectedPair.regions} selectedRegionId={selectedRegionId} viewport={viewport} />
-                        <ComparisonCanvas apiBaseUrl={apiBaseUrl} label={`Depois · ${comparison.target_revision_code}`} layers={[{ sheet: selectedPair.target_sheet, opacity: 1 }]} onCanvasSize={updateCanvasSize} onSelectRegion={focusRegion} onViewportChange={setViewport} regionSide="target" regions={selectedPair.regions} selectedRegionId={selectedRegionId} viewport={viewport} />
+                        <ComparisonCanvas apiBaseUrl={apiBaseUrl} deltas={visibleDeltas} label={`Antes · ${comparison.base_revision_code}`} layers={[{ sheet: selectedPair.base_sheet, opacity: 1 }]} onCanvasSize={updateCanvasSize} onSelectDelta={focusDelta} onSelectRegion={focusRegion} onViewportChange={setViewport} regionSide="base" regions={visibleLayers.raster ? selectedPair.regions : []} selectedDeltaId={selectedDeltaId} selectedRegionId={selectedRegionId} viewport={viewport} />
+                        <ComparisonCanvas apiBaseUrl={apiBaseUrl} deltas={visibleDeltas} label={`Depois · ${comparison.target_revision_code}`} layers={[{ sheet: selectedPair.target_sheet, opacity: 1 }]} onCanvasSize={updateCanvasSize} onSelectDelta={focusDelta} onSelectRegion={focusRegion} onViewportChange={setViewport} regionSide="target" regions={visibleLayers.raster ? selectedPair.regions : []} selectedDeltaId={selectedDeltaId} selectedRegionId={selectedRegionId} viewport={viewport} />
                       </>
                     ) : displayMode === "overlay" ? (
-                      <ComparisonCanvas apiBaseUrl={apiBaseUrl} label="Sobreposição · antes + depois" layers={[{ sheet: selectedPair.base_sheet, opacity: 1 }, { sheet: selectedPair.target_sheet, opacity: 0.5, className: "mix-blend-multiply" }]} onCanvasSize={updateCanvasSize} onSelectRegion={focusRegion} onViewportChange={setViewport} regionSide="target" regions={selectedPair.regions} selectedRegionId={selectedRegionId} viewport={viewport} />
+                      <ComparisonCanvas apiBaseUrl={apiBaseUrl} deltas={visibleDeltas} label="Sobreposição · antes + depois" layers={[{ sheet: selectedPair.base_sheet, opacity: 1 }, { sheet: selectedPair.target_sheet, opacity: 0.5, className: "mix-blend-multiply" }]} onCanvasSize={updateCanvasSize} onSelectDelta={focusDelta} onSelectRegion={focusRegion} onViewportChange={setViewport} regionSide="target" regions={visibleLayers.raster ? selectedPair.regions : []} selectedDeltaId={selectedDeltaId} selectedRegionId={selectedRegionId} viewport={viewport} />
                     ) : (
-                      <ComparisonCanvas apiBaseUrl={apiBaseUrl} label={blinkTarget ? `Depois · ${comparison.target_revision_code}` : `Antes · ${comparison.base_revision_code}`} layers={[{ sheet: blinkTarget ? selectedPair.target_sheet : selectedPair.base_sheet, opacity: 1 }]} onCanvasSize={updateCanvasSize} onSelectRegion={focusRegion} onViewportChange={setViewport} regionSide={blinkTarget ? "target" : "base"} regions={selectedPair.regions} selectedRegionId={selectedRegionId} viewport={viewport} />
+                      <ComparisonCanvas apiBaseUrl={apiBaseUrl} deltas={visibleDeltas} label={blinkTarget ? `Depois · ${comparison.target_revision_code}` : `Antes · ${comparison.base_revision_code}`} layers={[{ sheet: blinkTarget ? selectedPair.target_sheet : selectedPair.base_sheet, opacity: 1 }]} onCanvasSize={updateCanvasSize} onSelectDelta={focusDelta} onSelectRegion={focusRegion} onViewportChange={setViewport} regionSide={blinkTarget ? "target" : "base"} regions={visibleLayers.raster ? selectedPair.regions : []} selectedDeltaId={selectedDeltaId} selectedRegionId={selectedRegionId} viewport={viewport} />
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-4 border-t border-truss-line bg-truss-raised px-3 py-2 font-mono text-[10px] uppercase tracking-[0.05em] text-truss-subtle">
                     <span>pareamento / {MATCH_METHOD[selectedPair.match_method]}</span>
                     <span>diferença / {(selectedPair.changed_ratio * 100).toFixed(3)}%</span>
                     <span>regiões / {selectedPair.regions.length}</span>
+                    <span>deltas / {selectedPair.delta_counts.total ?? selectedPair.deltas.length}</span>
                     <span className={STATUS[selectedPair.status].className}>estado / {STATUS[selectedPair.status].label}</span>
                   </div>
                 </>
@@ -691,10 +825,128 @@ export function RevisionComparisonPanel({
 
             <aside className="max-h-[720px] overflow-y-auto border-t border-truss-line bg-truss-raised xl:border-l xl:border-t-0">
               <section className="border-b border-truss-line p-3">
+                <span className="truss-mono-label">Evidência selecionada</span>
+                {selectedDelta ? (
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-semibold text-truss-text">
+                        {DELTA_LAYER_LABEL[selectedDelta.layer]} / {CHANGE_TYPE[selectedDelta.change_type].label}
+                      </h3>
+                      <span className={`font-mono text-[9px] uppercase ${CHANGE_TYPE[selectedDelta.change_type].className}`}>
+                        {(selectedDelta.similarity * 100).toFixed(0)}% vínculo
+                      </span>
+                    </div>
+                    <dl className="mt-3 divide-y divide-truss-line border-y border-truss-line">
+                      <div className="py-2">
+                        <dt className="truss-mono-label">Antes</dt>
+                        <dd className="mt-1 break-words font-mono text-[11px] leading-5 text-truss-text">{selectedDelta.before_value ?? "—"}</dd>
+                        <dd className="mt-1 font-mono text-[9px] text-truss-subtle">{bboxLabel(selectedDelta.base_bbox)}</dd>
+                      </div>
+                      <div className="py-2">
+                        <dt className="truss-mono-label">Depois</dt>
+                        <dd className="mt-1 break-words font-mono text-[11px] leading-5 text-truss-text">{selectedDelta.after_value ?? "—"}</dd>
+                        <dd className="mt-1 font-mono text-[9px] text-truss-subtle">{bboxLabel(selectedDelta.target_bbox)}</dd>
+                      </div>
+                    </dl>
+                    <p className="mt-2 font-mono text-[9px] leading-4 text-truss-subtle">
+                      método / {selectedDelta.match_evidence}
+                    </p>
+                    <p className="mt-2 text-[11px] leading-5 text-truss-muted">
+                      Delta determinístico; não representa erro estrutural confirmado.
+                    </p>
+                  </div>
+                ) : selectedRegion ? (
+                  <div className="mt-2">
+                    <h3 className="text-sm font-semibold text-truss-text">Raster / Região Δ{selectedRegion.region_index + 1}</h3>
+                    <p className="mt-2 font-mono text-[9px] leading-4 text-truss-subtle">{bboxLabel(selectedRegion.base_bbox)}</p>
+                    <p className="mt-2 text-[11px] leading-5 text-truss-muted">Diferença visual localizada pelo comparador pixel a pixel.</p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs leading-5 text-truss-muted">Selecione uma marca no canvas ou uma alteração abaixo.</p>
+                )}
+              </section>
+
+              <section className="border-b border-truss-line p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-truss-text">Deltas nativos</h3>
+                  <span className="font-mono text-[9px] text-truss-subtle">{visibleDeltas.length}/{selectedPair?.delta_counts.total ?? 0}</span>
+                </div>
+                <p className="mt-1 text-[11px] leading-5 text-truss-muted">{selectedPair?.delta_summary}</p>
+                {selectedPair?.delta_truncated ? (
+                  <p className="mt-2 border-l-2 border-truss-warning pl-2 text-[11px] leading-5 text-truss-warning">Lista limitada; contagens completas preservadas.</p>
+                ) : null}
+                {visibleDeltas.length ? (
+                  <ul className="mt-2 space-y-1">
+                    {visibleDeltas.map((delta) => (
+                      <li key={delta.id}>
+                        <button
+                          aria-label={`Inspecionar ${DELTA_LAYER_LABEL[delta.layer]} ${CHANGE_TYPE[delta.change_type].label.toLowerCase()} ${delta.delta_index + 1}`}
+                          className="w-full border border-transparent px-2 py-2 text-left hover:border-truss-line hover:bg-truss-panel data-[selected=true]:border-truss-accent/55 data-[selected=true]:bg-truss-accentSoft"
+                          data-selected={delta.id === selectedDelta?.id}
+                          onClick={() => focusDelta(delta)}
+                          type="button"
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-[10px] text-truss-text">{DELTA_LAYER_LABEL[delta.layer]} {delta.delta_index + 1}</span>
+                            <span className={`font-mono text-[9px] uppercase ${CHANGE_TYPE[delta.change_type].className}`}>{CHANGE_TYPE[delta.change_type].label}</span>
+                          </span>
+                          <span className="mt-1 block truncate font-mono text-[9px] text-truss-subtle">{delta.before_value ?? "—"} → {delta.after_value ?? "—"}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-xs leading-5 text-truss-muted">
+                    {selectedPair?.delta_status === "completed"
+                      ? "Nenhum delta nas camadas visíveis."
+                      : "Camadas nativas não disponíveis para este par."}
+                  </p>
+                )}
+              </section>
+
+              <section className="border-b border-truss-line p-3">
+                <h3 className="text-sm font-semibold text-truss-text">Regiões raster</h3>
+                {visibleLayers.raster && selectedPair?.regions.length ? (
+                  <ul className="mt-2 space-y-1">
+                    {selectedPair.regions.map((region) => (
+                      <li key={region.id}>
+                        <button className="flex w-full items-center justify-between border border-transparent px-2 py-2 text-left hover:border-truss-line hover:bg-truss-panel data-[selected=true]:border-truss-accent/55 data-[selected=true]:bg-truss-accentSoft" data-selected={region.id === selectedRegion?.id} onClick={() => focusRegion(region)} type="button">
+                          <span className="font-mono text-[11px] text-truss-text">Δ{region.region_index + 1}</span>
+                          <span className="font-mono text-[9px] text-truss-subtle">{bboxLabel(region.base_bbox)}</span>
+                          <Crosshair aria-hidden="true" className="truss-icon h-3.5 w-3.5 text-truss-accent" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-xs leading-5 text-truss-muted">{visibleLayers.raster ? "Nenhuma região gráfica localizada para este par." : "Camada Raster ocultada na barra."}</p>
+                )}
+              </section>
+
+              {selectedPair?.target_sheet && selectedRegion ? (
+                <section className="border-b border-truss-line p-3">
+                  <h3 className="text-sm font-semibold text-truss-text">Promover para achado</h3>
+                  <p className="mt-1 text-xs leading-5 text-truss-muted">A diferença só vira hipótese após sua ação explícita.</p>
+                  <label className="mt-3 block">
+                    <span className="truss-mono-label">Descrição</span>
+                    <textarea className="truss-field mt-1 w-full resize-y p-2 text-sm leading-5" onChange={(event) => setFindingDescription(event.target.value)} value={findingDescription} />
+                  </label>
+                  <label className="mt-2 block">
+                    <span className="truss-mono-label">Severidade potencial</span>
+                    <select className="truss-field mt-1 w-full px-2 font-mono text-xs" onChange={(event) => setFindingSeverity(event.target.value as FindingSeverity)} value={findingSeverity}>
+                      <option value="low">LOW</option><option value="medium">MEDIUM</option><option value="high">HIGH</option><option value="critical">CRITICAL</option>
+                    </select>
+                  </label>
+                  <button className="truss-button truss-button-primary mt-3 w-full" disabled={!findingDescription.trim()} onClick={() => void handleCreateFinding()} type="button">
+                    <Plus aria-hidden="true" className="truss-icon h-4 w-4" /> Criar achado manual
+                  </button>
+                  {findingStatus ? <p className="mt-2 text-xs leading-5 text-truss-muted" role="status">{findingStatus}</p> : null}
+                </section>
+              ) : null}
+
+              <section className="p-3">
                 <h3 className="text-sm font-semibold text-truss-text">Pareamento de folhas</h3>
-                <p className="mt-1 text-xs leading-5 text-truss-muted">
-                  Confirme manualmente apenas quando os dois lados representam a mesma prancha.
-                </p>
+                <p className="mt-1 text-xs leading-5 text-truss-muted">Confirme manualmente apenas quando os dois lados representam a mesma prancha.</p>
                 <label className="mt-3 block">
                   <span className="truss-mono-label">Base</span>
                   <select className="truss-field mt-1 w-full px-2 font-mono text-xs" onChange={(event) => setManualBaseSheetId(event.target.value)} value={resolvedManualBaseSheetId}>
@@ -718,46 +970,6 @@ export function RevisionComparisonPanel({
                   </button>
                 ) : null}
               </section>
-
-              <section className="border-b border-truss-line p-3">
-                <h3 className="text-sm font-semibold text-truss-text">Regiões alteradas</h3>
-                {selectedPair?.regions.length ? (
-                  <ul className="mt-2 space-y-1">
-                    {selectedPair.regions.map((region) => (
-                      <li key={region.id}>
-                        <button className="flex w-full items-center justify-between border border-transparent px-2 py-2 text-left hover:border-truss-line hover:bg-truss-panel data-[selected=true]:border-truss-accent/55 data-[selected=true]:bg-truss-accentSoft" data-selected={region.id === selectedRegion?.id} onClick={() => focusRegion(region)} type="button">
-                          <span className="font-mono text-[11px] text-truss-text">Δ{region.region_index + 1}</span>
-                          <span className="font-mono text-[9px] text-truss-subtle">{Math.round(region.base_bbox.x0)},{Math.round(region.base_bbox.y0)} → {Math.round(region.base_bbox.x1)},{Math.round(region.base_bbox.y1)} pt</span>
-                          <Crosshair aria-hidden="true" className="truss-icon h-3.5 w-3.5 text-truss-accent" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-2 text-xs leading-5 text-truss-muted">Nenhuma região gráfica localizada para este par.</p>
-                )}
-              </section>
-
-              {selectedPair?.target_sheet && selectedRegion ? (
-                <section className="p-3">
-                  <h3 className="text-sm font-semibold text-truss-text">Promover para achado</h3>
-                  <p className="mt-1 text-xs leading-5 text-truss-muted">A diferença só vira hipótese após sua ação explícita.</p>
-                  <label className="mt-3 block">
-                    <span className="truss-mono-label">Descrição</span>
-                    <textarea className="truss-field mt-1 w-full resize-y p-2 text-sm leading-5" onChange={(event) => setFindingDescription(event.target.value)} value={findingDescription} />
-                  </label>
-                  <label className="mt-2 block">
-                    <span className="truss-mono-label">Severidade potencial</span>
-                    <select className="truss-field mt-1 w-full px-2 font-mono text-xs" onChange={(event) => setFindingSeverity(event.target.value as FindingSeverity)} value={findingSeverity}>
-                      <option value="low">LOW</option><option value="medium">MEDIUM</option><option value="high">HIGH</option><option value="critical">CRITICAL</option>
-                    </select>
-                  </label>
-                  <button className="truss-button truss-button-primary mt-3 w-full" disabled={!findingDescription.trim()} onClick={() => void handleCreateFinding()} type="button">
-                    <Plus aria-hidden="true" className="truss-icon h-4 w-4" /> Criar achado manual
-                  </button>
-                  {findingStatus ? <p className="mt-2 text-xs leading-5 text-truss-muted" role="status">{findingStatus}</p> : null}
-                </section>
-              ) : null}
             </aside>
           </div>
         </>

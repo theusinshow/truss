@@ -90,9 +90,66 @@ def test_identical_comparison_is_cached_without_duplicate_regions(
     assert first.json()["counts"]["identical"] == 1
     assert first.json()["pairs"][0]["match_method"] == "exact_content"
     assert first.json()["pairs"][0]["regions"] == []
+    assert first.json()["pairs"][0]["delta_status"] == "completed"
+    assert first.json()["pairs"][0]["delta_counts"]["total"] == 0
+    assert first.json()["pairs"][0]["deltas"] == []
     with transaction(settings) as connection:
         assert connection.execute("SELECT COUNT(*) FROM revision_comparisons").fetchone()[0] == 1
         assert connection.execute("SELECT COUNT(*) FROM revision_comparison_pairs").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM revision_comparison_deltas").fetchone()[0] == 0
+
+
+def test_legacy_f71_comparison_reads_as_not_run_without_mutation(
+    client: TestClient, settings: Settings
+) -> None:
+    project_id = _project(client)
+    content = _pdf(code=None, marker="LEGADO")
+    base = _revision(client, project_id, "R01", content)
+    target = _revision(client, project_id, "R02", content)
+    comparison_id = "comparison-f71"
+    with transaction(settings) as connection:
+        connection.execute(
+            """
+            INSERT INTO revision_comparisons (
+                id, project_id, base_revision_id, target_revision_id,
+                input_fingerprint, pipeline_version, status, counts_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, 'revision-comparison-v0.1', 'completed', ?, ?)
+            """,
+            (
+                comparison_id,
+                project_id,
+                base["revision"]["id"],
+                target["revision"]["id"],
+                "legacy-fingerprint",
+                '{"total": 1, "identical": 1}',
+                "2026-09-01T00:00:00+00:00",
+            ),
+        )
+        connection.execute(
+            """
+            INSERT INTO revision_comparison_pairs (
+                id, comparison_id, sequence, base_sheet_id, target_sheet_id,
+                status, match_method, match_confidence, summary, changed_ratio,
+                created_at
+            ) VALUES (?, ?, 0, ?, ?, 'identical', 'exact_content', 1, ?, 0, ?)
+            """,
+            (
+                "pair-f71",
+                comparison_id,
+                base["sheet"]["id"],
+                target["sheet"]["id"],
+                "Conteúdo idêntico no pipeline F7.1.",
+                "2026-09-01T00:00:00+00:00",
+            ),
+        )
+
+    response = client.get(f"/revision-comparisons/{comparison_id}")
+
+    assert response.status_code == 200
+    pair = response.json()["pairs"][0]
+    assert pair["delta_status"] == "not_run"
+    assert pair["delta_counts"] == {}
+    assert pair["deltas"] == []
 
 
 def test_localized_graphic_change_keeps_pdf_point_bboxes(client: TestClient) -> None:
@@ -109,10 +166,18 @@ def test_localized_graphic_change_keeps_pdf_point_bboxes(client: TestClient) -> 
     assert pair["match_method"] == "sheet_code"
     assert pair["status"] == "changed"
     assert pair["regions"]
+    assert pair["delta_status"] == "completed"
+    assert pair["delta_counts"]["text"]["total"] > 0
+    assert pair["deltas"]
     region = pair["regions"][0]
     assert 0 <= region["base_bbox"]["x0"] < region["base_bbox"]["x1"] <= 1000
     assert 0 <= region["base_bbox"]["y0"] < region["base_bbox"]["y1"] <= 800
     assert region["base_bbox"] == region["target_bbox"]
+    text_delta = next(delta for delta in pair["deltas"] if delta["layer"] == "text")
+    for bbox in (text_delta["base_bbox"], text_delta["target_bbox"]):
+        if bbox is not None:
+            assert 0 <= bbox["x0"] <= bbox["x1"] <= 1000
+            assert 0 <= bbox["y0"] <= bbox["y1"] <= 800
 
 
 def test_manual_pairing_creates_new_immutable_run_and_can_be_revoked(
@@ -160,6 +225,21 @@ def test_manual_pairing_creates_new_immutable_run_and_can_be_revoked(
                 "UPDATE revision_comparison_pairs SET summary = 'mutated' WHERE comparison_id = ?",
                 (paired["id"],),
             )
+        delta_id = connection.execute(
+            """
+            SELECT delta.id
+            FROM revision_comparison_deltas delta
+            JOIN revision_comparison_pairs pair ON pair.id = delta.pair_id
+            WHERE pair.comparison_id = ?
+            LIMIT 1
+            """,
+            (paired["id"],),
+        ).fetchone()["id"]
+        with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+            connection.execute(
+                "UPDATE revision_comparison_deltas SET similarity = 0 WHERE id = ?",
+                (delta_id,),
+            )
 
 
 def test_unavailable_source_is_not_reported_as_identical(
@@ -185,6 +265,7 @@ def test_unavailable_source_is_not_reported_as_identical(
     assert response.status_code == 201
     assert response.json()["status"] == "completed_with_limits"
     assert response.json()["pairs"][0]["status"] == "unavailable"
+    assert response.json()["pairs"][0]["delta_status"] == "unavailable"
 
 
 def test_page_geometry_change_is_a_full_page_change(client: TestClient) -> None:
@@ -205,6 +286,8 @@ def test_page_geometry_change_is_a_full_page_change(client: TestClient) -> None:
     assert pair["changed_ratio"] == 1
     assert pair["regions"][0]["base_bbox"]["x1"] == 1000
     assert pair["regions"][0]["target_bbox"]["x1"] == 1100
+    assert pair["delta_status"] == "not_comparable"
+    assert pair["deltas"] == []
 
 
 def test_comparison_rejects_equal_or_cross_project_revisions(client: TestClient) -> None:

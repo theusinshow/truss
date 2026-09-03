@@ -339,6 +339,25 @@ achado na revisao-alvo. O acervo atual nao contem duas exportacoes reais relacio
 evidencias automatizada e sintetica, sem registrar validacao em projeto real. Evidencia:
 [`docs/f71-comparison-gate-2026-09-02.json`](docs/f71-comparison-gate-2026-09-02.json).
 
+## F7.2 - Deltas explicaveis por camada implementados
+
+Pares confiaveis da F7.1 agora tambem comparam texto nativo e primitivas vetoriais extraidas
+localmente. Os deltas `added`, `removed`, `modified` e `moved` preservam valor antes/depois e
+bboxes nos dois sistemas de pontos PDF. Correspondencias espaciais sao conservadoras; casos
+ambiguos continuam como adicao/remocao, sem inferir intencao ou erro de engenharia.
+
+O run imutavel usa `revision-comparison-v0.2` e inclui a versao do extrator no fingerprint. Cada
+camada persiste no maximo 500 deltas, mas conserva as contagens completas e sinaliza truncamento.
+Fonte ausente, extracao impossivel e geometria incompativel recebem estados explicitos. Runs
+historicos F7.1 permanecem legiveis como `not_run`.
+
+Na comparacao, filtros independentes `Raster`, `Texto` e `Vetor` controlam os overlays. Selecionar
+um delta foca sua evidencia antes/depois no viewer e no painel direito, com metodo e coordenadas.
+O gate sintetico passou com 10 deltas nativos e confirmou desktop, viewport estreito e filtro por
+camada. Nao havia um par real relacionado para este gate, portanto nenhuma validacao real e
+alegada. Evidencia:
+[`docs/f72-layer-delta-gate-2026-09-03.json`](docs/f72-layer-delta-gate-2026-09-03.json).
+
 ## Requisitos locais
 
 - Node.js 20 ou superior

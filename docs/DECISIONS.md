@@ -1,5 +1,25 @@
 # Decisions
 
+## 2026-09-03 - F7.2 explains native PDF-layer changes without engineering inference
+
+The owner approved an additive comparison slice for trusted F7.1 sheet pairs. Native text and
+vector primitives are extracted locally with the existing versioned extractor and classified as
+added, removed, modified or moved. Movement and modification require conservative unique matches;
+ambiguous observations remain separate additions/removals instead of receiving invented intent.
+
+Layer deltas are immutable children of the comparison pair. They retain before/after payloads,
+PDF-point bboxes, match evidence and similarity. The comparison fingerprint now includes the
+extractor version and `revision-comparison-v0.2`. Full counts are computed before a 500-record
+per-layer persistence cap, and truncation is explicit. Missing sources, extraction failures and
+incompatible page geometry are states, never empty equality. Historical F7.1 runs remain readable
+as `not_run`.
+
+The existing graphite/red viewer keeps the PDFs dominant and adds independent Raster, Text and
+Vector filters plus a before/after evidence rail. The isolated synthetic gate produced 3 text and
+7 vector deltas and passed desktop, narrow viewport and filter checks. No related real-export pair
+was available, so this decision closes F7.2 without claiming real-project validation. AI, OCR,
+advanced registration and automatic engineering-error classification remain outside the slice.
+
 ## 2026-09-02 - F7.1 compares immutable revisions without inventing sheet identity
 
 The owner approved F7.1 as a deterministic, local comparison slice. Sheet identity follows active

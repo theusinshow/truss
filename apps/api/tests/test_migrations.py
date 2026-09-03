@@ -46,6 +46,7 @@ def test_apply_migrations_creates_schema_and_is_idempotent(tmp_path: Path) -> No
         "revision_comparisons",
         "revision_comparison_pairs",
         "revision_comparison_regions",
+        "revision_comparison_deltas",
         "comparison_pair_overrides",
     } <= _table_names(settings)
     with transaction(settings) as connection:
@@ -63,11 +64,21 @@ def test_apply_migrations_creates_schema_and_is_idempotent(tmp_path: Path) -> No
             str(row["name"])
             for row in connection.execute("PRAGMA table_info(audit_runs)")
         }
+        comparison_pair_columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(revision_comparison_pairs)")
+        }
     assert "technical_scope" in view_columns
     assert "technical_scope" in finding_columns
     assert "sheet_code_raw" in sheet_map_columns
     assert {"element_code", "registry_hash"} <= finding_columns
     assert "registry_hash" in audit_run_columns
+    assert {
+        "delta_status",
+        "delta_counts_json",
+        "delta_truncated",
+        "delta_summary",
+    } <= comparison_pair_columns
     assert apply_migrations(settings) == []
 
 

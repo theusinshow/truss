@@ -1,9 +1,10 @@
 # Contexto do projeto - Truss Agent
 
-Atualizado em: 2026-09-02
+Atualizado em: 2026-09-03
 
-Status do produto: V0.1 local concluida ate F7.1. O proprietario aceitou a comparacao grafica com
-gate automatizado e fixture isolada e dispensou explicitamente o gate em um par real.
+Status do produto: V0.1 local concluida ate F7.2. A comparacao grafica combina regioes raster com
+deltas deterministas de texto nativo e vetor. As F7.1 e F7.2 foram validadas com fixtures
+isoladas; nao existe alegacao de validacao sobre um par real relacionado.
 
 ## Missao
 
@@ -141,9 +142,11 @@ Divergencias devem ser registradas. Mudanca arquitetural relevante segue
   cancelamento cooperativo e recovery, concluidos e validados.
 - F7.1: comparacao grafica deterministica entre revisoes, runs e regioes imutaveis, pareamento
   auditavel e interface PDF-first; concluida por aceite explicito, com gate real dispensado.
+- F7.2: deltas deterministas de texto nativo e primitivas vetoriais, evidencia antes/depois,
+  limites honestos e filtros por camada; concluida com gate sintetico e sem classificacao de erro.
 
 O acervo recebido nao possui duas exportacoes reais relacionadas que possam sustentar o gate
-visual antes/depois da F7.1. `REV-005` e `REV-006` sao conjuntos distintos e nao devem ser
+visual antes/depois das F7.1/F7.2. `REV-005` e `REV-006` sao conjuntos distintos e nao devem ser
 pareados por nome de arquivo ou numero da pagina. A dispensa do gate nao altera esse limite nem
 constitui evidencia de validacao real.
 

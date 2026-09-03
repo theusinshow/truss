@@ -97,6 +97,30 @@ export type ComparisonRegion = {
   changed_ratio: number;
 };
 
+export type ComparisonDeltaLayer = "text" | "vector";
+export type ComparisonDeltaChangeType = "added" | "removed" | "modified" | "moved";
+export type ComparisonDeltaStatus =
+  | "not_run"
+  | "completed"
+  | "completed_with_limits"
+  | "not_comparable"
+  | "unavailable"
+  | "not_applicable";
+
+export type ComparisonDelta = {
+  id: string;
+  delta_index: number;
+  layer: ComparisonDeltaLayer;
+  change_type: ComparisonDeltaChangeType;
+  match_evidence: string;
+  similarity: number;
+  before_value: string | null;
+  after_value: string | null;
+  base_bbox: BoundingBox | null;
+  target_bbox: BoundingBox | null;
+  details: Record<string, unknown>;
+};
+
 export type ComparisonSheetPair = {
   id: string;
   sequence: number;
@@ -109,6 +133,15 @@ export type ComparisonSheetPair = {
   summary: string;
   changed_ratio: number;
   regions: ComparisonRegion[];
+  delta_status: ComparisonDeltaStatus;
+  delta_counts: {
+    total?: number;
+    text?: Partial<Record<ComparisonDeltaChangeType | "total", number>>;
+    vector?: Partial<Record<ComparisonDeltaChangeType | "total", number>>;
+  };
+  delta_truncated: boolean;
+  delta_summary: string;
+  deltas: ComparisonDelta[];
 };
 
 export type RevisionComparison = {

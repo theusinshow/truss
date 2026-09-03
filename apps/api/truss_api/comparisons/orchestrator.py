@@ -4,11 +4,13 @@ from typing import Any
 
 from truss_api.comparisons import repository
 from truss_api.comparisons.diff import RasterReadError, compare_rasters, full_page_region
+from truss_api.comparisons.layers import LayerExtractionError, diff_layers, extract_sheet
 from truss_api.comparisons.matcher import match_sheets
 from truss_api.core.settings import Settings
+from truss_api.sheetmap.primitives import EXTRACTOR_VERSION
 
 
-COMPARISON_PIPELINE_VERSION = "revision-comparison-v0.1"
+COMPARISON_PIPELINE_VERSION = "revision-comparison-v0.2"
 PAIR_STATUSES = ("identical", "changed", "added", "removed", "ambiguous", "unavailable")
 
 
@@ -24,6 +26,7 @@ def _sheet_fingerprint(sheet: dict[str, Any]) -> dict[str, object]:
         "source_exists": bool(sheet["source_exists"]),
         "sheet_map_id": sheet.get("sheet_map_id"),
         "snapshot_hash": sheet.get("snapshot_hash"),
+        "extractor_version": sheet.get("extractor_version") or EXTRACTOR_VERSION,
         "sheet_code": sheet.get("sheet_code"),
     }
 
@@ -102,6 +105,11 @@ def _evaluate_pair(candidate: dict[str, Any], settings: Settings) -> dict[str, A
         "target_identity": _public_sheet(target),
         "changed_ratio": 0.0,
         "regions": [],
+        "delta_status": "not_run",
+        "delta_counts": {},
+        "delta_truncated": False,
+        "delta_summary": "Camadas textuais e vetoriais ainda nao foram avaliadas.",
+        "deltas": [],
     }
     if base is None or target is None:
         status = str(candidate["unmatched_status"])
@@ -113,13 +121,21 @@ def _evaluate_pair(candidate: dict[str, Any], settings: Settings) -> dict[str, A
             summary = f"Folha {code} existe somente na revisao-base."
         else:
             summary = "Identidade da folha inconclusiva; escolha o par manualmente."
-        return {**result, "status": status, "summary": summary}
+        return {
+            **result,
+            "status": status,
+            "summary": summary,
+            "delta_status": "not_applicable",
+            "delta_summary": "Sem par confiavel para comparar texto ou vetores.",
+        }
 
     if not _source_available(base) or not _source_available(target):
         return {
             **result,
             "status": "unavailable",
             "summary": "A fonte PDF de um dos lados nao esta disponivel para comparacao grafica.",
+            "delta_status": "unavailable",
+            "delta_summary": "Fonte PDF indisponivel para extracao textual e vetorial.",
         }
 
     if not _same_geometry(base, target):
@@ -129,6 +145,8 @@ def _evaluate_pair(candidate: dict[str, Any], settings: Settings) -> dict[str, A
             "summary": "Formato ou rotacao da pagina mudou; o registro pixel a pixel foi omitido.",
             "changed_ratio": 1.0,
             "regions": [full_page_region(base, target)],
+            "delta_status": "not_comparable",
+            "delta_summary": "Formato ou rotacao diferente; camadas nao foram alinhadas.",
         }
 
     if (
@@ -139,6 +157,13 @@ def _evaluate_pair(candidate: dict[str, Any], settings: Settings) -> dict[str, A
             **result,
             "status": "identical",
             "summary": "Conteudo PDF identico pelos hashes e indice da pagina.",
+            "delta_status": "completed",
+            "delta_counts": {
+                "total": 0,
+                "text": {"total": 0, "added": 0, "removed": 0, "modified": 0, "moved": 0},
+                "vector": {"total": 0, "added": 0, "removed": 0, "modified": 0, "moved": 0},
+            },
+            "delta_summary": "Texto nativo e vetores identicos pelo conteudo PDF.",
         }
 
     try:
@@ -148,20 +173,46 @@ def _evaluate_pair(candidate: dict[str, Any], settings: Settings) -> dict[str, A
             **result,
             "status": "unavailable",
             "summary": "A rasterizacao local de um dos lados falhou; nenhuma igualdade foi presumida.",
+            "delta_status": "unavailable",
+            "delta_summary": "A fonte local nao pode ser extraida com seguranca.",
         }
-    if not diff.regions:
+    raster_status = "changed" if diff.regions else "identical"
+    raster_summary = (
+        f"{len(diff.regions)} regiao(oes) graficamente alterada(s) localizada(s)."
+        if diff.regions
+        else "Nenhuma alteracao raster acima do limiar deterministico foi localizada."
+    )
+    try:
+        layer_diff = diff_layers(extract_sheet(base, settings), extract_sheet(target, settings))
+    except LayerExtractionError:
         return {
             **result,
-            "status": "identical",
-            "summary": "Nenhuma alteracao grafica acima do limiar deterministico foi localizada.",
+            "status": raster_status,
+            "summary": raster_summary,
             "changed_ratio": diff.changed_ratio,
+            "regions": diff.regions,
+            "delta_status": "unavailable",
+            "delta_summary": "A extracao textual ou vetorial local falhou.",
         }
+    native_changed = int(layer_diff.counts["total"]) > 0
+    delta_status = "completed_with_limits" if layer_diff.truncated else "completed"
+    delta_summary = (
+        f"{layer_diff.counts['text']['total']} delta(s) de texto e "
+        f"{layer_diff.counts['vector']['total']} delta(s) vetorial(is)."
+    )
+    if layer_diff.truncated:
+        delta_summary += " A lista foi limitada; as contagens permanecem completas."
     return {
         **result,
-        "status": "changed",
-        "summary": f"{len(diff.regions)} regiao(oes) graficamente alterada(s) localizada(s).",
+        "status": "changed" if raster_status == "changed" or native_changed else "identical",
+        "summary": raster_summary,
         "changed_ratio": diff.changed_ratio,
         "regions": diff.regions,
+        "delta_status": delta_status,
+        "delta_counts": layer_diff.counts,
+        "delta_truncated": layer_diff.truncated,
+        "delta_summary": delta_summary,
+        "deltas": layer_diff.deltas,
     }
 
 
@@ -200,7 +251,13 @@ def create_comparison(
     counts["total"] = len(pairs)
     status = (
         "completed_with_limits"
-        if counts["ambiguous"] > 0 or counts["unavailable"] > 0
+        if counts["ambiguous"] > 0
+        or counts["unavailable"] > 0
+        or any(
+            pair["delta_status"]
+            in {"completed_with_limits", "not_comparable", "unavailable"}
+            for pair in pairs
+        )
         else "completed"
     )
     return repository.save_comparison(
