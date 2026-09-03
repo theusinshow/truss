@@ -2,7 +2,7 @@
 
 Data: 2026-09-02
 
-Status: implementada e validada em fixture isolada; gate real pendente
+Status: concluida por aceite explicito; gate real dispensado pelo proprietario
 
 Escopo: comparar duas revisoes imutaveis do mesmo projeto, parear folhas com evidencia explicita,
 detectar alteracoes graficas localmente e apresenta-las no viewer sem transformar diferenca em
@@ -134,5 +134,5 @@ e folhas antes de escrever.
 - fixture isolada `R01 -> R02`: uma folha `EST-0010-A`, uma regiao alterada,
   `changed_ratio=0.00115`, bbox `220,220 -> 356,260 pt`;
 - suites API/web, lint, typecheck e build aprovados na data do gate;
-- o gate real continua bloqueado somente pela ausencia de duas exportacoes relacionadas no acervo,
-  nao por falha da implementacao.
+- nao existem duas exportacoes relacionadas no acervo; em 2026-09-02, o proprietario dispensou
+  explicitamente esse gate e aceitou a fase sem alegacao de validacao sobre projeto real.

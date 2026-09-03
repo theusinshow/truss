@@ -1,7 +1,7 @@
 {
   "gate": "F7.1-revision-comparison",
   "executed_at": "2026-09-02",
-  "status": "implementation_validated_real_pair_pending",
+  "status": "accepted_with_real_pair_gate_waived",
   "pipeline_version": "revision-comparison-v0.1",
   "automated": {
     "api": {
@@ -63,5 +63,10 @@
     },
     "interpretation": "No pairing was inferred from filenames or page numbers."
   },
-  "remaining_gate": "Run the same flow with two related real exports from the same structural set."
+  "owner_acceptance": {
+    "date": "2026-09-02",
+    "decision": "The owner explicitly waived the related real-export gate and authorized moving to the next milestone.",
+    "limit": "This acceptance does not claim validation on a real before/after project pair."
+  },
+  "remaining_gate": null
 }

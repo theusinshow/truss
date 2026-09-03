@@ -334,8 +334,9 @@ sem sobreposicao enganosa.
 
 O gate automatizado e a verificacao manual passaram com um par sintetico isolado: uma alteracao
 localizada, pareada por `EST-0010-A`, produziu uma bbox `220,220 -> 356,260 pt` e foi promovida a
-achado na revisao-alvo. O acervo atual nao contem duas exportacoes reais relacionadas; por isso o
-fechamento definitivo da F7.1 aguarda esse par real. Evidencia:
+achado na revisao-alvo. O acervo atual nao contem duas exportacoes reais relacionadas. Em
+2026-09-02, o proprietario dispensou explicitamente esse gate real e aceitou a F7.1 com base nas
+evidencias automatizada e sintetica, sem registrar validacao em projeto real. Evidencia:
 [`docs/f71-comparison-gate-2026-09-02.json`](docs/f71-comparison-gate-2026-09-02.json).
 
 ## Requisitos locais

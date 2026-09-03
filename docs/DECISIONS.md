@@ -14,9 +14,10 @@ error. Only an explicit owner action promotes a region to a manual finding.
 
 Comparison runs, pairs and regions are immutable and cached by source, Sheet Map, active-pairing
 and pipeline fingerprints. Manual pairings retain revoked history. The synthetic browser gate
-passed all three display modes and finding promotion. The milestone remains open until two related
-real exports are available; the current `REV-005` and `REV-006` are distinct sets and remain
-honestly unpaired.
+passed all three display modes and finding promotion. The current `REV-005` and `REV-006` are
+distinct sets and remain honestly unpaired. On 2026-09-02, the owner explicitly waived the related
+real-export gate and accepted F7.1 on automated and isolated synthetic evidence. This closes the
+milestone without claiming that a real-project before/after pair was validated.
 
 ## 2026-09-02 - F5.3 calibrates immutable runs without promoting rules
 
