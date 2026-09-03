@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from truss_api.core.settings import Settings, get_settings
 from truss_api.db.schema import initialize_database
+from truss_api.documents.importer import MAX_STORED_FILENAME_CHARS
 from truss_api.main import app
 from truss_api.projects import repository
 from truss_api.projects.models import ProjectCreate, RevisionCreate
@@ -78,6 +79,29 @@ def test_import_pdf_creates_document_sheets_and_local_copy(
 
     stored_file = settings.data_dir / payload["stored_file_path"]
     assert stored_file.exists()
+    assert stored_file.read_bytes() == pdf_bytes
+
+
+def test_import_preserves_long_original_name_but_caps_physical_name(
+    client: TestClient,
+    settings: Settings,
+    revision: tuple[str, str],
+) -> None:
+    project_id, revision_id = revision
+    original_name = f"projeto-estrutural-{'muito-longo-' * 20}.pdf"
+    pdf_bytes = make_pdf_bytes(page_count=1)
+
+    response = client.post(
+        f"/projects/{project_id}/revisions/{revision_id}/documents",
+        files={"file": (original_name, pdf_bytes, "application/pdf")},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["original_filename"] == original_name
+    stored_file = settings.data_dir / payload["stored_file_path"]
+    assert len(stored_file.name) <= MAX_STORED_FILENAME_CHARS
+    assert stored_file.suffix == ".pdf"
     assert stored_file.read_bytes() == pdf_bytes
 
 

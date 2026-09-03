@@ -11,7 +11,10 @@ Validator = Callable[[Path], None]
 
 
 def _partial_path(target: Path) -> Path:
-    return target.with_name(f".{target.name}.{uuid4().hex}.partial")
+    # O arquivo temporario precisa ficar no mesmo diretorio para que o replace
+    # final continue atomico, mas nao deve repetir o nome (potencialmente longo)
+    # do artefato. Isso preserva margem para os limites de caminho do Windows.
+    return target.parent / f".{uuid4().hex}.partial"
 
 
 def _sync_file(path: Path) -> None:

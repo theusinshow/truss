@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from truss_api.recovery.atomic import atomic_output_path, atomic_write_bytes
+from truss_api.recovery.atomic import _partial_path, atomic_output_path, atomic_write_bytes
 from truss_api.recovery.errors import TrussError
 
 
@@ -13,6 +13,20 @@ def test_atomic_write_promotes_complete_content(tmp_path: Path) -> None:
 
     assert target.read_bytes() == b"complete"
     assert list(target.parent.glob("*.partial")) == []
+
+
+def test_atomic_staging_does_not_repeat_a_long_target_name(tmp_path: Path) -> None:
+    target = tmp_path / "nested" / f"{'a' * 120}.pdf"
+
+    partial = _partial_path(target)
+
+    assert partial.parent == target.parent
+    assert target.name not in partial.name
+    assert partial.name.endswith(".partial")
+    assert len(partial.name) == 41
+
+    atomic_write_bytes(target, b"complete")
+    assert target.read_bytes() == b"complete"
 
 
 def test_atomic_write_does_not_publish_when_validator_fails(tmp_path: Path) -> None:

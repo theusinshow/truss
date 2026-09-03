@@ -10,6 +10,9 @@ from truss_api.recovery.atomic import atomic_write_bytes
 from truss_api.recovery.errors import TrussError
 
 
+MAX_STORED_FILENAME_CHARS = 80
+
+
 class InvalidPdfError(Exception):
     pass
 
@@ -53,6 +56,18 @@ def safe_filename(filename: str) -> str:
     stem = Path(filename).name.strip() or "document.pdf"
     sanitized = re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip(".-")
     return sanitized or "document.pdf"
+
+
+def storage_filename(content_hash: str, filename: str) -> str:
+    """Mantem o hash inteiro e limita somente o nome fisico content-addressed."""
+    safe = safe_filename(filename)
+    suffix = Path(safe).suffix
+    prefix = f"{content_hash}-"
+    available = MAX_STORED_FILENAME_CHARS - len(prefix) - len(suffix)
+    if available <= 0:
+        return f"{content_hash}{suffix}"[:MAX_STORED_FILENAME_CHARS]
+    stem = Path(safe).stem[:available].rstrip(".-") or "document"
+    return f"{prefix}{stem}{suffix}"
 
 
 def inspect_pdf(content: bytes) -> list[PdfPageInfo]:
@@ -122,7 +137,7 @@ def prepare_pdf_storage(
     storage_dir = settings.originals_dir / project_id / revision_id
     storage_dir.mkdir(parents=True, exist_ok=True)
 
-    stored_path = storage_dir / f"{content_hash}-{filename_safe}"
+    stored_path = storage_dir / storage_filename(content_hash, filename_safe)
     if stored_path.exists():
         if hash_bytes(stored_path.read_bytes()) != content_hash:
             raise TrussError(

@@ -1,0 +1,128 @@
+{
+  "schema": "truss-f62-gate-v0.1",
+  "corpus": {
+    "real_sheet_count": 84,
+    "files": [
+      {
+        "filename": "017_26_est_geral.pdf",
+        "pages": 25,
+        "size_bytes": 4279380,
+        "sha256": "df4a4ca4b40e3dbd7d98bb4100fb40441bf6cbe974dc7ce15a471fe12a10840a"
+      },
+      {
+        "filename": "Proj_Estrutural_RanchoQueimado_geral_madeira.pdf",
+        "pages": 30,
+        "size_bytes": 5681191,
+        "sha256": "ebd8edae6c78d8607badc7d0644b8b48e7f8e33628108bb662e8ed4ccaf915e3"
+      },
+      {
+        "filename": "Projeto Estrutural_Juliano Corbellini_R05.pdf",
+        "pages": 29,
+        "size_bytes": 8195886,
+        "sha256": "147b730c0189a78e9e83a7301b717612db0550d7fa6a8fbdb7a2924ef77fae4c"
+      }
+    ]
+  },
+  "limits": {
+    "worker_concurrency": 1,
+    "visual_concurrency": 1,
+    "visual_enabled": false
+  },
+  "metrics": {
+    "intake_seconds": 1.71,
+    "primary_processing_seconds": 759.188,
+    "total_seconds": 785.92,
+    "python_tracemalloc_peak_bytes": 215195375,
+    "retried_items": 1,
+    "automatic_retries": 0,
+    "explicit_resume_retries": 1
+  },
+  "primary_run": {
+    "id": "e575629b-81cd-4e36-bd2e-d4955539b1f6",
+    "status": "completed",
+    "phase_counts": {
+      "deterministic_audit": {
+        "completed": 84
+      },
+      "sheet_map": {
+        "completed": 84
+      }
+    },
+    "interrupted_workers": 1,
+    "processed_after_resume": 163,
+    "counts_before": {
+      "documents": 3,
+      "sheets": 84,
+      "sheet_maps": 0,
+      "audit_runs": 0,
+      "findings": 0,
+      "processing_operations": 3,
+      "batch_runs": 0,
+      "batch_items": 0,
+      "batch_run_events": 0
+    },
+    "counts_after": {
+      "documents": 3,
+      "sheets": 84,
+      "sheet_maps": 84,
+      "audit_runs": 84,
+      "findings": 14,
+      "processing_operations": 171,
+      "batch_runs": 1,
+      "batch_items": 168,
+      "batch_run_events": 7
+    }
+  },
+  "cache_replay": {
+    "id": "2d4456a0-94eb-41bc-a56b-11681ddfcb7a",
+    "status": "completed",
+    "processed_items": 168,
+    "artifact_delta": {
+      "sheet_maps": 0,
+      "audit_runs": 0,
+      "findings": 0
+    },
+    "no_artifact_duplicates": true
+  },
+  "cancel_drill": {
+    "id": "267c8102-a4e3-4a71-ba36-ba9312a63de3",
+    "status": "cancelled",
+    "current_result_reused": true,
+    "completed_items": 1,
+    "cancelled_items": 167
+  },
+  "feedback_reopen": {
+    "finding_id": "8a369e5f-e097-4ff1-b83c-3e11687ac31d",
+    "manual_finding_created": false,
+    "status": "rejected",
+    "reason_preserved": true
+  },
+  "recovery": {
+    "backup_schema": "truss-backup-v0.1",
+    "backup_verified": true,
+    "restored_integrity": true,
+    "restored_counts": {
+      "documents": 3,
+      "sheets": 84,
+      "sheet_maps": 84,
+      "audit_runs": 84,
+      "findings": 14,
+      "processing_operations": 171,
+      "batch_runs": 3,
+      "batch_items": 504,
+      "batch_run_events": 15
+    }
+  },
+  "failure_fixture": {
+    "real_corpus_sheet_count": 0,
+    "synthetic_sheet_count": 2,
+    "status": "completed_with_errors",
+    "processed_after_failure": 2,
+    "coverage_complete": false,
+    "mapped_sheet_count": 1,
+    "expected_sheet_count": 2,
+    "failed": 1,
+    "skipped_dependency": 1,
+    "completed": 2
+  }
+}

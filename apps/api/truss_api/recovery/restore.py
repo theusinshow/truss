@@ -25,6 +25,12 @@ def _destination_for_entry(staging: Path, archive_path: str) -> Path | None:
     return None
 
 
+def _staging_path(target: Path) -> Path:
+    # O staging e irmao do destino para que a publicacao continue sendo um
+    # rename local. Um nome curto preserva margem para os arquivos aninhados.
+    return target.parent / f".{uuid4().hex[:12]}.r"
+
+
 def restore_backup(archive_path: Path, target: Path) -> Path:
     manifest = verify_backup(archive_path)
     resolved_target = target.resolve()
@@ -49,7 +55,7 @@ def restore_backup(archive_path: Path, target: Path) -> Path:
             status_code=507,
             retryable=True,
         )
-    staging = parent / f".{resolved_target.name}.{uuid4().hex}.partial"
+    staging = _staging_path(resolved_target)
     try:
         staging.mkdir()
         with zipfile.ZipFile(archive_path, "r") as archive:
@@ -100,7 +106,7 @@ def restore_backup(archive_path: Path, target: Path) -> Path:
         _sqlite_integrity(database)
         os.replace(staging, resolved_target)
     except Exception:
-        if staging.exists() and staging.parent == parent and staging.name.endswith(".partial"):
+        if staging.exists() and staging.parent == parent and staging.name.endswith(".r"):
             shutil.rmtree(staging)
         raise
     return resolved_target

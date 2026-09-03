@@ -1,5 +1,27 @@
 # Decisions
 
+## 2026-09-03 - V0.1-RC1 hardens Windows paths and makes the real gate reproducible
+
+The owner approved a release-candidate hardening slice after the three approved structural PDFs
+became versioned. Their original sanitized names remain in document metadata, while new physical
+content-addressed filenames are capped at 80 characters and retain the full SHA-256. Existing
+stored paths are never renamed. Atomic files and restore staging remain beside their final target
+but use short generated names, preserving same-volume publication without repeating long names.
+
+The Python suite selects a short per-process temporary root on Windows and the batch capability
+fixture explicitly freezes the local provider instead of inheriting the owner's `.env`. This is
+test isolation only; runtime configuration behavior is unchanged.
+
+The complete gate was rerun from the three PDFs in `docs/projeto_base/`: 84 sheets produced 84
+Sheet Maps, 84 audits and 14 findings; cache replay added no analysis artifacts; cancellation,
+feedback reopening, backup verification, restore integrity and the isolated failure fixture all
+passed. The PDFs are separate projects and do not supply a real before/after pair for F7.1/F7.2.
+Evidence is stored in `docs/v01-rc1-gate-2026-09-03.json`.
+
+The manual browser check loaded the real local project, PDF render, findings and chat with the API
+connected and no framework error overlay. Chrome emitted one hydration warning attributable to
+the external `cz-shortcut-listen` attribute injected before React hydration, not to Truss markup.
+
 ## 2026-09-03 - F7.2 explains native PDF-layer changes without engineering inference
 
 The owner approved an additive comparison slice for trusted F7.1 sheet pairs. Native text and

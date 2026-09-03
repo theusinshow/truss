@@ -19,7 +19,7 @@ from truss_api.sheetmap.elements.registry import build_revision_registry
 
 @pytest.fixture()
 def settings(tmp_path: Path) -> Settings:
-    resolved = Settings(data_dir=tmp_path / "data")
+    resolved = Settings(data_dir=tmp_path / "data", ai_provider="local")
     initialize_database(resolved)
     return resolved
 

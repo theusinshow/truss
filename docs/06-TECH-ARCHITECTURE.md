@@ -155,6 +155,12 @@ criar temporario no mesmo diretorio
 Falha remove apenas o temporario pertencente a operacao. `ENOSPC`, permissao/read-only e I/O sao
 traduzidos em codigos publicos. Arquivo `.partial` nunca e considerado artefato valido.
 
+No RC1, o nome do temporario deixou de repetir o nome do artefato e o staging de restore recebeu
+um identificador curto. Ambos permanecem irmaos do destino final, preservando a publicacao atomica
+no mesmo volume. Para novas importacoes, `documents.original_filename` conserva o nome sanitizado
+completo, enquanto o componente fisico content-addressed e limitado a 80 caracteres e mantem o
+SHA-256 integral. Caminhos ja persistidos continuam validos e nao sao reescritos.
+
 ## SQLite e migrations
 
 O SQLite usa foreign keys por conexao. Migrations SQL numeradas sao append-only e registradas em

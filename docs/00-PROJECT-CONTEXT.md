@@ -144,6 +144,8 @@ Divergencias devem ser registradas. Mudanca arquitetural relevante segue
   auditavel e interface PDF-first; concluida por aceite explicito, com gate real dispensado.
 - F7.2: deltas deterministas de texto nativo e primitivas vetoriais, evidencia antes/depois,
   limites honestos e filtros por camada; concluida com gate sintetico e sem classificacao de erro.
+- V0.1-RC1: robustez de caminhos no Windows, testes isolados da configuracao local e repeticao do
+  gate integral sobre os tres PDFs/84 folhas agora versionados; concluido e validado.
 
 O acervo recebido nao possui duas exportacoes reais relacionadas que possam sustentar o gate
 visual antes/depois das F7.1/F7.2. `REV-005` e `REV-006` sao conjuntos distintos e nao devem ser

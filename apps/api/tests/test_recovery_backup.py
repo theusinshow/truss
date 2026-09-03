@@ -14,7 +14,7 @@ from truss_api.projects.models import ProjectCreate, RevisionCreate
 from truss_api.recovery.backup import BACKUP_SCHEMA, create_backup, verify_backup
 from truss_api.recovery.errors import TrussError
 from truss_api.recovery.operations import import_document
-from truss_api.recovery.restore import restore_backup
+from truss_api.recovery.restore import _staging_path, restore_backup
 from truss_api.recovery.sources import declare_source_unavailable
 
 
@@ -84,6 +84,17 @@ def test_restore_publishes_new_data_dir_without_mutating_source(
     connection.close()
     assert (restored / "recovery" / "restore-manifest.json").is_file()
     assert not (restored / "renders").exists()
+
+
+def test_restore_staging_is_short_and_does_not_repeat_target_name(tmp_path: Path) -> None:
+    target = tmp_path / ("restored-" + "x" * 100)
+
+    staging = _staging_path(target.resolve())
+
+    assert staging.parent == target.resolve().parent
+    assert target.name not in staging.name
+    assert staging.name.endswith(".r")
+    assert len(staging.name) == 15
 
 
 def test_backup_and_restore_preserve_an_in_progress_batch(

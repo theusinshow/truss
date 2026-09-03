@@ -18,6 +18,7 @@ fase aqui nao autoriza mudanca arquitetural nem o avanco de varios milestones em
 | F6 - Solidez diaria | concluida e validada | F6.1 recovery + F6.2 lote real de 84 folhas e fixture isolada | nenhuma no escopo aprovado |
 | F7.1 - Comparacao grafica | concluida por aceite explicito | matcher honesto, diff local em pontos PDF, cache/run imutavel e viewer comparativo | gate real dispensado pelo proprietario; limite preservado na evidencia |
 | F7.2 - Deltas por camada | concluida e validada sinteticamente | texto/vetor deterministas, evidencia antes/depois, cache imutavel e filtros no viewer | par real relacionado continua indisponivel; nenhuma validacao real alegada |
+| V0.1-RC1 - Hardening local | concluido e validado | caminhos Windows curtos, testes hermeticos e gate versionado de 84 folhas | nenhuma no escopo aprovado |
 
 ## Sequencia de continuidade
 
@@ -144,6 +145,29 @@ Texto registrou 2 modificacoes e 1 deslocamento; vetor registrou 4 adicoes, 1 re
 modificacao e 1 deslocamento. A verificacao no navegador cobriu desktop, viewport de 900 px,
 rolagem da composicao e desligamento do filtro de texto. A fixture nao substitui um gate real.
 Relatorio: [`docs/f72-layer-delta-gate-2026-09-03.json`](f72-layer-delta-gate-2026-09-03.json).
+
+### V0.1-RC1 - Robustez Windows e gate reproduzivel
+
+Status: concluido e validado em 2026-09-03.
+
+Objetivo: transformar o estado funcional da V0.1 em um baseline confiavel para uso local diario,
+sem adicionar capacidade de produto ou alterar contratos publicos.
+
+- preservar o nome original do PDF e limitar somente o componente fisico content-addressed;
+- usar nomes curtos para temporarios atomicos e staging de restore no mesmo volume;
+- isolar o teste de capacidades do provider configurado no `.env` local;
+- usar raiz temporaria curta e exclusiva por processo no Windows;
+- repetir suites, build e o gate integral com os tres PDFs versionados.
+
+Resultado: 292 testes de API passaram, com 1 skip previsto; 61 testes web, lint, typecheck e build
+passaram. O gate local deterministico processou os tres PDFs/84 folhas em 785,920 s, persistiu 84
+Sheet Maps, 84 auditorias e 14 findings. O replay criou zero artefatos duplicados; cancelamento,
+feedback, backup/restore e a fixture separada de falha conservaram os invariantes esperados. Os
+PDFs sao projetos distintos e nao validam comparacao real entre revisoes.
+Na verificacao manual, a home carregou o projeto real com API conectada, render do PDF, viewer,
+achados e chat, sem overlay de erro. O Chrome registrou apenas um aviso de hidratacao causado pelo
+atributo `cz-shortcut-listen` injetado por extensao externa.
+Relatorio: [`docs/v01-rc1-gate-2026-09-03.json`](v01-rc1-gate-2026-09-03.json).
 
 ## Depois da V0.1
 

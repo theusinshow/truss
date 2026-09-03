@@ -358,6 +358,23 @@ camada. Nao havia um par real relacionado para este gate, portanto nenhuma valid
 alegada. Evidencia:
 [`docs/f72-layer-delta-gate-2026-09-03.json`](docs/f72-layer-delta-gate-2026-09-03.json).
 
+## V0.1-RC1 - Robustez Windows e gate reproduzivel
+
+O RC1 preserva o nome original do PDF como metadado, mas limita o nome fisico content-addressed
+no disco. Temporarios de escrita atomica e o staging de restore usam nomes curtos no mesmo
+diretorio/volume do destino, mantendo `os.replace` e reduzindo o risco de exceder o limite de
+caminho do Windows. Arquivos e revisoes existentes nao sao renomeados.
+
+A suite Python tambem usa uma raiz temporaria curta no Windows e fixa explicitamente o provider
+local no fixture que valida capacidades sem depender do `.env` do proprietario. O fechamento
+passou com 292 testes de API, 1 skip previsto, 61 testes web, lint, typecheck e build.
+
+Os tres PDFs reais agora versionados em `docs/projeto_base/` reproduziram o gate integral de 84
+folhas: 84 Sheet Maps, 84 auditorias, 14 findings, replay sem duplicar artefatos, cancelamento,
+feedback reaberto, backup verificado, restore integro e falha sintetica isolada. Os arquivos sao
+projetos distintos e continuam sem constituir um par real para F7.1/F7.2. Evidencia:
+[`docs/v01-rc1-gate-2026-09-03.json`](docs/v01-rc1-gate-2026-09-03.json).
+
 ## Requisitos locais
 
 - Node.js 20 ou superior
